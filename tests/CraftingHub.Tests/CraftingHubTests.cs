@@ -1,0 +1,507 @@
+using CraftingHub.Core;
+using Xunit;
+
+namespace CraftingHub.Tests;
+
+/// <summary>A small woodworking bench: logs make planks, fibre makes rope, planks and rope make a crate.</summary>
+internal static class Bench
+{
+    public const int Log = 1;
+    public const int Plank = 2;
+    public const int Fibre = 3;
+    public const int Rope = 4;
+    public const int Crate = 5;
+    public const int Nail = 6;
+
+    public static readonly Recipe PlankRecipe = new("plank", "Plank", Plank, Yield: 2, Mats((Log, 1)), IsLocked: false);
+    public static readonly Recipe RopeRecipe = new("rope", "Rope", Rope, Yield: 1, Mats((Fibre, 3)), IsLocked: false);
+    public static readonly Recipe CrateRecipe = new("crate", "Crate", Crate, Yield: 1, Mats((Plank, 4), (Rope, 1)), IsLocked: false);
+
+    public static RecipeBook Book(params Recipe[] extra) => new(new[] { PlankRecipe, RopeRecipe, CrateRecipe }.Concat(extra));
+
+    public static Dictionary<int, int> Mats(params (int Id, int Count)[] pairs) => pairs.ToDictionary(pair => pair.Id, pair => pair.Count);
+
+    public static string Name(int id) => id switch
+    {
+        Log => "Log",
+        Plank => "Plank",
+        Fibre => "Fibre",
+        Rope => "Rope",
+        Nail => "Nail",
+        _ => "Item " + id,
+    };
+}
+
+public class CraftPlannerTests
+{
+    [Fact]
+    public void Owned_materials_craft_the_target_directly()
+    {
+        var plan = CraftPlanner.Plan(Bench.Book(), Bench.Mats((Bench.Plank, 4), (Bench.Rope, 1)), Bench.CrateRecipe, 1, maxDepth: 4);
+
+        var ready = Assert.IsType<CraftPlan.Ready>(plan);
+        Assert.Equal(new[] { ("crate", 1) }, Steps(ready));
+    }
+
+    [Fact]
+    public void Missing_intermediates_are_made_first_from_raw_materials()
+    {
+        var plan = CraftPlanner.Plan(Bench.Book(), Bench.Mats((Bench.Log, 2), (Bench.Fibre, 3)), Bench.CrateRecipe, 1, maxDepth: 4);
+
+        var ready = Assert.IsType<CraftPlan.Ready>(plan);
+        Assert.Equal(new[] { ("plank", 2), ("rope", 1), ("crate", 1) }, Steps(ready));
+    }
+
+    [Fact]
+    public void Owned_intermediates_are_used_before_crafting_more()
+    {
+        var plan = CraftPlanner.Plan(Bench.Book(), Bench.Mats((Bench.Plank, 3), (Bench.Log, 5), (Bench.Rope, 1)), Bench.CrateRecipe, 1, maxDepth: 4);
+
+        var ready = Assert.IsType<CraftPlan.Ready>(plan);
+        Assert.Equal(new[] { ("plank", 1), ("crate", 1) }, Steps(ready));
+    }
+
+    [Fact]
+    public void Yield_rounds_crafts_up_so_odd_needs_are_covered()
+    {
+        var plan = CraftPlanner.Plan(Bench.Book(), Bench.Mats((Bench.Log, 3), (Bench.Rope, 1)), Bench.CrateRecipe, 1, maxDepth: 4);
+
+        Assert.Equal(new[] { ("plank", 2), ("crate", 1) }, Steps(Assert.IsType<CraftPlan.Ready>(plan)));
+    }
+
+    [Fact]
+    public void Several_crafts_reserve_stock_so_planks_are_not_counted_twice()
+    {
+        var plan = CraftPlanner.Plan(Bench.Book(), Bench.Mats((Bench.Plank, 4), (Bench.Log, 2), (Bench.Rope, 2)), Bench.CrateRecipe, 2, maxDepth: 4);
+
+        Assert.Equal(new[] { ("plank", 2), ("crate", 2) }, Steps(Assert.IsType<CraftPlan.Ready>(plan)));
+    }
+
+    [Fact]
+    public void Two_intermediates_drawing_on_the_same_raw_material_both_count_against_it()
+    {
+        var ropeFromLog = Bench.RopeRecipe with { Materials = Bench.Mats((Bench.Log, 1)) };
+        var book = new RecipeBook(new[] { Bench.PlankRecipe, ropeFromLog, Bench.CrateRecipe });
+
+        var plan = CraftPlanner.Plan(book, Bench.Mats((Bench.Log, 2)), Bench.CrateRecipe, 1, maxDepth: 4);
+
+        Assert.Equal(1, Assert.IsType<CraftPlan.Short>(plan).Missing[Bench.Log]);
+    }
+
+    [Fact]
+    public void Too_few_raw_materials_reports_exactly_what_is_short()
+    {
+        var plan = CraftPlanner.Plan(Bench.Book(), Bench.Mats((Bench.Log, 1), (Bench.Fibre, 1)), Bench.CrateRecipe, 1, maxDepth: 4);
+
+        var shortOf = Assert.IsType<CraftPlan.Short>(plan);
+        Assert.Equal(1, shortOf.Missing[Bench.Log]);
+        Assert.Equal(2, shortOf.Missing[Bench.Fibre]);
+    }
+
+    [Fact]
+    public void Depth_zero_turns_intermediates_off()
+    {
+        var plan = CraftPlanner.Plan(Bench.Book(), Bench.Mats((Bench.Log, 2), (Bench.Fibre, 3)), Bench.CrateRecipe, 1, maxDepth: 0);
+
+        var shortOf = Assert.IsType<CraftPlan.Short>(plan);
+        Assert.Equal(4, shortOf.Missing[Bench.Plank]);
+    }
+
+    [Fact]
+    public void A_recipe_that_needs_its_own_product_is_short_instead_of_looping()
+    {
+        var nailFromCrate = new Recipe("nail", "Nail", Bench.Nail, 1, Bench.Mats((Bench.Crate, 1)), false);
+        var crateFromNail = new Recipe("crate2", "Crate", Bench.Crate, 1, Bench.Mats((Bench.Nail, 1)), false);
+        var book = new RecipeBook(new[] { nailFromCrate, crateFromNail });
+
+        var plan = CraftPlanner.Plan(book, new Dictionary<int, int>(), crateFromNail, 1, maxDepth: 10);
+
+        Assert.IsType<CraftPlan.Short>(plan);
+    }
+
+    [Fact]
+    public void Locked_recipes_are_never_planned_as_intermediates()
+    {
+        var lockedPlank = Bench.PlankRecipe with { IsLocked = true };
+        var book = new RecipeBook(new[] { lockedPlank, Bench.RopeRecipe, Bench.CrateRecipe });
+
+        var plan = CraftPlanner.Plan(book, Bench.Mats((Bench.Log, 2), (Bench.Rope, 1)), Bench.CrateRecipe, 1, maxDepth: 4);
+
+        Assert.IsType<CraftPlan.Short>(plan);
+    }
+
+    [Fact]
+    public void The_callers_stock_is_left_untouched()
+    {
+        var stock = Bench.Mats((Bench.Log, 2), (Bench.Fibre, 3));
+
+        CraftPlanner.Plan(Bench.Book(), stock, Bench.CrateRecipe, 1, maxDepth: 4);
+
+        Assert.Equal(2, stock[Bench.Log]);
+        Assert.False(stock.ContainsKey(Bench.Plank));
+    }
+
+    private static (string, int)[] Steps(CraftPlan.Ready ready) => ready.Steps.Select(step => (step.Recipe.Key, step.Crafts)).ToArray();
+}
+
+public class ChainMarksTests
+{
+    [Fact]
+    public void A_recipe_craftable_only_through_intermediates_is_marked_with_what_it_makes_first()
+    {
+        var marks = ChainMarks.Find(Bench.Book(), Bench.Mats((Bench.Log, 2), (Bench.Fibre, 3)), new HashSet<string>(), maxDepth: 4);
+
+        Assert.Equal("Makes first: Plank ×2, Rope ×1", marks["crate"]);
+    }
+
+    [Fact]
+    public void Recipes_the_game_already_allows_are_not_marked()
+    {
+        var marks = ChainMarks.Find(Bench.Book(), Bench.Mats((Bench.Plank, 4), (Bench.Rope, 1), (Bench.Log, 9)), new HashSet<string> { "crate", "plank" }, maxDepth: 4);
+
+        Assert.Empty(marks);
+    }
+
+    [Fact]
+    public void A_recipe_needing_no_intermediates_is_not_marked_even_if_the_game_disagrees()
+    {
+        var marks = ChainMarks.Find(Bench.Book(), Bench.Mats((Bench.Plank, 4), (Bench.Rope, 1)), new HashSet<string>(), maxDepth: 4);
+
+        Assert.False(marks.ContainsKey("crate"));
+    }
+
+    [Fact]
+    public void Recipes_still_short_after_intermediates_are_not_marked()
+    {
+        var marks = ChainMarks.Find(Bench.Book(), Bench.Mats((Bench.Log, 1)), new HashSet<string>(), maxDepth: 4);
+
+        Assert.False(marks.ContainsKey("crate"));
+    }
+
+    [Fact]
+    public void Depth_zero_marks_nothing()
+    {
+        Assert.Empty(ChainMarks.Find(Bench.Book(), Bench.Mats((Bench.Log, 2), (Bench.Fibre, 3)), new HashSet<string>(), maxDepth: 0));
+    }
+}
+
+public class HomeOwnersTests
+{
+    [Fact]
+    public void Only_home_storages_not_already_linked_are_added()
+    {
+        var added = HomeOwners.ToAdd(new long[] { 10, 11 }, new long[] { 11, 12, 13, 12 }, excluded: new long[] { 13 });
+
+        Assert.Equal(new long[] { 12 }, added);
+    }
+
+    [Fact]
+    public void No_owner_is_never_added()
+    {
+        Assert.Empty(HomeOwners.ToAdd(new long[0], new long[] { 0 }, new long[0]));
+    }
+}
+
+public class CraftQueueTests
+{
+    [Fact]
+    public void Adding_the_same_recipe_twice_in_a_row_tops_up_one_order()
+    {
+        var queue = new CraftQueue();
+
+        queue.Add("crate", "Crate", 2);
+        queue.Add("crate", "Crate", 3);
+
+        Assert.Equal(5, Assert.Single(queue.Entries).Crafts);
+    }
+
+    [Fact]
+    public void Craft_now_jumps_ahead_of_waiting_orders()
+    {
+        var queue = new CraftQueue();
+
+        queue.Add("rope", "Rope", 1);
+        queue.PushFront("crate", "Crate", 1);
+
+        Assert.Equal("crate", queue.Head?.Key);
+    }
+
+    [Fact]
+    public void Progress_counts_down_the_head_and_drops_it_when_finished()
+    {
+        var queue = new CraftQueue();
+
+        queue.Add("crate", "Crate", 3);
+        queue.Add("rope", "Rope", 1);
+        queue.Progress(2);
+
+        Assert.Equal(1, queue.Head?.Crafts);
+
+        queue.Progress(5);
+
+        Assert.Equal("rope", queue.Head?.Key);
+    }
+
+    [Fact]
+    public void Removing_a_bad_index_changes_nothing()
+    {
+        var queue = new CraftQueue();
+
+        queue.Add("crate", "Crate", 1);
+        queue.Remove(4);
+        queue.Remove(-1);
+
+        Assert.Single(queue.Entries);
+    }
+}
+
+public class QueuePlannerTests
+{
+    [Fact]
+    public void An_empty_queue_is_finished()
+    {
+        Assert.IsType<NextStep.Finished>(QueuePlanner.Next(null, Bench.Book(), new Dictionary<int, int>(), 4, Bench.Name));
+    }
+
+    [Fact]
+    public void The_first_step_is_the_first_intermediate_and_is_not_the_target()
+    {
+        var next = QueuePlanner.Next(new QueueEntry("crate", "Crate", 1), Bench.Book(), Bench.Mats((Bench.Log, 2), (Bench.Fibre, 3)), 4, Bench.Name);
+
+        var craft = Assert.IsType<NextStep.Craft>(next);
+        Assert.Equal("plank", craft.Step.Recipe.Key);
+        Assert.False(craft.IsTarget);
+    }
+
+    [Fact]
+    public void Short_stock_blocks_with_the_missing_items_named()
+    {
+        var next = QueuePlanner.Next(new QueueEntry("crate", "Crate", 1), Bench.Book(), Bench.Mats((Bench.Log, 2)), 4, Bench.Name);
+
+        Assert.Equal("can't make Crate ×1: short of Fibre ×3", Assert.IsType<NextStep.Blocked>(next).Reason);
+    }
+
+    [Fact]
+    public void A_recipe_from_another_workbench_blocks()
+    {
+        var next = QueuePlanner.Next(new QueueEntry("anvil", "Anvil", 1), Bench.Book(), new Dictionary<int, int>(), 4, Bench.Name);
+
+        Assert.IsType<NextStep.Blocked>(next);
+    }
+}
+
+public class QueueRunnerTests
+{
+    private static readonly CraftStep PlankStep = new(Bench.PlankRecipe, 3);
+    private static readonly IReadOnlyDictionary<int, int> Empty = new Dictionary<int, int>();
+    private static readonly IReadOnlyDictionary<int, int> LogsLaidOut = Bench.Mats((Bench.Log, 3));
+
+    private static BenchView Idle(IReadOnlyDictionary<int, int>? contents = null, int max = 0) => new(true, false, false, max, contents ?? Empty, 0);
+
+    private static NextStep PlankNext() => new NextStep.Craft(PlankStep, IsTarget: true);
+
+    [Fact]
+    public void A_full_step_is_click_recipe_then_craft_then_confirm_then_done()
+    {
+        var runner = new QueueRunner();
+
+        runner.Start();
+
+        Assert.Equal(new RunnerCommand.ClickRecipe("plank"), runner.Tick(Idle(), 0, PlankNext));
+        Assert.IsType<RunnerCommand.None>(runner.Tick(Idle(LogsLaidOut, 3), 0.1, PlankNext));
+        Assert.Equal(new RunnerCommand.Craft(3), runner.Tick(Idle(LogsLaidOut, 3), 0.4, PlankNext));
+        Assert.IsType<RunnerCommand.None>(runner.Tick(new BenchView(true, true, false, 3, LogsLaidOut, 1), 1, PlankNext));
+        Assert.IsType<RunnerCommand.ConfirmResult>(runner.Tick(new BenchView(true, false, true, 0, Empty, 3), 2, PlankNext));
+
+        var done = Assert.IsType<RunnerCommand.StepDone>(runner.Tick(Idle(), 2.1, PlankNext));
+        Assert.Equal(3, done.Crafts);
+        Assert.True(done.IsTarget);
+    }
+
+    [Fact]
+    public void A_batch_is_never_larger_than_the_game_allows()
+    {
+        var runner = new QueueRunner();
+
+        runner.Start();
+        runner.Tick(Idle(), 0, PlankNext);
+        runner.Tick(Idle(LogsLaidOut, 2), 0.1, PlankNext);
+
+        Assert.Equal(new RunnerCommand.Craft(2), runner.Tick(Idle(LogsLaidOut, 2), 0.5, PlankNext));
+    }
+
+    [Fact]
+    public void The_result_is_not_confirmed_while_a_batch_is_still_running()
+    {
+        var runner = CraftingRunner();
+
+        Assert.IsType<RunnerCommand.None>(runner.Tick(new BenchView(true, true, true, 0, Empty, 1), 1, PlankNext));
+    }
+
+    [Fact]
+    public void A_short_batch_reports_the_crafts_the_game_finished()
+    {
+        var runner = CraftingRunner();
+
+        runner.Tick(new BenchView(true, true, false, 0, Empty, 2), 1, PlankNext);
+        runner.Tick(new BenchView(true, false, true, 0, Empty, 2), 2, PlankNext);
+
+        Assert.Equal(2, Assert.IsType<RunnerCommand.StepDone>(runner.Tick(Idle(), 3, PlankNext)).Crafts);
+    }
+
+    [Fact]
+    public void A_finished_craft_with_no_result_screen_still_completes()
+    {
+        var runner = CraftingRunner();
+
+        runner.Tick(new BenchView(true, true, false, 0, Empty, 0), 1, PlankNext);
+        Assert.IsType<RunnerCommand.None>(runner.Tick(Idle(), 1.5, PlankNext));
+
+        Assert.IsType<RunnerCommand.StepDone>(runner.Tick(Idle(), 3.1, PlankNext));
+    }
+
+    [Fact]
+    public void Materials_that_never_appear_stop_the_run_with_a_reason()
+    {
+        var runner = new QueueRunner();
+
+        runner.Start();
+        runner.Tick(Idle(), 0, PlankNext);
+
+        var stopped = Assert.IsType<RunnerCommand.Stopped>(runner.Tick(Idle(), QueueRunner.FillTimeoutSeconds + 0.1, PlankNext));
+        Assert.Contains("Plank", stopped.Reason);
+        Assert.False(runner.IsRunning);
+    }
+
+    [Fact]
+    public void Wrong_materials_on_the_bench_do_not_start_a_craft()
+    {
+        var runner = new QueueRunner();
+
+        runner.Start();
+        runner.Tick(Idle(), 0, PlankNext);
+        runner.Tick(Idle(Bench.Mats((Bench.Log, 3), (Bench.Fibre, 1)), 3), 0.1, PlankNext);
+
+        Assert.IsType<RunnerCommand.None>(runner.Tick(Idle(Bench.Mats((Bench.Log, 3), (Bench.Fibre, 1)), 3), 0.5, PlankNext));
+    }
+
+    [Fact]
+    public void A_craft_that_never_starts_stops_the_run()
+    {
+        var runner = CraftingRunner();
+
+        Assert.IsType<RunnerCommand.Stopped>(runner.Tick(Idle(), QueueRunner.StartTimeoutSeconds + 1, PlankNext));
+    }
+
+    [Fact]
+    public void Closing_the_workbench_stops_the_run()
+    {
+        var runner = CraftingRunner();
+
+        Assert.IsType<RunnerCommand.Stopped>(runner.Tick(new BenchView(false, false, false, 0, Empty, 0), 1, PlankNext));
+    }
+
+    [Fact]
+    public void An_empty_queue_stops_as_done()
+    {
+        var runner = new QueueRunner();
+
+        runner.Start();
+
+        Assert.True(Assert.IsType<RunnerCommand.Stopped>(runner.Tick(Idle(), 0, () => new NextStep.Finished())).IsDone);
+    }
+
+    [Fact]
+    public void Endless_intermediates_without_a_finished_target_stop_the_run()
+    {
+        var runner = new QueueRunner();
+        RunnerCommand last = new RunnerCommand.None();
+        var now = 0.0;
+        NextStep Intermediate() => new NextStep.Craft(PlankStep, IsTarget: false);
+
+        runner.Start();
+
+        for (var batch = 0; batch <= QueueRunner.MaxIntermediateBatches && last is not RunnerCommand.Stopped; batch++)
+        {
+            last = runner.Tick(Idle(), now += 1, Intermediate);
+
+            if (last is RunnerCommand.Stopped) break;
+
+            runner.Tick(Idle(LogsLaidOut, 3), now += 0.1, Intermediate);
+            runner.Tick(Idle(LogsLaidOut, 3), now += 0.5, Intermediate);
+            runner.Tick(new BenchView(true, false, true, 0, Empty, 3), now += 1, Intermediate);
+            runner.Tick(Idle(), now += 0.1, Intermediate);
+        }
+
+        Assert.IsType<RunnerCommand.Stopped>(last);
+    }
+
+    [Fact]
+    public void A_stopped_runner_does_nothing()
+    {
+        Assert.IsType<RunnerCommand.None>(new QueueRunner().Tick(Idle(), 0, PlankNext));
+    }
+
+    private static QueueRunner CraftingRunner()
+    {
+        var runner = new QueueRunner();
+
+        runner.Start();
+        runner.Tick(Idle(), 0, PlankNext);
+        runner.Tick(Idle(LogsLaidOut, 3), 0.1, PlankNext);
+        runner.Tick(Idle(LogsLaidOut, 3), 0.5, PlankNext);
+
+        return runner;
+    }
+}
+
+public class PageCommandTests
+{
+    [Fact]
+    public void Recipe_keys_survive_encoding_even_with_separators_inside()
+    {
+        var command = PageCommand.Parse(PageCommand.Prefix + "add|" + Uri.EscapeDataString("101|202,3") + "|4");
+
+        Assert.Equal(new PageCommand.Add("101|202,3", 4), command);
+    }
+
+    [Fact]
+    public void Craft_now_carries_its_quantity()
+    {
+        Assert.Equal(new PageCommand.CraftNow("crate", 2), PageCommand.Parse(PageCommand.Prefix + "chain|crate|2"));
+    }
+
+    [Fact]
+    public void A_zero_or_negative_quantity_is_rejected()
+    {
+        Assert.IsType<PageCommand.Unknown>(PageCommand.Parse(PageCommand.Prefix + "add|crate|0"));
+        Assert.IsType<PageCommand.Unknown>(PageCommand.Parse(PageCommand.Prefix + "add|crate|-1"));
+    }
+
+    [Fact]
+    public void Diagnostics_keep_their_pipes()
+    {
+        Assert.Equal(new PageCommand.Diagnostic("a|b"), PageCommand.Parse(PageCommand.Prefix + "diag|a|b"));
+    }
+
+    [Fact]
+    public void Other_mods_messages_are_not_ours()
+    {
+        Assert.False(PageCommand.IsOurs("slmod|storagehub|ready"));
+    }
+}
+
+public class HubViewTests
+{
+    [Fact]
+    public void The_view_is_json_the_page_can_read_with_hostile_names_escaped()
+    {
+        var json = HubView.Build(new Dictionary<string, string> { ["crate"] = "Makes first: \"Plank\" ×2" }, new[] { new QueueEntry("crate", "Crate</script>", 2) }, true, "line\nbreak");
+
+        using var parsed = System.Text.Json.JsonDocument.Parse(json);
+        Assert.Equal("Makes first: \"Plank\" ×2", parsed.RootElement.GetProperty("marks").GetProperty("crate").GetString());
+        Assert.Equal("Crate</script>", parsed.RootElement.GetProperty("queue")[0].GetProperty("name").GetString());
+        Assert.True(parsed.RootElement.GetProperty("running").GetBoolean());
+        Assert.DoesNotContain("</script>", json);
+    }
+}
