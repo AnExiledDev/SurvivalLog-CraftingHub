@@ -53,7 +53,7 @@ internal sealed class WorkbenchPage
 
     private bool Run(string javaScript)
     {
-        var webView = BaseSingleton<ReduxUISystem>.Instance?.GetWebUILayer()?.canvasWebViewPrefab?.WebView;
+        var webView = GameSingleton.Existing<ReduxUISystem>()?.GetWebUILayer()?.canvasWebViewPrefab?.WebView;
 
         if (webView == null) return false;
 

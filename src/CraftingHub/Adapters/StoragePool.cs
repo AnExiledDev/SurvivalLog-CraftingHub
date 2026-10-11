@@ -70,7 +70,7 @@ internal static class StoragePool
         HomeCache.Clear();
         _cachedFrame = Time.frameCount;
 
-        var agents = BaseSingleton<BattleLogicWorld>.Instance?._AgentManager;
+        var agents = GameSingleton.Existing<BattleLogicWorld>()?._AgentManager;
         var found = agents?.GetFurnituresWithBag(agents.GetHomeMapId(), true, true);
 
         for (var i = 0; found != null && i < found.Count; i++)

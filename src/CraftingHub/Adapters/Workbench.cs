@@ -50,7 +50,7 @@ internal sealed class Workbench
         }
     }
 
-    public bool IsOpen => _state != null && BaseSingleton<ReduxUISystem>.Instance?.IsUIActive(Il2CppType.Of<WebUI_ToolTable>()) == true;
+    public bool IsOpen => _state != null && GameSingleton.Existing<ReduxUISystem>()?.IsUIActive(Il2CppType.Of<WebUI_ToolTable>()) == true;
 
     public BenchRead? Read()
     {
@@ -100,7 +100,7 @@ internal sealed class Workbench
     {
         if (_itemNames.TryGetValue(configId, out var cached)) return cached;
 
-        var config = BaseSingleton<ConfigManager>.Instance;
+        var config = GameSingleton.Existing<ConfigManager>();
         var item = config?.Get_Config_Item(configId);
         var local = item == null || config == null || string.IsNullOrEmpty(item.ItemName) ? null : config.GetLocalTxt(item.ItemName);
         var name = !string.IsNullOrEmpty(local) && local != item?.ItemName ? local : NonEmpty(item?.ItemName_Local) ?? NonEmpty(item?.ItemName) ?? $"Item {configId}";
@@ -114,7 +114,7 @@ internal sealed class Workbench
         _refreshes++;
     }
 
-    private static State_Data_Item? ItemState() => BaseSingleton<ReduxUISystem>.Instance?.GetData<State_Data_Item>(Il2CppType.Of<State_Data_Item>());
+    private static State_Data_Item? ItemState() => GameSingleton.Existing<ReduxUISystem>()?.GetData<State_Data_Item>(Il2CppType.Of<State_Data_Item>());
 
     /// <summary>Counted the game's own way (it skips spoiled food) over the same storages it would craft from.</summary>
     private static Dictionary<int, int> Stock(State_Web_ToolTable state, State_Data_Item items, IEnumerable<int> materialIds)
@@ -154,7 +154,7 @@ internal sealed class Workbench
     {
         if (_recipes.TryGetValue(key, out var cached)) return cached;
 
-        var map = BaseSingleton<ConfigManager>.Instance?.GetAllProductionListMap();
+        var map = GameSingleton.Existing<ConfigManager>()?.GetAllProductionListMap();
         Recipe? recipe = null;
 
         if (map != null && map.TryGetValue(key, out var production) && production?.ProductID is { Count: > 0 } products && production.MaterialList != null)
