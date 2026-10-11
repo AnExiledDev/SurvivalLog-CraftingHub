@@ -59,6 +59,9 @@
   function install(win) {
     if (win.__ccInstalled) return;
 
+    // A page still loading has not defined its functions yet; the poll tries again, so only a loaded page counts.
+    if (win.document.readyState !== 'complete') return;
+
     var core = benchCore(win);
 
     if (!core || typeof win.buildRecipeItem !== 'function') {
