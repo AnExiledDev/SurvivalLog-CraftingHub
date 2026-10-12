@@ -65,7 +65,7 @@ Kept counts belong to the save you are playing. They are stored in `BepInEx\conf
 
 This mod uses materials from every storage in your home and crafts many times on its own. Back up your save before trying it for the first time.
 
-- Intermediates are only made at the workbench you are using. Making them on another workbench is not done yet; it may be possible later. For now, when an intermediate comes from another workbench, make it there first.
+- Intermediates are only made at the workbench you are using. The game only crafts at a workbench whose window is open, and it uses your character for that, so the mod cannot craft at another workbench for you. When an intermediate comes from another workbench, make it there first.
 - The queue lives in memory only: quitting the game or loading another save empties it.
 - When the queue carries on after the workbench reopens, it starts crafting right away. Press Stop first if you opened the workbench to do something else.
 - A craft that is still going when you press Stop is not counted against its order, so starting the queue again can make that batch a second time. Check the queue chips before you press Start again.
