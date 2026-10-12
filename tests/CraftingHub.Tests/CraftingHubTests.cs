@@ -947,7 +947,7 @@ public class KeepSlotTests
 
         Assert.Equal(SlotLoad.Read, slot.Load());
         Assert.Equal(KeepEdit.Saved, slot.Set(Plank));
-        Assert.Equal(new[] { Rope, Plank }, store.Saved["A.bytes"].All.OrderBy(target => target.ItemId));
+        Assert.Equal(new[] { Plank, Rope }, store.Saved["A.bytes"].All.OrderBy(target => target.ItemId));
     }
 
     [Fact]
