@@ -10,9 +10,17 @@
   var BENCH_PAGE = /ToolTable\.html/;
   var POLL_MS = 500;
 
-  var view = { marks: {}, queue: [], running: false, status: '' };
+  var DEFAULT_KEEP = 10;
+  var MAX_KEEP = 9999;
+
+  var view = { marks: {}, queue: [], running: false, status: '', keep: { on: false, targets: [], byKey: {} } };
   var selectedKey = '';
   var reported = {};
+  // The keep count being typed, for the recipe it was typed on. While its box has focus the panel is not rebuilt,
+  // so a view update cannot throw away what is being typed; the skipped redraw happens on blur.
+  var keepDraft = { key: '', count: DEFAULT_KEEP };
+  var isTypingKeep = false;
+  var hasSkippedRender = false;
 
   function post(message) {
     try {
@@ -113,7 +121,7 @@
     core.UnitySendEvent = function (action, data) {
       if (action === 'RECIPE_CLICK' && data && data.recipeKey) {
         selectedKey = data.recipeKey;
-        renderAll();
+        setData();
       }
 
       return original.apply(this, arguments);
@@ -143,7 +151,8 @@
       '.cc-panel .btn{padding:5px 14px;font-size:12px}',
       '.cc-chip{display:inline-flex;align-items:center;gap:6px;padding:3px 8px;border-radius:4px;background:rgba(8,8,10,.55);border:1px solid rgba(255,255,255,.08);color:#ddd}',
       '.cc-chip-x{cursor:pointer;color:#888}.cc-chip-x:hover{color:#fff}',
-      '.cc-title{letter-spacing:.5px;text-transform:uppercase;color:#777;font-size:11px}'
+      '.cc-title{letter-spacing:.5px;text-transform:uppercase;color:#777;font-size:11px}',
+      '.cc-kept{color:var(--accent)}'
     ].join('');
     doc.head.appendChild(style);
   }
@@ -244,7 +253,125 @@
       panel.appendChild(chips);
     }
 
+    renderKeep(win, panel);
+
     if (view.status) panel.appendChild(el(doc, 'div', 'cc-status', view.status));
+  }
+
+  function keptFor(key) {
+    var byKey = view.keep && view.keep.byKey;
+
+    return byKey && Object.prototype.hasOwnProperty.call(byKey, key) ? byKey[key] : 0;
+  }
+
+  function clampKeep(value) {
+    var n = parseInt(value, 10);
+
+    return isNaN(n) ? 0 : Math.max(0, Math.min(MAX_KEEP, n));
+  }
+
+  // Tells the game a text box has focus, as the page's own quantity box does, so typing does not trigger hotkeys.
+  function sendFocus(win, isFocused) {
+    var core = benchCore(win);
+
+    try {
+      if (core) core.UnitySendEvent('SEARCH_FOCUS', { focused: isFocused });
+    } catch (e) {}
+  }
+
+  function stepButton(doc, text, title, onClick) {
+    var node = el(doc, 'button', null, text);
+    node.type = 'button';
+    node.title = title;
+    node.addEventListener('click', function (e) {
+      e.stopPropagation();
+      onClick();
+    });
+
+    return node;
+  }
+
+  // The selected recipe's keep-stocked row, then every target this save keeps, each with a remove cross.
+  function renderKeep(win, panel) {
+    var doc = win.document;
+    var keep = view.keep;
+
+    if (!keep || !keep.on) return;
+
+    if (selectedKey) panel.appendChild(keepRow(win, doc));
+
+    if (!keep.targets || !keep.targets.length) return;
+
+    var chips = el(doc, 'div', 'cc-row');
+    chips.appendChild(el(doc, 'span', 'cc-title', 'Keep stocked'));
+
+    keep.targets.forEach(function (target) {
+      var chip = el(doc, 'span', 'cc-chip', target.name + ' ' + target.count);
+      var remove = el(doc, 'span', 'cc-chip-x', '\u2715');
+      remove.title = 'Stop keeping ' + target.name + ' stocked';
+      remove.addEventListener('click', function (e) {
+        e.stopPropagation();
+        post('unkeep|' + target.item);
+      });
+      chip.appendChild(remove);
+      chips.appendChild(chip);
+    });
+
+    panel.appendChild(chips);
+  }
+
+  function keepRow(win, doc) {
+    var kept = keptFor(selectedKey);
+
+    if (keepDraft.key !== selectedKey) keepDraft = { key: selectedKey, count: kept || DEFAULT_KEEP };
+
+    var row = el(doc, 'div', 'cc-row');
+    var stepper = el(doc, 'span', 'qty-step');
+    var input = el(doc, 'input');
+
+    function setDraft(value) {
+      keepDraft.count = clampKeep(value);
+      input.value = String(keepDraft.count);
+    }
+
+    input.type = 'text';
+    input.inputMode = 'numeric';
+    input.value = String(keepDraft.count);
+    input.title = 'How many to keep in your home';
+    input.addEventListener('focus', function () {
+      isTypingKeep = true;
+      input.select();
+      sendFocus(win, true);
+    });
+    input.addEventListener('blur', function () {
+      isTypingKeep = false;
+      setDraft(input.value);
+      sendFocus(win, false);
+
+      if (hasSkippedRender) {
+        hasSkippedRender = false;
+        renderAll();
+      }
+    });
+    input.addEventListener('keydown', function (e) {
+      e.stopPropagation();
+
+      if (e.key === 'Enter') input.blur();
+    });
+
+    stepper.appendChild(stepButton(doc, '\u2212', 'One less', function () { setDraft(keepDraft.count - 1); }));
+    stepper.appendChild(input);
+    stepper.appendChild(stepButton(doc, '+', 'One more', function () { setDraft(keepDraft.count + 1); }));
+
+    row.appendChild(el(doc, 'span', 'cc-title', 'Keep in stock'));
+    row.appendChild(stepper);
+    row.appendChild(button(doc, 'Keep stocked', 'Keep this many in your home: opening a workbench that makes it queues the crafts to top it back up. 0 stops keeping it.', function () {
+      post('keep|' + encodeURIComponent(selectedKey) + '|' + clampKeep(input.value));
+    }));
+
+    if (kept) row.appendChild(el(doc, 'span', 'cc-kept', '(keeping ' + kept + ')'));
+
+    return row;
   }
 
   function renderWindow(win) {
@@ -273,6 +400,12 @@
 
   function setData(next) {
     if (next) view = next;
+
+    if (isTypingKeep) {
+      hasSkippedRender = true;
+
+      return;
+    }
 
     renderAll();
   }

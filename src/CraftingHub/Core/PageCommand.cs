@@ -31,6 +31,12 @@ public abstract record PageCommand
 
     public sealed record Clear : PageCommand;
 
+    /// <summary>Keep <see cref="Count"/> of what a recipe makes in the home; 0 stops keeping it.</summary>
+    public sealed record Keep(string Key, int Count) : PageCommand;
+
+    /// <summary>Stop keeping an item stocked.</summary>
+    public sealed record Unkeep(int ItemId) : PageCommand;
+
     /// <summary>The page script just installed itself.</summary>
     public sealed record Ready : PageCommand;
 
@@ -62,6 +68,8 @@ public abstract record PageCommand
             ("stop", 1) => new Stop(),
             ("remove", 2) when TryInt(parts[1], out var index) => new Remove(index),
             ("clear", 1) => new Clear(),
+            ("keep", 3) when TryKey(parts[1], out var key) && TryInt(parts[2], out var count) && count <= KeepTarget.MaxCount => new Keep(key, count),
+            ("unkeep", 2) when TryCount(parts[1], out var itemId) => new Unkeep(itemId),
             ("ready", 1) => new Ready(),
             ("noscript", 1) => new NoScript(),
             _ => new Unknown(message),

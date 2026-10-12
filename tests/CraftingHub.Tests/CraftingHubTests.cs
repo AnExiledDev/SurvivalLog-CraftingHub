@@ -485,6 +485,27 @@ public class PageCommandTests
     }
 
     [Fact]
+    public void A_keep_count_carries_its_recipe_and_zero_means_stop_keeping()
+    {
+        Assert.Equal(new PageCommand.Keep("101|202", 10), PageCommand.Parse(PageCommand.Prefix + "keep|" + Uri.EscapeDataString("101|202") + "|10"));
+        Assert.Equal(new PageCommand.Keep("rope", 0), PageCommand.Parse(PageCommand.Prefix + "keep|rope|0"));
+    }
+
+    [Fact]
+    public void A_keep_count_out_of_range_is_rejected()
+    {
+        Assert.IsType<PageCommand.Unknown>(PageCommand.Parse(PageCommand.Prefix + "keep|rope|-1"));
+        Assert.IsType<PageCommand.Unknown>(PageCommand.Parse(PageCommand.Prefix + "keep|rope|" + (KeepTarget.MaxCount + 1)));
+    }
+
+    [Fact]
+    public void Unkeep_names_the_item()
+    {
+        Assert.Equal(new PageCommand.Unkeep(4), PageCommand.Parse(PageCommand.Prefix + "unkeep|4"));
+        Assert.IsType<PageCommand.Unknown>(PageCommand.Parse(PageCommand.Prefix + "unkeep|0"));
+    }
+
+    [Fact]
     public void Other_mods_messages_are_not_ours()
     {
         Assert.False(PageCommand.IsOurs("slmod|storagehub|ready"));
@@ -496,12 +517,309 @@ public class HubViewTests
     [Fact]
     public void The_view_is_json_the_page_can_read_with_hostile_names_escaped()
     {
-        var json = HubView.Build(new Dictionary<string, string> { ["crate"] = "Makes first: \"Plank\" ×2" }, new[] { new QueueEntry("crate", "Crate</script>", 2) }, true, "line\nbreak");
+        var json = HubView.Build(new Dictionary<string, string> { ["crate"] = "Makes first: \"Plank\" ×2" }, new[] { new QueueEntry("crate", "Crate</script>", 2) }, true, "line\nbreak", NoKeep);
 
         using var parsed = System.Text.Json.JsonDocument.Parse(json);
         Assert.Equal("Makes first: \"Plank\" ×2", parsed.RootElement.GetProperty("marks").GetProperty("crate").GetString());
         Assert.Equal("Crate</script>", parsed.RootElement.GetProperty("queue")[0].GetProperty("name").GetString());
         Assert.True(parsed.RootElement.GetProperty("running").GetBoolean());
         Assert.DoesNotContain("</script>", json);
+    }
+
+    [Fact]
+    public void The_page_gets_every_target_and_the_count_kept_for_each_recipe()
+    {
+        var keep = new KeepView(true, new[] { new KeepTarget(Bench.Rope, "rope", "Rope \"tough\"", 5) }, new Dictionary<string, int> { ["rope"] = 5 });
+
+        var json = HubView.Build(new Dictionary<string, string>(), Array.Empty<QueueEntry>(), false, "", keep);
+
+        using var parsed = System.Text.Json.JsonDocument.Parse(json);
+        var shown = parsed.RootElement.GetProperty("keep");
+        Assert.True(shown.GetProperty("on").GetBoolean());
+        Assert.Equal(Bench.Rope, shown.GetProperty("targets")[0].GetProperty("item").GetInt32());
+        Assert.Equal("Rope \"tough\"", shown.GetProperty("targets")[0].GetProperty("name").GetString());
+        Assert.Equal(5, shown.GetProperty("targets")[0].GetProperty("count").GetInt32());
+        Assert.Equal(5, shown.GetProperty("byKey").GetProperty("rope").GetInt32());
+    }
+
+    private static readonly KeepView NoKeep = new(false, Array.Empty<KeepTarget>(), new Dictionary<string, int>());
+}
+
+public class TopUpPlannerTests
+{
+    private const int Net = 7;
+
+    private static readonly Recipe NetRecipe = new("net", "Net", Net, Yield: 1, Bench.Mats((Bench.Fibre, 3)), IsLocked: false);
+
+    [Fact]
+    public void A_low_item_is_topped_up_to_its_target()
+    {
+        var plan = Plan(new[] { Keep(Bench.Rope, "rope", 5) }, Bench.Mats((Bench.Fibre, 30)), Bench.Mats((Bench.Rope, 2)));
+
+        Assert.Equal(new[] { ("rope", 3) }, Orders(plan));
+    }
+
+    [Fact]
+    public void Nothing_is_queued_when_the_home_already_holds_the_target()
+    {
+        var plan = Plan(new[] { Keep(Bench.Rope, "rope", 5) }, Bench.Mats((Bench.Fibre, 30)), Bench.Mats((Bench.Rope, 5)));
+
+        Assert.True(plan.IsEmpty);
+    }
+
+    [Fact]
+    public void What_the_queue_already_makes_counts_against_the_target()
+    {
+        var targets = new[] { Keep(Bench.Rope, "rope", 5) };
+
+        var partly = Plan(targets, Bench.Mats((Bench.Fibre, 30)), Bench.Mats((Bench.Rope, 2)), new QueueEntry("rope", "Rope", 2));
+        var fully = Plan(targets, Bench.Mats((Bench.Fibre, 30)), Bench.Mats((Bench.Rope, 2)), new QueueEntry("rope", "Rope", 3));
+
+        Assert.Equal(new[] { ("rope", 1) }, Orders(partly));
+        Assert.True(fully.IsEmpty);
+    }
+
+    [Fact]
+    public void Orders_are_capped_by_the_materials_in_the_house()
+    {
+        var plan = Plan(new[] { Keep(Bench.Rope, "rope", 10) }, Bench.Mats((Bench.Fibre, 9)), Bench.Mats((Bench.Rope, 0)));
+
+        Assert.Equal(new[] { ("rope", 3) }, Orders(plan));
+    }
+
+    [Fact]
+    public void A_target_with_no_materials_is_reported_and_not_queued()
+    {
+        var plan = Plan(new[] { Keep(Bench.Rope, "rope", 5) }, Bench.Mats((Bench.Fibre, 2)), Bench.Mats((Bench.Rope, 0)));
+
+        Assert.Empty(plan.Orders);
+        Assert.Equal(new[] { "Rope" }, plan.Short);
+        Assert.Contains("not enough materials for Rope", TopUpPlanner.Describe(plan));
+    }
+
+    [Fact]
+    public void Materials_the_queue_will_use_are_not_planned_twice()
+    {
+        var plan = Plan(new[] { Keep(Bench.Rope, "rope", 5) }, Bench.Mats((Bench.Fibre, 9)), Bench.Mats((Bench.Rope, 0)), new QueueEntry("net", "Net", 2));
+
+        Assert.Equal(new[] { ("rope", 1) }, Orders(plan));
+    }
+
+    [Fact]
+    public void Two_targets_share_the_materials_instead_of_both_counting_them()
+    {
+        var targets = new[] { Keep(Bench.Rope, "rope", 2), Keep(Net, "net", 2) };
+
+        var plan = Plan(targets, Bench.Mats((Bench.Fibre, 9)), Bench.Mats((Bench.Rope, 0), (Net, 0)));
+
+        Assert.Equal(new[] { ("rope", 2), ("net", 1) }, Orders(plan));
+    }
+
+    [Fact]
+    public void A_later_target_cannot_use_up_what_an_earlier_one_keeps()
+    {
+        var targets = new[] { Keep(Bench.Plank, "plank", 4), Keep(Bench.Crate, "crate", 1) };
+
+        var plan = Plan(targets, Bench.Mats((Bench.Log, 2), (Bench.Rope, 1)), Bench.Mats((Bench.Plank, 0), (Bench.Crate, 0)));
+
+        Assert.Equal(new[] { ("plank", 2) }, Orders(plan));
+        Assert.Equal(new[] { "Crate" }, plan.Short);
+    }
+
+    [Fact]
+    public void Crafts_round_up_when_a_recipe_makes_several()
+    {
+        var plan = Plan(new[] { Keep(Bench.Plank, "plank", 5) }, Bench.Mats((Bench.Log, 10)), Bench.Mats((Bench.Plank, 0)));
+
+        Assert.Equal(new[] { ("plank", 3) }, Orders(plan));
+    }
+
+    [Fact]
+    public void Intermediates_are_planned_for_a_target_that_needs_them()
+    {
+        var plan = Plan(new[] { Keep(Bench.Crate, "crate", 1) }, Bench.Mats((Bench.Log, 2), (Bench.Fibre, 3)), Bench.Mats((Bench.Crate, 0)));
+
+        Assert.Equal(new[] { ("crate", 1) }, Orders(plan));
+    }
+
+    [Fact]
+    public void A_locked_or_missing_recipe_is_left_alone()
+    {
+        var lockedRope = Bench.RopeRecipe with { IsLocked = true };
+        var book = new RecipeBook(new[] { Bench.PlankRecipe, lockedRope, Bench.CrateRecipe });
+        var targets = new[] { Keep(Bench.Rope, "rope", 5), Keep(Net, "net", 5) };
+
+        var plan = TopUpPlanner.Plan(targets, book, Bench.Mats((Bench.Fibre, 30)), Bench.Mats((Bench.Rope, 0), (Net, 0)), Array.Empty<QueueEntry>(), maxDepth: 4);
+
+        Assert.True(plan.IsEmpty);
+    }
+
+    [Fact]
+    public void A_target_whose_home_count_is_unknown_is_skipped()
+    {
+        var plan = Plan(new[] { Keep(Bench.Rope, "rope", 5) }, Bench.Mats((Bench.Fibre, 30)), Bench.Mats());
+
+        Assert.True(plan.IsEmpty);
+    }
+
+    private static KeepTarget Keep(int itemId, string key, int count) => new(itemId, key, NameOf(itemId), count);
+
+    private static string NameOf(int itemId) => itemId switch
+    {
+        Net => "Net",
+        Bench.Crate => "Crate",
+        _ => Bench.Name(itemId),
+    };
+
+    private static TopUpPlan Plan(KeepTarget[] targets, Dictionary<int, int> stock, Dictionary<int, int> held, params QueueEntry[] queue) =>
+        TopUpPlanner.Plan(targets, Bench.Book(NetRecipe), stock, held, queue, maxDepth: 4);
+
+    private static (string, int)[] Orders(TopUpPlan plan) => plan.Orders.Select(order => (order.Recipe.Key, order.Crafts)).ToArray();
+}
+
+public class TopUpTimingTests
+{
+    [Fact]
+    public void A_bench_is_checked_once_after_it_settles()
+    {
+        var timing = new TopUpTiming();
+
+        Assert.False(timing.IsDue(true, 0));
+        Assert.False(timing.IsDue(true, 1));
+        Assert.True(timing.IsDue(true, TopUpTiming.SettleSeconds));
+
+        timing.Done();
+
+        Assert.False(timing.IsDue(true, 5));
+        Assert.False(timing.IsDue(true, 60));
+    }
+
+    [Fact]
+    public void Opening_the_bench_again_checks_again()
+    {
+        var timing = new TopUpTiming();
+
+        timing.IsDue(true, 0);
+        timing.IsDue(true, 2);
+        timing.Done();
+        timing.IsDue(false, 3);
+
+        Assert.False(timing.IsDue(true, 4));
+        Assert.True(timing.IsDue(true, 4 + TopUpTiming.SettleSeconds));
+    }
+
+    [Fact]
+    public void A_changed_target_is_checked_without_reopening()
+    {
+        var timing = new TopUpTiming();
+
+        timing.IsDue(true, 0);
+        timing.IsDue(true, 2);
+        timing.Done();
+        timing.Request();
+
+        Assert.True(timing.IsDue(true, 2.1));
+    }
+
+    [Fact]
+    public void A_closed_bench_is_never_due()
+    {
+        var timing = new TopUpTiming();
+
+        timing.Request();
+
+        Assert.False(timing.IsDue(false, 10));
+    }
+}
+
+public class KeepTargetsTests
+{
+    [Fact]
+    public void Setting_zero_stops_keeping_the_item()
+    {
+        var targets = new KeepTargets(new[] { new KeepTarget(Bench.Rope, "rope", "Rope", 5) });
+
+        targets.Set(new KeepTarget(Bench.Rope, "rope", "Rope", 0));
+
+        Assert.Empty(targets.All);
+    }
+
+    [Fact]
+    public void An_item_has_one_target_and_the_latest_wins()
+    {
+        var targets = new KeepTargets();
+
+        targets.Set(new KeepTarget(Bench.Rope, "rope", "Rope", 5));
+        targets.Set(new KeepTarget(Bench.Rope, "rope-alt", "Rope", 8));
+
+        Assert.Equal(new[] { new KeepTarget(Bench.Rope, "rope-alt", "Rope", 8) }, targets.All);
+    }
+
+    [Fact]
+    public void Counts_are_capped()
+    {
+        var targets = new KeepTargets();
+
+        targets.Set(new KeepTarget(Bench.Rope, "rope", "Rope", 50000));
+
+        Assert.Equal(KeepTarget.MaxCount, targets.All[0].Count);
+    }
+
+    [Fact]
+    public void Every_recipe_that_makes_a_kept_item_shows_its_count()
+    {
+        var ropeAlt = Bench.RopeRecipe with { Key = "rope-alt" };
+        var targets = new KeepTargets(new[] { new KeepTarget(Bench.Rope, "rope", "Rope", 5) });
+
+        var byKey = targets.ByRecipe(Bench.Book(ropeAlt));
+
+        Assert.Equal(new[] { ("rope", 5), ("rope-alt", 5) }, byKey.OrderBy(pair => pair.Key, StringComparer.Ordinal).Select(pair => (pair.Key, pair.Value)));
+    }
+
+    [Fact]
+    public void Removing_an_item_stops_keeping_it()
+    {
+        var targets = new KeepTargets(new[] { new KeepTarget(Bench.Rope, "rope", "Rope", 5), new KeepTarget(Bench.Plank, "plank", "Plank", 9) });
+
+        targets.Remove(Bench.Rope);
+
+        Assert.Equal(new[] { Bench.Plank }, targets.All.Select(target => target.ItemId));
+    }
+}
+
+public class TargetFileTests
+{
+    [Fact]
+    public void Targets_read_back_as_written_even_with_separators_in_names()
+    {
+        var targets = new KeepTargets(new[] { new KeepTarget(Bench.Rope, "101|202\t3", "Rope\nlong", 5), new KeepTarget(Bench.Plank, "plank", "Plank", 12) });
+
+        var read = TargetFile.Read(TargetFile.Write(null, "Save_2026_10_12.bytes", targets), "Save_2026_10_12.bytes");
+
+        Assert.Equal(targets.All, read.All);
+    }
+
+    [Fact]
+    public void Writing_one_save_keeps_every_other_save()
+    {
+        var first = TargetFile.Write(null, "A.bytes", new KeepTargets(new[] { new KeepTarget(Bench.Rope, "rope", "Rope", 5) }));
+        var both = TargetFile.Write(first, "B.bytes", new KeepTargets(new[] { new KeepTarget(Bench.Plank, "plank", "Plank", 9) }));
+
+        var rewritten = TargetFile.Write(both, "A.bytes", new KeepTargets(new[] { new KeepTarget(Bench.Crate, "crate", "Crate", 2) }));
+
+        Assert.Equal(new[] { new KeepTarget(Bench.Crate, "crate", "Crate", 2) }, TargetFile.Read(rewritten, "A.bytes").All);
+        Assert.Equal(new[] { new KeepTarget(Bench.Plank, "plank", "Plank", 9) }, TargetFile.Read(rewritten, "B.bytes").All);
+    }
+
+    [Fact]
+    public void A_line_that_cannot_be_read_is_skipped_but_kept()
+    {
+        var text = "not a target\r\n" + TargetFile.Write(null, "A.bytes", new KeepTargets(new[] { new KeepTarget(Bench.Rope, "rope", "Rope", 5) }));
+
+        var rewritten = TargetFile.Write(text, "A.bytes", new KeepTargets());
+
+        Assert.Equal(new[] { new KeepTarget(Bench.Rope, "rope", "Rope", 5) }, TargetFile.Read(text, "A.bytes").All);
+        Assert.Contains("not a target", rewritten);
+        Assert.Empty(TargetFile.Read(rewritten, "A.bytes").All);
     }
 }

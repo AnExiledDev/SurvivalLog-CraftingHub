@@ -5,13 +5,16 @@ using System.Text;
 
 namespace CraftingHub.Core;
 
-/// <summary>The JSON the workbench page draws from: chain marks, the queue, and the run's status line.</summary>
+/// <summary>What the page shows of the keep-stocked targets: all of this save's, and the count kept per recipe key.</summary>
+public readonly record struct KeepView(bool IsOn, IReadOnlyList<KeepTarget> Targets, IReadOnlyDictionary<string, int> ByKey);
+
+/// <summary>The JSON the workbench page draws from: chain marks, the queue, the run's status line, and the keep-stocked targets.</summary>
 public static class HubView
 {
     private const char LineSeparator = (char)0x2028;
     private const char ParagraphSeparator = (char)0x2029;
 
-    public static string Build(IReadOnlyDictionary<string, string> marks, IReadOnlyList<QueueEntry> queue, bool isRunning, string status)
+    public static string Build(IReadOnlyDictionary<string, string> marks, IReadOnlyList<QueueEntry> queue, bool isRunning, string status, KeepView keep)
     {
         var markPairs = marks.OrderBy(pair => pair.Key, System.StringComparer.Ordinal).Select(pair => $"{Str(pair.Key)}:{Str(pair.Value)}");
         var entries = queue.Select(entry => $"{{\"key\":{Str(entry.Key)},\"name\":{Str(entry.Name)},\"crafts\":{entry.Crafts.ToString(CultureInfo.InvariantCulture)}}}");
@@ -21,9 +24,25 @@ public static class HubView
             .Append("},\"queue\":[").AppendJoin(',', entries)
             .Append("],\"running\":").Append(isRunning ? "true" : "false")
             .Append(",\"status\":").Append(Str(status))
+            .Append(",\"keep\":").Append(Keep(keep))
             .Append('}')
             .ToString();
     }
+
+    private static string Keep(KeepView keep)
+    {
+        var targets = keep.Targets.Select(target => $"{{\"item\":{Num(target.ItemId)},\"name\":{Str(target.Name)},\"count\":{Num(target.Count)}}}");
+        var byKey = keep.ByKey.OrderBy(pair => pair.Key, System.StringComparer.Ordinal).Select(pair => $"{Str(pair.Key)}:{Num(pair.Value)}");
+
+        return new StringBuilder(256)
+            .Append("{\"on\":").Append(keep.IsOn ? "true" : "false")
+            .Append(",\"targets\":[").AppendJoin(',', targets)
+            .Append("],\"byKey\":{").AppendJoin(',', byKey)
+            .Append("}}")
+            .ToString();
+    }
+
+    private static string Num(int value) => value.ToString(CultureInfo.InvariantCulture);
 
     /// <summary>A JavaScript string literal, safe to paste into a script.</summary>
     public static string Str(string? text)

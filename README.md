@@ -1,8 +1,8 @@
 # Crafting Hub
 
-Craft from your whole house, make intermediates on the way, and queue different recipes.
+Craft from your whole house, make intermediates on the way, queue different recipes, and keep items stocked.
 
-A workbench in Survival Log only takes materials from the storages linked to it, makes one recipe at a time, and won't help when you have the raw materials but not the planks or parts in between. Crafting Hub lets every workbench use every storage in your home, marks recipes you could make once their intermediates are crafted, and crafts a queue of recipes for you, intermediates included.
+A workbench in Survival Log only takes materials from the storages linked to it, makes one recipe at a time, and won't help when you have the raw materials but not the planks or parts in between. Crafting Hub lets every workbench use every storage in your home, marks recipes you could make once their intermediates are crafted, and crafts a queue of recipes for you, intermediates included. Tell it to keep 10 bandages and it tops them back up whenever you open a workbench that makes them.
 
 ## Features
 
@@ -14,12 +14,15 @@ A workbench in Survival Log only takes materials from the storages linked to it,
 - **Stop**: shown while the queue runs. Nothing more is started; the queue is kept.
 - **Queue chips**: each order shows as "Name xN" with a small x to remove it. Removing the order that is running stops the run.
 - **Clear**: empties the queue (shown when the queue is not running).
-- **Status line**: the panel says what is crafting now and why a run stopped.
+- **Keep in stock**: under the selected recipe, a box with - and + buttons sets how many of its item to keep in your home (10 to start with), and **Keep stocked** saves that count. Once a count is kept the row shows "(keeping N)". Set 0 and press Keep stocked to stop keeping it.
+- **Keep stocked chips**: every item this save keeps shows as "Name N" with a small x to stop keeping it.
+- **Topping up**: each time you open a workbench that makes a kept item, it counts what your home holds and queues the crafts that bring it back up to its count. With `AutoStart` on and nothing else in the queue, the queue starts by itself.
+- **Status line**: the panel says what is crafting now, what was topped up, and why a run stopped.
 - **Log file**: every step and every stop is written to `BepInEx\crafting-hub.log`.
 
 Every craft goes through the workbench page's own clicks (pick the recipe, set the quantity, craft, close the result), so the game's own checks, locks and timings still apply.
 
-Crafting Hub adds no data of its own to your save. The crafts it runs are real crafts: they use up materials from any storage in your home and add the results, exactly as if you had clicked them yourself. You can remove it at any time; workbenches go back to their linked storages, and nothing already crafted changes.
+Crafting Hub adds no data of its own to your save. Keep-stocked counts are kept in a separate file (see [Keep stocked](#keep-stocked)). The crafts it runs are real crafts: they use up materials from any storage in your home and add the results, exactly as if you had clicked them yourself. You can remove it at any time; workbenches go back to their linked storages, and nothing already crafted changes.
 
 Recipe and item names come from the game, so they show in whatever language the game uses. The mod's own buttons and messages are in English.
 
@@ -37,6 +40,18 @@ A run stops with a message in the status line when:
 - the game does not lay out the materials within 3 seconds, a craft does not start within 4 seconds, or the result screen does not close within 4 seconds;
 - 30 intermediate crafts have been made without finishing the recipe they were for.
 
+## Keep stocked
+
+A kept item is topped up about a second and a half after you open a workbench that makes it, and again right after you change its count. It is never checked on a timer or after a run ends, so a craft that keeps failing does not start another round by itself.
+
+What your home holds is counted the way the game counts what you can craft from: your own inventory plus every storage in your home, hidden ones too. What is already in the queue counts as well, so opening the workbench twice does not queue the same crafts twice.
+
+Crafts are only queued when the workbench is free (no craft running, no result showing, the queue not running) and the materials are in the house. Each order is capped at what the materials allow, after the orders already in the queue have taken theirs; if nothing can be made, the status line says which items are short and nothing is queued. Intermediates are made as for any other order, up to `MaxDepth`.
+
+A recipe that makes several at once is crafted in whole crafts, so you can end up a little over the count (keep 5 planks with a recipe that makes 2, and you get 6).
+
+Kept counts belong to the save you are playing. They are stored in `BepInEx\config\com.dev.survivallog.craftinghub.targets.txt`, one line per item, next to the name of the game's save file. Other saves' lines are never touched.
+
 ## Known issues and limits
 
 This mod uses materials from every storage in your home and crafts many times on its own. Back up your save before trying it for the first time.
@@ -47,6 +62,9 @@ This mod uses materials from every storage in your home and crafts many times on
 - A failed craft still counts against its order, because the game spent the materials. It is not retried; the next step is planned from what the house holds.
 - A recipe's yield is read as one item per entry in the game's product list. The log lists the recipes this reads as making more than one; if one of them looks wrong in game, please report it.
 - With `UseAllHomeStorages` on, the game's own way of excluding a storage from crafting still applies, but every other storage in your home is used, including ones you may have meant to keep for something else.
+- A kept item is only topped up at a workbench that makes it, with the recipe you set the count on.
+- Spoiled food counts toward a kept count, as the game counts it, but the game does not craft with it.
+- Keep-stocked counts are tied to the save file's name. When the game starts a new file from an old one (rolling back or restarting from a snapshot), the new file starts with no kept counts.
 - BetterCrafting also changes the workbench's storage list. Do not use both (see [Requirements](#requirements)).
 
 If a craft uses the wrong materials, makes the wrong amount, or a run stops for no clear reason, please tell me (see [Feedback](#feedback-and-bug-reports)).
@@ -65,7 +83,7 @@ If a craft uses the wrong materials, makes the wrong amount, or a run stops for 
 
 ## Uninstall
 
-Delete `CraftingHub.dll` from the `BepInEx\plugins` folder. For a clean slate, also delete `BepInEx\config\com.dev.survivallog.craftinghub.cfg` and `BepInEx\crafting-hub.log`.
+Delete `CraftingHub.dll` from the `BepInEx\plugins` folder. For a clean slate, also delete `BepInEx\config\com.dev.survivallog.craftinghub.cfg`, `BepInEx\config\com.dev.survivallog.craftinghub.targets.txt` and `BepInEx\crafting-hub.log`.
 
 ## Configuration
 
@@ -75,7 +93,7 @@ Settings live in `BepInEx\config\com.dev.survivallog.craftinghub.cfg`, created t
 
 Tested on Survival Log 1.1.18317 with BepInEx `6.0.0-be.788`.
 
-Check `BepInEx\LogOutput.log` for `===== Crafting Hub 0.1.1 started: all home storages on, intermediates up to 4 deep` (the words change with your settings). The same line, plus every step of every run and why it stopped, is in `BepInEx\crafting-hub.log`, which survives restarts. When that file passes 1 MB, it is cut down to its newest part at the next game start.
+Check `BepInEx\LogOutput.log` for `===== Crafting Hub 0.2.0 started: all home storages on, intermediates up to 4 deep, keep stocked on` (the words change with your settings). The same line, plus every step of every run and why it stopped, is in `BepInEx\crafting-hub.log`, which survives restarts. When that file passes 1 MB, it is cut down to its newest part at the next game start.
 
 If workbenches still only see their linked storages, look in the logs for "BetterCrafting is also loaded".
 
@@ -93,7 +111,7 @@ dotnet build src/CraftingHub -c Release -p:GameDir="C:\path\to\Survival Log"
 
 `GameDir` is the game folder. The default in the project file is a local path you will almost certainly need to override. The output DLL is at `src\CraftingHub\bin\Release\CraftingHub.dll`.
 
-The unit tests cover the pure rules (planning intermediates, chain marks, the queue and the run) and need nothing from the game:
+The unit tests cover the pure rules (planning intermediates, chain marks, the queue and the run, topping up kept items) and need nothing from the game:
 
 ```
 dotnet test tests/CraftingHub.Tests

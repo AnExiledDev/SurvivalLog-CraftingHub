@@ -11,10 +11,11 @@ A workbench normally only uses its linked storages and makes one recipe at a tim
 [*][b]Craft with intermediates[/b]: one button makes the intermediates and then the recipe, using the quantity box.[/*]
 [*][b]Queue[/b]: "Add to queue" and "Start queue" craft different recipes one after another, intermediates included. Remove an order with its x, or press Clear.[/*]
 [*][b]Stop[/b]: nothing more is started and the queue is kept.[/*]
+[*][b]Keep stocked[/b]: set how many of an item to keep (say 10 bandages) next to its recipe. Each time you open a workbench that makes it, the crafts that bring your home back up to that count are queued, and started if the queue was empty. Kept items show as chips with an x to stop keeping them.[/*]
 [*][b]Game's own clicks[/b]: every craft goes through the workbench's own buttons, so the game's checks and timings apply.[/*]
 [/list]
 
-The mod adds no data of its own to your save, but the crafts it runs are real: they use materials from any storage in your home. You can remove it at any time; workbenches go back to their linked storages.
+The mod adds no data of its own to your save (kept counts go in their own file in the BepInEx config folder), but the crafts it runs are real: they use materials from any storage in your home. You can remove it at any time; workbenches go back to their linked storages.
 
 [size=5]Known issues[/size]
 [list]
@@ -24,6 +25,8 @@ The mod adds no data of its own to your save, but the crafts it runs are real: t
 [*]Closing the workbench stops the queue (press Start to carry on). Quitting the game empties it.[/*]
 [*]A craft still going when you stop or close the workbench is not counted, so starting again can make that batch twice.[/*]
 [*]Every storage in your home is used, including ones you meant to keep for something else.[/*]
+[*]A kept item is only topped up at a workbench that makes it. Recipes that make several at once can end a little over the count.[/*]
+[*]Kept counts follow the save file. A save the game starts fresh from an old one (rolling back, restarting from a snapshot) begins with none.[/*]
 [/list]
 If you run into anything strange, please tell me (see Feedback below).
 
@@ -46,7 +49,7 @@ If you run into anything strange, please tell me (see Feedback below).
 Delete [font=Courier New]CraftingHub.dll[/font] from the [font=Courier New]BepInEx&#92;plugins[/font] folder.
 
 [size=5]Configuration[/size]
-To turn off the whole-house storage, change how deep intermediates go, or hide the marks, edit [font=Courier New]BepInEx&#92;config&#92;com.dev.survivallog.craftinghub.cfg[/font] while the game is closed (see [url=https://github.com/AnExiledDev/SurvivalLog-CraftingHub/blob/main/CONFIG.md]CONFIG.md[/url]). Changes apply at the next game start.
+To turn off the whole-house storage, change how deep intermediates go, hide the marks, or turn off keep stocked or its auto start, edit [font=Courier New]BepInEx&#92;config&#92;com.dev.survivallog.craftinghub.cfg[/font] while the game is closed (see [url=https://github.com/AnExiledDev/SurvivalLog-CraftingHub/blob/main/CONFIG.md]CONFIG.md[/url]). Changes apply at the next game start.
 
 [size=5]Feedback[/size]
 Found a bug or have an idea? Come say hi on the [url=https://discord.gg/trTsyxUFqg]Core Directive Discord[/url], or leave a comment here. For bugs, please include [font=Courier New]BepInEx&#92;LogOutput.log[/font] and [font=Courier New]BepInEx&#92;crafting-hub.log[/font].
