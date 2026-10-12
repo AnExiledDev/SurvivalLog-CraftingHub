@@ -37,6 +37,8 @@ Crafting only happens while the workbench window is open: the game cancels a cra
 
 A paused queue carries on at the workbench it was running on, about a second after you open it, and plans again from what your house holds then. Opening a different workbench leaves it waiting ("the queue carries on at the workbench it was running on; press Stop, then Start, to run it here"). Press Stop to end the pause; Start then runs the queue at the workbench you have open. Nothing is topped up while a queue is paused. With `ResumeOnReopen` off, closing the workbench stops the run instead and Start carries on.
 
+A batch closed halfway can leave the workbench looking busy with nothing being made. After 3 seconds of that, the queue says so on the status line and crafts anyway, which clears it. If the workbench shows a craft in progress with no change for 30 seconds, the status line says it is still waiting; the queue keeps waiting and does nothing else.
+
 A run stops with a message in the status line when:
 
 - the workbench window closes and `ResumeOnReopen` is off ("the workbench closed; the queue is kept, press Start to carry on");
