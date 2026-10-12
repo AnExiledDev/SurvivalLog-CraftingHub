@@ -1,30 +1,40 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 using CraftingHub.Core;
 
 namespace CraftingHub.Adapters;
 
 /// <summary>The settings the session reads; fixed for the game session.</summary>
-internal sealed record HubSettings(int MaxDepth, bool ShowMarks);
+internal sealed record HubSettings(int MaxDepth, bool ShowMarks, bool KeepStocked, bool AutoStartTopUps);
+
+/// <summary>What keep-stocked targets need from the game and the disk: home counts, the targets file, and which save is loaded.</summary>
+internal sealed record KeepPorts(HomeStock Stock, KeepStore Store, Func<string?> SaveKey);
 
 /// <summary>
 /// Wires the workbench, its page and the core together. Each tick: keep the page script in place, act on the page's
-/// buttons, recompute the chain marks when the game rebuilt its recipe list, step the queue, and redraw the panel
-/// when anything it shows changed.
+/// buttons, recompute the chain marks when the game rebuilt its recipe list, step the queue, top up keep-stocked
+/// targets when they are due, and redraw the panel when anything it shows changed.
 /// </summary>
 internal sealed class HubSession
 {
     private static readonly IReadOnlyDictionary<string, string> NoMarks = new Dictionary<string, string>();
+    private static readonly IReadOnlyDictionary<string, int> NoKeeps = new Dictionary<string, int>();
 
     private readonly Workbench _bench;
     private readonly WorkbenchPage _page;
+    private readonly KeepPorts _keep;
     private readonly HubSettings _settings;
     private readonly Action<string> _log;
     private readonly Action<string> _logFileOnly;
     private readonly CraftQueue _queue = new();
     private readonly QueueRunner _runner = new();
+    private readonly TopUpTiming _topUps = new();
     private IReadOnlyDictionary<string, string> _marks = NoMarks;
+    private KeepTargets _targets = new();
+    private IReadOnlyDictionary<string, int> _keepByKey = NoKeeps;
+    private string? _loadedSave;
     private string _status = "";
     private string _shownView = "";
     private string _pickedKey = "";
@@ -32,10 +42,11 @@ internal sealed class HubSession
     private int _seenRefreshes = -1;
     private bool _wasOpen;
 
-    public HubSession(Workbench bench, WorkbenchPage page, HubSettings settings, Action<string> log, Action<string> logFileOnly)
+    public HubSession(Workbench bench, WorkbenchPage page, KeepPorts keep, HubSettings settings, Action<string> log, Action<string> logFileOnly)
     {
         _bench = bench;
         _page = page;
+        _keep = keep;
         _settings = settings;
         _log = log;
         _logFileOnly = logFileOnly;
@@ -50,13 +61,23 @@ internal sealed class HubSession
         while (PageMessages.TryTake(out var command)) Handle(command);
 
         // A bench opened again may show the same refresh count as when it closed, so opening always recomputes.
-        if (isOpen && !_wasOpen) _seenRefreshes = -1;
+        if (isOpen && !_wasOpen)
+        {
+            _seenRefreshes = -1;
+            LoadTargets();
+        }
 
         _wasOpen = isOpen;
 
-        if (isOpen && _bench.Refreshes != _seenRefreshes) RefreshMarks();
+        if (isOpen && _bench.Refreshes != _seenRefreshes)
+        {
+            RefreshMarks();
+            RefreshKeeps();
+        }
 
         if (_runner.IsRunning) Apply(_runner.Tick(_bench.View(), now, Next));
+
+        if (_settings.KeepStocked && _topUps.IsDue(isOpen, now) && IsIdle()) TopUp();
 
         Show();
     }
@@ -87,6 +108,12 @@ internal sealed class HubSession
                 if (_runner.IsRunning) Apply(_runner.Stop("queue cleared"));
 
                 _queue.Clear();
+                break;
+            case PageCommand.Keep keep:
+                SetKeep(keep.Key, keep.Count);
+                break;
+            case PageCommand.Unkeep unkeep:
+                Unkeep(unkeep.ItemId);
                 break;
             case PageCommand.Ready:
                 _log("page script running");
@@ -162,6 +189,109 @@ internal sealed class HubSession
         return QueuePlanner.Next(_queue.Head, read.Book, read.Stock, _settings.MaxDepth, _bench.ItemName);
     }
 
+    /// <summary>Topping up waits for the bench to be free: no run, no craft in progress, no result on screen.</summary>
+    private bool IsIdle()
+    {
+        if (_runner.IsRunning) return false;
+
+        var view = _bench.View();
+
+        return view.IsOpen && !view.IsBusy && !view.HasResult;
+    }
+
+    /// <summary>
+    /// Queues what each target is short of, counting what the queue already makes. The run starts by itself only when
+    /// the queue held nothing else, so the player's own orders are never started for them.
+    /// </summary>
+    private void TopUp()
+    {
+        _topUps.Done();
+
+        if (_targets.All.Count == 0 || _bench.Read() is not { } read) return;
+
+        if (_keep.Stock.Count(_targets.All.Select(target => target.ItemId)) is not { } held) return;
+
+        var plan = TopUpPlanner.Plan(_targets.All, read.Book, read.Stock, held, _queue.Entries, _settings.MaxDepth);
+        var wasEmpty = _queue.Head == null;
+
+        if (plan.IsEmpty) return;
+
+        foreach (var order in plan.Orders) _queue.Add(order.Recipe.Key, order.Recipe.Name, order.Crafts);
+
+        _status = TopUpPlanner.Describe(plan);
+        _logFileOnly(_status);
+
+        if (_settings.AutoStartTopUps && wasEmpty && plan.Orders.Count > 0) _runner.Start();
+    }
+
+    private void SetKeep(string key, int count)
+    {
+        if (!_settings.KeepStocked) return;
+
+        LoadTargets();
+
+        if (_loadedSave is not { } save)
+        {
+            _status = "no save is loaded, so the target was not kept";
+
+            return;
+        }
+
+        if (_bench.Read()?.Book.Find(key) is not { } recipe)
+        {
+            _status = "that recipe is not at this workbench";
+
+            return;
+        }
+
+        var name = _bench.ItemName(recipe.ProductId);
+
+        _targets.Set(new KeepTarget(recipe.ProductId, key, name, count));
+        _status = (count > 0 ? $"Keeping {count} {name} in stock" : $"No longer keeping {name} in stock") + SaveTargets(save);
+
+        if (count > 0) _topUps.Request();
+    }
+
+    private void Unkeep(int itemId)
+    {
+        if (!_settings.KeepStocked) return;
+
+        LoadTargets();
+
+        if (_loadedSave is not { } save || _targets.All.FirstOrDefault(target => target.ItemId == itemId) is not { Count: > 0 } target) return;
+
+        _targets.Remove(itemId);
+        _status = $"No longer keeping {target.Name} in stock" + SaveTargets(save);
+    }
+
+    /// <summary>Writes the targets and redraws the keep counts; returns a note for the status line when the write failed.</summary>
+    private string SaveTargets(string save)
+    {
+        var isSaved = _keep.Store.Save(save, _targets);
+
+        RefreshKeeps();
+
+        return isSaved ? "" : " (could not save it to the targets file, see the log)";
+    }
+
+    /// <summary>Targets belong to a save, so they are reread whenever the loaded save is not the one they came from.</summary>
+    private void LoadTargets()
+    {
+        if (!_settings.KeepStocked) return;
+
+        var save = _keep.SaveKey();
+
+        if (save == _loadedSave) return;
+
+        _loadedSave = save;
+        _targets = save == null ? new KeepTargets() : _keep.Store.Load(save);
+        RefreshKeeps();
+
+        if (save != null) _logFileOnly($"keep-stocked targets for {save}: {_targets.All.Count}");
+    }
+
+    private void RefreshKeeps() => _keepByKey = _bench.Read() is { } read ? _targets.ByRecipe(read.Book) : NoKeeps;
+
     private void RefreshMarks()
     {
         _seenRefreshes = _bench.Refreshes;
@@ -184,7 +314,8 @@ internal sealed class HubSession
 
     private void Show()
     {
-        var view = HubView.Build(_marks, _queue.Entries, _runner.IsRunning, _status);
+        var keep = new KeepView(_settings.KeepStocked, _targets.All, _keepByKey);
+        var view = HubView.Build(_marks, _queue.Entries, _runner.IsRunning, _status, keep);
 
         if (view == _shownView) return;
 
