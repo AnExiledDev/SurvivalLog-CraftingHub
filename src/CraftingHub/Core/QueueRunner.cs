@@ -9,7 +9,8 @@ namespace CraftingHub.Core;
 /// <param name="MaxCrafts">How many crafts the game allows with what is laid out.</param>
 /// <param name="Contents">Item id to count, of what sits on the workbench.</param>
 /// <param name="BatchDone">Crafts finished in the current batch, as the game counts them.</param>
-public readonly record struct BenchView(bool IsOpen, bool IsBusy, bool HasResult, int MaxCrafts, IReadOnlyDictionary<int, int> Contents, int BatchDone);
+/// <param name="BenchId">Which workbench is open, so a paused run carries on only at its own; 0 when unknown.</param>
+public readonly record struct BenchView(bool IsOpen, bool IsBusy, bool HasResult, int MaxCrafts, IReadOnlyDictionary<int, int> Contents, int BatchDone, long BenchId = 0);
 
 /// <summary>What to craft next, worked out fresh from the queue and the stock each time it is asked.</summary>
 public abstract record NextStep
@@ -44,13 +45,19 @@ public abstract record RunnerCommand
     public sealed record StepDone(CraftStep Step, int Crafts, bool IsTarget) : RunnerCommand;
 
     public sealed record Stopped(string Reason, bool IsDone) : RunnerCommand;
+
+    /// <summary>The run waits for its workbench to open again; the queue is untouched.</summary>
+    public sealed record Paused(string Reason) : RunnerCommand;
+
+    public sealed record Resumed : RunnerCommand;
 }
 
 /// <summary>
 /// Drives the workbench through the clicks a player makes: pick a recipe (the game lays out the materials), craft,
 /// confirm the result, repeat. One step at a time and re-planned before every step, so a failed craft or a short
 /// batch is planned around rather than tracked. Every wait has a timeout, so a game that does not respond stops the
-/// run with a reason instead of leaving it stuck.
+/// run with a reason instead of leaving it stuck. The game cancels a craft whose window closes, so a closed workbench
+/// pauses the run (or stops it, when resuming is off) and the run carries on once that workbench is open again.
 /// </summary>
 public sealed class QueueRunner
 {
@@ -60,6 +67,11 @@ public sealed class QueueRunner
     public const double QuietDoneSeconds = 1.5;
     public const double CollectTimeoutSeconds = 4;
     public const int MaxIntermediateBatches = 30;
+    public const double ResumeSettleSeconds = 1;
+
+    private const string ClosedReason = "the workbench closed; the queue is kept, press Start to carry on";
+    private const string PausedReason = "the workbench closed; the queue carries on when you open it again";
+    private const string ElsewhereReason = "the queue carries on at the workbench it was running on; press Stop, then Start, to run it here";
 
     private enum Stage
     {
@@ -68,7 +80,11 @@ public sealed class QueueRunner
         Filling,
         Crafting,
         Collecting,
+        Paused,
+        Resuming,
     }
+
+    private readonly bool _resumesOnReopen;
 
     private Stage _stage = Stage.Idle;
     private NextStep.Craft? _current;
@@ -79,14 +95,27 @@ public sealed class QueueRunner
     private double? _settledSince;
     private double? _quietSince;
     private int _intermediateBatches;
+    private long _benchId;
+    private bool _hasToldElsewhere;
 
+    /// <param name="resumesOnReopen">Off, a closed workbench stops the run, as it did before runs could pause.</param>
+    public QueueRunner(bool resumesOnReopen = true)
+    {
+        _resumesOnReopen = resumesOnReopen;
+    }
+
+    /// <summary>A run is in progress, paused ones included: they still hold the queue's head and wait to carry on.</summary>
     public bool IsRunning => _stage != Stage.Idle;
 
+    public bool IsPaused => _stage is Stage.Paused or Stage.Resuming;
+
+    /// <summary>Starts a run, or carries a paused one on at whichever workbench is open now.</summary>
     public void Start()
     {
-        if (IsRunning) return;
+        if (IsRunning && !IsPaused) return;
 
         _stage = Stage.Ready;
+        _benchId = 0;
         _intermediateBatches = 0;
     }
 
@@ -102,7 +131,11 @@ public sealed class QueueRunner
     {
         if (_stage == Stage.Idle) return new RunnerCommand.None();
 
-        if (!bench.IsOpen) return Stop("the workbench closed; the queue is kept, press Start to carry on");
+        if (IsPaused) return WaitForBench(bench, now);
+
+        if (!bench.IsOpen) return Interrupted();
+
+        if (bench.BenchId != 0) _benchId = bench.BenchId;
 
         return _stage switch
         {
@@ -216,10 +249,75 @@ public sealed class QueueRunner
         return now - _stageSince > CollectTimeoutSeconds ? Stop("the result screen did not close") : new RunnerCommand.None();
     }
 
-    private RunnerCommand FinishStep()
+    /// <summary>
+    /// The workbench closed under the run. Closing ends the craft in progress before it uses anything, so only crafts
+    /// the game already finished count: a result on screen or a quiet finish means the whole step was made, otherwise
+    /// the batch's finished crafts. Those are reported first; the next tick, still closed, pauses or stops the run.
+    /// </summary>
+    private RunnerCommand Interrupted()
+    {
+        var batchCrafts = Math.Min(_batchDone, _sentQuantity);
+
+        if (_stage == Stage.Collecting || (_stage == Stage.Crafting && _quietSince != null)) return FinishStep();
+
+        if (_stage == Stage.Crafting && batchCrafts > 0) return FinishStep(batchCrafts);
+
+        _current = null;
+
+        if (!_resumesOnReopen) return Stop(ClosedReason);
+
+        _stage = Stage.Paused;
+        _hasToldElsewhere = false;
+
+        return new RunnerCommand.Paused(PausedReason);
+    }
+
+    /// <summary>
+    /// Paused: carry on once the run's own workbench has stayed open a moment, so the game has rebuilt its recipe list
+    /// before the next step is planned. Another workbench leaves the run waiting, said once per opening.
+    /// </summary>
+    private RunnerCommand WaitForBench(BenchView bench, double now)
+    {
+        if (!bench.IsOpen)
+        {
+            _stage = Stage.Paused;
+            _hasToldElsewhere = false;
+
+            return new RunnerCommand.None();
+        }
+
+        if (_benchId != 0 && bench.BenchId != _benchId) return WaitElsewhere();
+
+        if (_stage == Stage.Paused)
+        {
+            Enter(Stage.Resuming, now);
+
+            return new RunnerCommand.None();
+        }
+
+        if (now - _stageSince < ResumeSettleSeconds) return new RunnerCommand.None();
+
+        _stage = Stage.Ready;
+
+        return new RunnerCommand.Resumed();
+    }
+
+    private RunnerCommand WaitElsewhere()
+    {
+        _stage = Stage.Paused;
+
+        if (_hasToldElsewhere) return new RunnerCommand.None();
+
+        _hasToldElsewhere = true;
+
+        return new RunnerCommand.Paused(ElsewhereReason);
+    }
+
+    private RunnerCommand FinishStep() => FinishStep(_batchDone > 0 ? Math.Min(_batchDone, _sentQuantity) : _sentQuantity);
+
+    private RunnerCommand FinishStep(int crafts)
     {
         var finished = Current;
-        var crafts = _batchDone > 0 ? Math.Min(_batchDone, _sentQuantity) : _sentQuantity;
 
         if (finished.IsTarget) _intermediateBatches = 0;
 

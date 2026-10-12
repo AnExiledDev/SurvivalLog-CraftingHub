@@ -94,7 +94,8 @@ internal sealed class Workbench
             HasResult: state.ResultShow?.Value == true,
             MaxCrafts: state.MaxCraftCount?.Value ?? 0,
             Contents: Contents(state.WorkbenchOwnerId?.Value ?? 0),
-            BatchDone: state.BatchDone);
+            BatchDone: state.BatchDone,
+            BenchId: state.CurrentFurnitureId);
     }
 
     public string ItemName(int configId)

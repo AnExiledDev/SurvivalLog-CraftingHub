@@ -7,7 +7,7 @@ using CraftingHub.Core;
 namespace CraftingHub.Adapters;
 
 /// <summary>The settings the session reads; fixed for the game session.</summary>
-internal sealed record HubSettings(int MaxDepth, bool ShowMarks, bool KeepStocked, bool AutoStartTopUps);
+internal sealed record HubSettings(int MaxDepth, bool ShowMarks, bool KeepStocked, bool AutoStartTopUps, bool ResumeOnReopen);
 
 /// <summary>What keep-stocked targets need from the game and the disk: home counts, the targets file, and which save is loaded.</summary>
 internal sealed record KeepPorts(HomeStock Stock, ITargetStore Store, Func<string?> SaveKey);
@@ -29,7 +29,7 @@ internal sealed class HubSession
     private readonly Action<string> _log;
     private readonly Action<string> _logFileOnly;
     private readonly CraftQueue _queue = new();
-    private readonly QueueRunner _runner = new();
+    private readonly QueueRunner _runner;
     private readonly TopUpTiming _topUps = new();
     private readonly KeepSlot _slot;
     private IReadOnlyDictionary<string, string> _marks = NoMarks;
@@ -49,6 +49,7 @@ internal sealed class HubSession
         _settings = settings;
         _log = log;
         _logFileOnly = logFileOnly;
+        _runner = new QueueRunner(settings.ResumeOnReopen);
         _slot = new KeepSlot(keep.Store);
     }
 
@@ -176,6 +177,14 @@ internal sealed class HubSession
             case RunnerCommand.Stopped stopped:
                 _status = stopped.Reason;
                 _log(stopped.IsDone ? "queue finished" : "queue stopped: " + stopped.Reason);
+                break;
+            case RunnerCommand.Paused paused:
+                _status = paused.Reason;
+                _logFileOnly("queue paused: " + paused.Reason);
+                break;
+            case RunnerCommand.Resumed:
+                _status = "the workbench is open again; carrying on with the queue";
+                _logFileOnly("queue resumed");
                 break;
         }
     }
