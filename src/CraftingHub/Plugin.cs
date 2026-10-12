@@ -11,7 +11,7 @@ namespace CraftingHub;
 public sealed class Plugin : BasePlugin
 {
     private const string Guid = "com.dev.survivallog.craftinghub";
-    private const string Version = "0.5.0";
+    private const string Version = "0.5.1";
 
     public override void Load()
     {
