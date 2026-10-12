@@ -16,6 +16,7 @@
   var MAX_AMOUNT = 999;
   var PRESS_LIMIT_MS = 2000;
   var ALL_GROUPS = -1;
+  var WHEEL_LINE_PX = 16;
   var HUB_ROOTS = ['cc-mid', 'cc-queue', 'cc-panel'];
 
   // Built from char codes so the file stays ASCII.
@@ -168,8 +169,8 @@
       '.combined-panel.cc-hub.no-notes #cc-mid{display:none}',
       '.combined-panel.cc-hub .workbench-section{border-right:1px solid rgba(255,193,7,.10)}',
       '.cc-col{display:flex;flex-direction:column;min-height:0;box-sizing:border-box;padding:14px 16px;font-size:13px;color:#ddd;overflow:hidden}',
-      '#cc-mid{width:640px;flex:none;border-right:1px solid rgba(255,193,7,.10);background:rgba(0,0,0,.18)}',
-      '#cc-queue{width:420px;flex:none;background:rgba(0,0,0,.12);border-top-right-radius:14px;border-bottom-right-radius:14px}',
+      '#cc-mid{width:660px;flex:none;border-right:1px solid rgba(255,193,7,.10);background:rgba(0,0,0,.18)}',
+      '#cc-queue{width:400px;flex:none;background:rgba(0,0,0,.12);border-top-right-radius:14px;border-bottom-right-radius:14px}',
       '.cc-col button{font-family:inherit}',
       '.cc-title{display:flex;align-items:center;gap:8px;margin:0 0 10px;font-size:17px;font-weight:700;color:#ffe6a8;letter-spacing:.5px;flex:none}',
       '.cc-grow{flex:1}',
@@ -178,37 +179,41 @@
       '.cc-search input{flex:1;min-width:0;background:transparent;border:0;outline:0;color:#fff;font-size:15px;font-family:inherit}',
       '.cc-search input::placeholder{color:#888}',
       '.cc-search-clear{border:0;background:transparent;color:#aaa;cursor:pointer;font-size:14px}',
-      '.cc-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;flex:none}',
-      '.cc-fchip{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:16px;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.04);color:#ccc;cursor:pointer;font-size:12px}',
+      '.cc-chips{display:flex;flex-wrap:nowrap;gap:6px;margin-top:8px;flex:none;overflow-x:auto;overflow-y:hidden}',
+      '.cc-chips::-webkit-scrollbar{height:3px}',
+      '.cc-chips::-webkit-scrollbar-thumb{background:rgba(255,193,7,.3);border-radius:2px}',
+      '.cc-fchip{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:16px;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.04);color:#ccc;cursor:pointer;font-size:12px;flex:none;white-space:nowrap}',
       '.cc-fchip .n{font-size:11px;color:#1b1406;background:#ffc107;border-radius:9px;padding:0 6px;font-weight:700}',
       '.cc-fchip .n.z{background:#444;color:#aaa}',
       '.cc-fchip.on{background:linear-gradient(180deg,rgba(107,87,38,.9),rgba(72,56,26,.9));border-color:rgba(255,193,7,.6);color:#fff3cf}',
-      '.cc-list{flex:1;min-height:0;overflow-y:auto;margin-top:10px;padding-right:6px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;align-content:start}',
+      '.cc-list{flex:1;min-height:0;overflow-y:auto;margin-top:10px;padding-right:6px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 8px;align-content:start}',
       '.cc-scroll::-webkit-scrollbar{width:6px}',
       '.cc-scroll::-webkit-scrollbar-thumb{background:rgba(255,193,7,.3);border-radius:3px}',
       '.cc-ghead{grid-column:1/-1;display:flex;align-items:center;gap:8px;padding:5px 10px;border-radius:6px;background:linear-gradient(90deg,#6b5726,#48381a);border-left:3px solid #ffc107;color:#fff3cf;font-weight:700;cursor:pointer;font-size:13px}',
       '.cc-arrow{font-size:10px;opacity:.8;width:12px}',
       '.cc-gcount{margin-left:auto;font-size:12px;font-weight:600;color:#ffe6a8}',
-      '.cc-card{display:flex;gap:8px;padding:8px;background:rgba(8,8,10,.55);border:1px solid rgba(255,255,255,.07);border-left:3px solid #7ce087;border-radius:8px;min-width:0;cursor:pointer}',
+      '.cc-card{display:grid;grid-template-columns:40px minmax(0,1fr);gap:5px 8px;align-items:start;padding:6px 8px;background:rgba(8,8,10,.55);border:1px solid rgba(255,255,255,.07);border-left:3px solid #7ce087;border-radius:8px;min-width:0;cursor:pointer}',
       '.cc-card.cc-k-via{border-left-color:#e0b45a}',
       '.cc-card.cc-k-short{border-left-color:#e08b6a}',
       '.cc-card.cc-k-locked{border-left-color:#5f5f66;opacity:.7;cursor:default}',
       '.cc-card.cc-sel{border-color:rgba(255,193,7,.6)}',
-      '.cc-card-ic{position:relative;width:46px;height:46px;flex:none;background:linear-gradient(180deg,#131316,#1d1d20);border-radius:6px;display:flex;align-items:center;justify-content:center;border:1px solid #000}',
-      '.cc-card-ic img{width:38px;height:38px;object-fit:contain}',
+      '.cc-card-ic{position:relative;width:38px;height:38px;background:linear-gradient(180deg,#131316,#1d1d20);border-radius:6px;display:flex;align-items:center;justify-content:center;border:1px solid #000}',
+      '.cc-card-ic img{width:32px;height:32px;object-fit:contain}',
       '.cc-yield{position:absolute;right:-4px;bottom:-4px;background:#000;color:#ffe6a8;font-size:11px;font-weight:700;border-radius:4px;padding:0 4px;border:1px solid rgba(255,193,7,.4)}',
-      '.cc-card-main{flex:1;min-width:0}',
-      '.cc-card-name{font-weight:700;font-size:14px;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+      '.cc-card-head{min-width:0}',
+      '.cc-card-name{font-weight:700;font-size:14px;line-height:18px;color:#fff;overflow-wrap:break-word}',
       '.cc-new{display:inline-block;font-size:10px;font-weight:700;color:#fff;background:linear-gradient(180deg,#ff6a3d,#e5382b);border-radius:4px;padding:1px 5px;margin-left:6px;vertical-align:2px}',
-      '.cc-card-st{font-size:12px;margin:2px 0 5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+      '.cc-card-sub{display:flex;align-items:center;gap:6px;min-height:20px;margin-top:2px}',
+      '.cc-card-st{flex:1;min-width:0;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
       '.cc-st-now{color:#7ce087}.cc-st-via{color:#e0b45a}.cc-st-short{color:#e08b6a}.cc-st-locked{color:#8a8a92}',
       '.cc-mats{display:flex;flex-wrap:wrap;gap:4px}',
       '.cc-mat{display:inline-flex;align-items:center;gap:3px;background:rgba(255,255,255,.05);border-radius:5px;padding:1px 6px 1px 2px;font-size:12px;font-weight:600}',
       '.cc-mat img{width:20px;height:20px;object-fit:contain}',
       '.cc-mat.ok{color:#7ce087}.cc-mat.via{color:#e0b45a}.cc-mat.no{color:#e08b6a}',
       '.cc-mat.hit{box-shadow:0 0 0 1px #ffc107}',
-      '.cc-card-side{display:flex;flex-direction:column;align-items:flex-end;justify-content:space-between;gap:5px;flex:none}',
-      '.cc-pin{border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.04);color:#aaa;border-radius:6px;font-size:11px;padding:2px 7px;cursor:pointer}',
+      '.cc-card-foot{grid-column:1/-1;display:flex;align-items:center;gap:6px;min-width:0}',
+      '.cc-card-foot .cc-mats{flex:1;min-width:0}',
+      '.cc-pin{border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.04);color:#aaa;border-radius:6px;font-size:11px;padding:2px 7px;cursor:pointer;flex:none;white-space:nowrap}',
       '.cc-pin.on{border-color:rgba(255,193,7,.6);color:#ffd36b;background:rgba(255,193,7,.12)}',
       '.cc-add{background:linear-gradient(180deg,rgba(168,118,28,.94),rgba(110,76,16,.96));border:1px solid rgba(255,214,120,.5);color:#fff4d6;font-weight:700;border-radius:7px;padding:4px 12px;cursor:pointer;font-size:12px}',
       '.cc-add[disabled],.cc-pin[disabled]{filter:grayscale(1);opacity:.4;cursor:default}',
@@ -267,7 +272,7 @@
       '.cc-keeps{display:flex;flex-direction:column;gap:4px;max-height:140px;overflow-y:auto}',
       '.cc-keep{display:flex;align-items:center;gap:8px;background:rgba(8,8,10,.45);border-radius:7px;padding:3px 8px;flex:none}',
       '.cc-keep img{width:24px;height:24px;object-fit:contain}',
-      '.cc-kname{font-size:12px;font-weight:600;color:#fff;width:110px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+      '.cc-kname{font-size:12px;font-weight:600;color:#fff;width:100px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
       '.cc-kbar{flex:1;height:7px;background:rgba(255,255,255,.08);border-radius:4px;overflow:hidden}',
       '.cc-kbar i{display:block;height:100%;background:#7ce087}',
       '.cc-kbar i.low{background:#e0b45a}',
@@ -514,15 +519,13 @@
       drawList(win, true);
       input.focus();
     });
-    var filters = el(doc, 'div', 'cc-chips');
-    var groups = el(doc, 'div', 'cc-chips');
+    var filters = chipRow(doc, 'cc-filters');
+    var groups = chipRow(doc, 'cc-groups');
     var list = el(doc, 'div', 'cc-list cc-scroll');
 
     mid.id = 'cc-mid';
     count.id = 'cc-count';
     input.id = 'cc-search';
-    filters.id = 'cc-filters';
-    groups.id = 'cc-groups';
     list.id = 'cc-list';
     input.type = 'text';
     input.placeholder = 'Search a recipe or a material';
@@ -548,6 +551,32 @@
     mid.appendChild(list);
 
     return mid;
+  }
+
+  // A row of chips that stays on one line, so the filters never push the list down; when it holds more than fits, the
+  // mouse wheel over it scrolls it sideways, as the Quick Actions row does.
+  function chipRow(doc, id) {
+    var row = el(doc, 'div', 'cc-chips');
+
+    row.id = id;
+    row.addEventListener('wheel', function (e) { scrollSideways(row, e); }, { passive: false });
+
+    return row;
+  }
+
+  // A row that fits leaves the wheel alone.
+  function scrollSideways(row, e) {
+    var room = row.scrollWidth - row.clientWidth;
+
+    if (room <= 0) return;
+
+    var delta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+
+    if (e.deltaMode === 1) delta *= WHEEL_LINE_PX;
+    if (e.deltaMode === 2) delta *= row.clientWidth;
+
+    e.preventDefault();
+    row.scrollLeft = clamp(row.scrollLeft + delta, 0, room);
   }
 
   function buildQueue(win) {
@@ -662,16 +691,17 @@
     var row = doc.getElementById('cc-filters');
     var ui = win.__ccUi;
 
-    row.innerHTML = '';
-    FILTERS.forEach(function (filter) {
-      if (filter.id === 'kept' && !view.keep.on) return;
+    refillRow(row, function () {
+      FILTERS.forEach(function (filter) {
+        if (filter.id === 'kept' && !view.keep.on) return;
 
-      var count = entries.filter(function (entry) { return inFilter(filter.id, entry); }).length;
+        var count = entries.filter(function (entry) { return inFilter(filter.id, entry); }).length;
 
-      row.appendChild(chip(doc, filter.label, count, ui.filter === filter.id, function () {
-        ui.filter = filter.id;
-        drawList(win, true);
-      }));
+        row.appendChild(chip(doc, filter.label, count, ui.filter === filter.id, function () {
+          ui.filter = filter.id;
+          drawList(win, true);
+        }));
+      });
     });
   }
 
@@ -681,19 +711,30 @@
     var row = doc.getElementById('cc-groups');
     var ui = win.__ccUi;
 
-    row.innerHTML = '';
-    row.appendChild(chip(doc, 'All groups', null, ui.group === ALL_GROUPS, function () {
-      ui.group = ALL_GROUPS;
-      drawList(win, true);
-    }));
-    metas.forEach(function (meta) {
-      if (!groups[meta.id]) return;
-
-      row.appendChild(chip(doc, groupName(win, meta), groups[meta.id].canMake, ui.group === meta.id, function () {
-        ui.group = ui.group === meta.id ? ALL_GROUPS : meta.id;
+    refillRow(row, function () {
+      row.appendChild(chip(doc, 'All groups', null, ui.group === ALL_GROUPS, function () {
+        ui.group = ALL_GROUPS;
         drawList(win, true);
       }));
+      metas.forEach(function (meta) {
+        if (!groups[meta.id]) return;
+
+        row.appendChild(chip(doc, groupName(win, meta), groups[meta.id].canMake, ui.group === meta.id, function () {
+          ui.group = ui.group === meta.id ? ALL_GROUPS : meta.id;
+          drawList(win, true);
+        }));
+      });
     });
+  }
+
+  // Draws a chip row again where the player had scrolled it to, so picking a chip near its far end does not throw the
+  // row back to its start.
+  function refillRow(row, fill) {
+    var scrollLeft = row.scrollLeft;
+
+    row.innerHTML = '';
+    fill();
+    row.scrollLeft = scrollLeft;
   }
 
   function chip(doc, label, count, isOn, onClick) {
@@ -750,6 +791,8 @@
     drawList(win, false);
   }
 
+  // The name has the line beside the icon to itself and wraps rather than being cut short. The status line and Keep
+  // sit under it, and the materials, the amount and Add share one row across the bottom of the card.
   function card(win, entry, byKey) {
     var doc = win.document;
     var r = entry.recipe;
@@ -758,30 +801,32 @@
     var isLocked = entry.kind === 'locked';
     var node = el(doc, 'div', 'cc-card cc-k-' + entry.kind + (key === selectedKey ? ' cc-sel' : ''));
     var icon = el(doc, 'div', 'cc-card-ic');
-    var main = el(doc, 'div', 'cc-card-main');
+    var head = el(doc, 'div', 'cc-card-head');
     var name = el(doc, 'div', 'cc-card-name', r.name || key);
+    var sub = el(doc, 'div', 'cc-card-sub');
+    var foot = el(doc, 'div', 'cc-card-foot');
     var mats = el(doc, 'div', 'cc-mats');
-    var side = el(doc, 'div', 'cc-card-side');
 
     node.setAttribute('data-key', key);
     icon.appendChild(picture(doc, r.icon));
     if (yieldOf(key) > 1) icon.appendChild(el(doc, 'span', 'cc-yield', 'x' + yieldOf(key)));
     if (r.isNew) name.appendChild(el(doc, 'span', 'cc-new', 'NEW'));
+    sub.appendChild(el(doc, 'div', 'cc-card-st cc-st-' + entry.kind, statusLine(entry)));
+    if (view.keep.on) sub.appendChild(keepButton(doc, key, isLocked));
+    head.appendChild(name);
+    head.appendChild(sub);
     entry.mats.forEach(function (m) { mats.appendChild(materialChip(doc, m, amount, byKey, entry.hits)); });
-    main.appendChild(name);
-    main.appendChild(el(doc, 'div', 'cc-card-st cc-st-' + entry.kind, statusLine(entry)));
-    main.appendChild(mats);
-    if (view.keep.on) side.appendChild(keepButton(doc, key, isLocked));
-    side.appendChild(stepper(doc, amount, function (step) {
+    foot.appendChild(mats);
+    foot.appendChild(stepper(doc, amount, function (step) {
       win.__ccUi.amounts[key] = clamp(amount + step, 1, MAX_AMOUNT);
       drawList(win, false);
     }));
-    side.appendChild(button(doc, 'cc-add', 'Add', 'Add this many crafts to the queue', function () {
+    foot.appendChild(button(doc, 'cc-add', 'Add', 'Add this many crafts to the queue', function () {
       post('add|' + encodeURIComponent(key) + '|' + amount);
     }, isLocked));
     node.appendChild(icon);
-    node.appendChild(main);
-    node.appendChild(side);
+    node.appendChild(head);
+    node.appendChild(foot);
     // A click on the card lays the recipe on the bench, as a click on the game's own row does.
     node.addEventListener('click', function () {
       if (!isLocked) send(win, 'RECIPE_CLICK', { recipeKey: key });

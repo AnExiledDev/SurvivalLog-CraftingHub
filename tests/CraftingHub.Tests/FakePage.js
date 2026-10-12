@@ -60,6 +60,9 @@ var FakeElement = class {
     this.style = {};
     this.listeners = [];
     this.scrollTop = 0;
+    this.scrollLeft = 0;
+    this.scrollWidth = 0;
+    this.clientWidth = 0;
     this.disabled = false;
     this.value = '';
     this.classList = {
@@ -114,13 +117,15 @@ var FakeElement = class {
     this.text = value == null ? '' : String(value);
   }
 
-  // Only ever set to '' by the script. Emptying a scrolled box scrolls it back to the top, as in a browser.
+  // Only ever set to '' by the script. Emptying a scrolled box scrolls it back to the top and the start, as in a
+  // browser.
   set innerHTML(value) {
     if (value !== '') throw new Error('the fake page only clears innerHTML');
 
     this.clear();
     this.text = '';
     this.scrollTop = 0;
+    this.scrollLeft = 0;
   }
 
   clear() {
@@ -305,6 +310,9 @@ function fire(target, type, init) {
     type: type,
     target: target,
     key: init && init.key,
+    deltaX: (init && init.deltaX) || 0,
+    deltaY: (init && init.deltaY) || 0,
+    deltaMode: (init && init.deltaMode) || 0,
     defaultPrevented: false,
     isStopped: false,
     stopPropagation: function () { event.isStopped = true; },
@@ -475,6 +483,18 @@ function benchDoc() {
 
 function $(id) {
   return benchDoc().getElementById(id);
+}
+
+// The declarations of the hub's style rule for exactly this selector, as its style sheet writes them; '' when none.
+function cssRule(selector) {
+  var sheet = '}' + benchDoc().getElementById('cc-style').textContent;
+  var start = sheet.indexOf('}' + selector + '{');
+
+  if (start < 0) return '';
+
+  var body = start + selector.length + 2;
+
+  return sheet.slice(body, sheet.indexOf('}', body));
 }
 
 // A recipe message (RecipeMsg, ToolTable.html:2922): shows or hides the recipe list, and draws it when shown, through

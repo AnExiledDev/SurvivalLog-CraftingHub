@@ -208,6 +208,67 @@ public class PageScriptTests
     }
 
     [Fact]
+    public void Each_chip_row_stays_on_one_line_so_the_filters_never_push_the_list_down()
+    {
+        var page = BenchWithRecipes();
+
+        Assert.True(page.Truth("$('cc-filters').classList.contains('cc-chips')"));
+        Assert.True(page.Truth("$('cc-groups').classList.contains('cc-chips')"));
+        Assert.Contains("flex-wrap:nowrap", page.Text("cssRule('.cc-chips')"));
+        Assert.Contains("overflow-x:auto", page.Text("cssRule('.cc-chips')"));
+        Assert.Contains("flex:none", page.Text("cssRule('.cc-fchip')"));
+        Assert.Contains("white-space:nowrap", page.Text("cssRule('.cc-fchip')"));
+    }
+
+    [Fact]
+    public void The_mouse_wheel_over_the_group_row_scrolls_it_sideways_and_stops_at_its_ends()
+    {
+        var page = BenchWithRecipes();
+
+        page.Run("$('cc-groups').scrollWidth = 900; $('cc-groups').clientWidth = 600");
+        page.Run("var wheel = fire(groupChip('Group 1'), 'wheel', { deltaY: 120 })");
+
+        Assert.Equal(120, page.Number("$('cc-groups').scrollLeft"));
+        Assert.True(page.Truth("wheel.defaultPrevented"));
+
+        page.Run("fire(groupChip('Group 1'), 'wheel', { deltaY: 3, deltaMode: 1 })");
+
+        Assert.Equal(168, page.Number("$('cc-groups').scrollLeft"));
+
+        page.Run("fire(groupChip('Group 1'), 'wheel', { deltaY: 1000 })");
+
+        Assert.Equal(300, page.Number("$('cc-groups').scrollLeft"));
+
+        page.Run("fire(groupChip('Group 1'), 'wheel', { deltaY: -1000 })");
+
+        Assert.Equal(0, page.Number("$('cc-groups').scrollLeft"));
+    }
+
+    [Fact]
+    public void A_chip_row_that_fits_leaves_the_wheel_to_scroll_the_page()
+    {
+        var page = BenchWithRecipes();
+
+        page.Run("$('cc-filters').scrollWidth = 500; $('cc-filters').clientWidth = 600");
+        page.Run("var wheel = fire(filterChip('All'), 'wheel', { deltaY: 120 })");
+
+        Assert.Equal(0, page.Number("$('cc-filters').scrollLeft"));
+        Assert.False(page.Truth("wheel.defaultPrevented"));
+    }
+
+    [Fact]
+    public void Picking_a_group_chip_keeps_the_row_where_it_was_scrolled()
+    {
+        var page = BenchWithRecipes();
+
+        page.Run("$('cc-groups').scrollWidth = 900; $('cc-groups').clientWidth = 600; $('cc-groups').scrollLeft = 200");
+        page.Press("groupChip('Group 3')");
+
+        Assert.Equal("shirt", page.Text("cardKeys()"));
+        Assert.Equal(200, page.Number("$('cc-groups').scrollLeft"));
+    }
+
+    [Fact]
     public void Collapsing_a_group_goes_through_the_games_own_setting_so_it_is_remembered()
     {
         var page = BenchWithRecipes();
@@ -319,6 +380,37 @@ public class PageScriptTests
         page.Press("cardPart('plank', '.cc-pin')");
 
         Assert.Equal(new PageCommand[] { new PageCommand.Keep("plank", 10), new PageCommand.Keep("plank", 0) }, Sent(page));
+    }
+
+    [Fact]
+    public void A_cards_name_has_its_own_line_and_wraps_rather_than_being_cut_short()
+    {
+        var page = BenchWithRecipes();
+
+        Assert.Equal("TorchNEW", page.Text("cardPart('torch', '.cc-card-name').textContent"));
+        Assert.True(page.Truth("cardPart('torch', '.cc-card-name').parentElement.matches('.cc-card-head')"));
+        Assert.True(page.Truth("cardPart('torch', '.cc-card-head').parentElement === card('torch')"));
+        Assert.True(page.Truth("cardPart('torch', '.cc-card-head').querySelector('.cc-add') === null"));
+        Assert.DoesNotContain("nowrap", page.Text("cssRule('.cc-card-name')"));
+        Assert.DoesNotContain("ellipsis", page.Text("cssRule('.cc-card-name')"));
+        Assert.Contains("overflow-wrap:break-word", page.Text("cssRule('.cc-card-name')"));
+    }
+
+    [Fact]
+    public void A_cards_materials_amount_and_add_share_one_row_across_its_bottom_and_keep_sits_with_the_status()
+    {
+        var page = BenchWithRecipes();
+
+        page.Show(View(keep: new KeepView(true, Array.Empty<KeepTarget>(), new Dictionary<string, int>())));
+        page.Run("var foot = cardPart('plank', '.cc-add').parentElement");
+
+        Assert.True(page.Truth("foot.matches('.cc-card-foot')"));
+        Assert.True(page.Truth("foot.parentElement === card('plank')"));
+        Assert.True(page.Truth("cardPart('plank', '.cc-more').parentElement.parentElement === foot"));
+        Assert.True(page.Truth("cardPart('plank', '.cc-mat').parentElement.parentElement === foot"));
+        Assert.True(page.Truth("foot.querySelector('.cc-card-name') === null"));
+        Assert.True(page.Truth("cardPart('plank', '.cc-pin').parentElement === cardPart('plank', '.cc-card-st').parentElement"));
+        Assert.Contains("grid-column:1/-1", page.Text("cssRule('.cc-card-foot')"));
     }
 
     // ---------------------------------------------------------------- the queue
