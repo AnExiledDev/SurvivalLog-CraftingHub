@@ -65,6 +65,31 @@ public sealed class CraftQueue
     public void Clear() => _entries.Clear();
 
     /// <summary>
+    /// Moves an order to a new place in the queue, by its id so a drag that lands after the queue changed still moves
+    /// the order the player picked up. A place past either end is taken as that end.
+    /// </summary>
+    public void Move(long orderId, int to)
+    {
+        var from = _entries.FindIndex(entry => entry.Id == orderId);
+
+        if (from < 0) return;
+
+        var entry = _entries[from];
+        _entries.RemoveAt(from);
+        _entries.Insert(Math.Clamp(to, 0, _entries.Count), entry);
+    }
+
+    /// <summary>Sets how many crafts an order still wants. Removing an order is its own command, so zero is ignored.</summary>
+    public void SetCrafts(long orderId, int crafts)
+    {
+        var index = _entries.FindIndex(entry => entry.Id == orderId);
+
+        if (index < 0 || crafts <= 0) return;
+
+        _entries[index] = _entries[index] with { Crafts = crafts };
+    }
+
+    /// <summary>
     /// Counts finished crafts against the order they were planned for and drops it once none are left. An order that
     /// is no longer queued gets nothing; no other order is credited in its place.
     /// </summary>

@@ -107,12 +107,12 @@ public sealed class QueueRunner
     /// <summary>A workbench that stays busy and unchanged this long gets a status line, so a stall is not silent.</summary>
     public const double BusyNoticeSeconds = 30;
 
-    private const string ClosedReason = "the workbench closed; the queue is kept, press Start to carry on";
+    private const string ClosedReason = "the workbench closed; the queue is kept, press Craft queue to carry on";
     private const string PausedReason = "the workbench closed; the queue carries on when you open it again";
     private const string PausedAnyBenchReason = "the workbench closed; the queue carries on when you open any workbench";
     private const string ResumedReason = "the workbench is open again; carrying on with the queue";
     private const string ResumedAnyBenchReason = "a workbench is open; carrying on with the queue here";
-    private const string ElsewhereReason = "the queue carries on at the workbench it was running on; press Stop, then Start, to run it here";
+    private const string ElsewhereReason = "the queue carries on at the workbench it was running on; press Stop, then Craft queue, to run it here";
     private const string StaleBatchNotice = "the workbench shows a batch in progress with nothing being made; carrying on with the next craft";
     private const string BusyNotice = "waiting for the workbench: it has shown a craft in progress for a while with no change";
 

@@ -21,6 +21,7 @@ internal sealed class HubSession
 {
     private static readonly IReadOnlyDictionary<string, string> NoMarks = new Dictionary<string, string>();
     private static readonly IReadOnlyDictionary<string, int> NoKeeps = new Dictionary<string, int>();
+    private static readonly IReadOnlyDictionary<string, int> NoYields = new Dictionary<string, int>();
 
     private readonly Workbench _bench;
     private readonly WorkbenchPage _page;
@@ -34,6 +35,10 @@ internal sealed class HubSession
     private readonly KeepSlot _slot;
     private IReadOnlyDictionary<string, string> _marks = NoMarks;
     private IReadOnlyDictionary<string, int> _keepByKey = NoKeeps;
+    private IReadOnlyDictionary<int, int>? _keepHave;
+    private IReadOnlyDictionary<string, int> _yields = NoYields;
+    private QueueOutlook _outlook = QueueOutlook.Empty;
+    private string _outlookFor = "";
     private string _status = "";
     private string _shownView = "";
     private string _pickedKey = "";
@@ -65,6 +70,7 @@ internal sealed class HubSession
         if (isOpen && !_wasOpen)
         {
             _seenRefreshes = -1;
+            _outlookFor = "";
             LoadTargets();
         }
 
@@ -79,6 +85,8 @@ internal sealed class HubSession
         if (_runner.IsRunning) Apply(_runner.Tick(_bench.View(), now, Next));
 
         if (_settings.KeepStocked && _topUps.IsDue(isOpen, now, IsIdle)) TopUp();
+
+        if (isOpen) RefreshOutlook();
 
         Show();
     }
@@ -107,6 +115,13 @@ internal sealed class HubSession
                 if (_runner.IsRunning) Apply(_runner.Stop("queue cleared"));
 
                 _queue.Clear();
+                break;
+            case PageCommand.Move move:
+                // Finished crafts are credited by order id, so a running step still counts for its own order after a move.
+                _queue.Move(move.Id, move.To);
+                break;
+            case PageCommand.Amount amount:
+                _queue.SetCrafts(amount.Id, amount.Crafts);
                 break;
             case PageCommand.Keep keep:
                 SetKeep(keep.Key, keep.Count);
@@ -330,7 +345,28 @@ internal sealed class HubSession
         _logFileOnly("another save was loaded; the queue was emptied");
     }
 
-    private void RefreshKeeps() => _keepByKey = _bench.Read() is { } read ? _slot.Targets.ByRecipe(read.Book) : NoKeeps;
+    private void RefreshKeeps()
+    {
+        var targets = _slot.Targets.All;
+
+        _keepByKey = _bench.Read() is { } read ? _slot.Targets.ByRecipe(read.Book) : NoKeeps;
+        _keepHave = targets.Count > 0 ? _keep.Stock.Count(targets.Select(target => target.ItemId)) : null;
+    }
+
+    /// <summary>
+    /// Costs the whole queue for the page. Reading the bench is not cheap, so it is redone only when the queue, the
+    /// targets or the game's recipe list changed; a closed bench keeps the last costing.
+    /// </summary>
+    private void RefreshOutlook()
+    {
+        var costedFor = $"{_bench.Refreshes}|{string.Join(",", _queue.Entries.Select(entry => $"{entry.Id}:{entry.Crafts}"))}|{string.Join(",", _slot.Targets.All.Select(target => $"{target.ItemId}:{target.Count}"))}";
+
+        if (costedFor == _outlookFor || _bench.Read() is not { } read) return;
+
+        _outlookFor = costedFor;
+        _outlook = QueueForecast.Plan(_queue.Entries, read.Book, read.Stock, _slot.Targets.All, _settings.MaxDepth, _bench.ItemName);
+        _yields = read.Book.All.Where(recipe => recipe.Yield > 1).ToDictionary(recipe => recipe.Key, recipe => recipe.Yield);
+    }
 
     private void RefreshMarks()
     {
@@ -354,8 +390,8 @@ internal sealed class HubSession
 
     private void Show()
     {
-        var keep = new KeepView(_settings.KeepStocked, _slot.Targets.All, _keepByKey);
-        var view = HubView.Build(_marks, _queue.Entries, _runner.IsRunning, _status, keep);
+        var keep = new KeepView(_settings.KeepStocked, _slot.Targets.All, _keepByKey, _keepHave);
+        var view = HubView.Build(_marks, _queue.Entries, _runner.IsRunning, _status, keep, _runner.IsPaused, _outlook, _yields);
 
         if (view == _shownView) return;
 

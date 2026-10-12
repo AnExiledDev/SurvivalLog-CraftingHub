@@ -141,6 +141,25 @@ public class CraftPlannerTests
         Assert.False(stock.ContainsKey(Bench.Plank));
     }
 
+    [Fact]
+    public void A_walk_hands_back_what_the_plan_leaves_in_stock()
+    {
+        var walk = CraftPlanner.Walk(Bench.Book(), Bench.Mats((Bench.Log, 3), (Bench.Fibre, 3)), Bench.CrateRecipe, 1, maxDepth: 4);
+
+        Assert.Empty(walk.Missing);
+        Assert.Equal((1, 0, 0, 1), (walk.Left[Bench.Log], walk.Left[Bench.Fibre], walk.Left[Bench.Plank], walk.Left[Bench.Crate]));
+    }
+
+    [Fact]
+    public void A_walk_goes_on_through_a_shortage_and_counts_every_missing_item()
+    {
+        var walk = CraftPlanner.Walk(Bench.Book(), Bench.Mats((Bench.Log, 1)), Bench.CrateRecipe, 1, maxDepth: 4);
+
+        Assert.Equal(new[] { ("plank", 2), ("rope", 1), ("crate", 1) }, walk.Steps.Select(step => (step.Recipe.Key, step.Crafts)));
+        Assert.Equal(new[] { (Bench.Log, 1), (Bench.Fibre, 3) }, walk.Missing.OrderBy(pair => pair.Key).Select(pair => (pair.Key, pair.Value)));
+        Assert.Equal(0, walk.Left[Bench.Log]);
+    }
+
     private static (string, int)[] Steps(CraftPlan.Ready ready) => ready.Steps.Select(step => (step.Recipe.Key, step.Crafts)).ToArray();
 }
 
@@ -310,6 +329,169 @@ public class CraftQueueTests
 
         Assert.Equal(new[] { (1, false), (2, true) }, queue.Entries.Select(entry => (entry.Crafts, entry.IsTopUp)));
     }
+
+    [Fact]
+    public void Moving_an_order_puts_it_at_the_place_asked_and_past_either_end_at_that_end()
+    {
+        var queue = new CraftQueue();
+
+        queue.Add("crate", "Crate", 1);
+        queue.Add("rope", "Rope", 1);
+        queue.Add("plank", "Plank", 1);
+
+        var crate = queue.Entries[0].Id;
+        var plank = queue.Entries[2].Id;
+
+        queue.Move(plank, 0);
+
+        Assert.Equal(new[] { "plank", "crate", "rope" }, queue.Entries.Select(entry => entry.Key));
+
+        queue.Move(crate, 99);
+
+        Assert.Equal(new[] { "plank", "rope", "crate" }, queue.Entries.Select(entry => entry.Key));
+
+        queue.Move(crate, -5);
+
+        Assert.Equal(new[] { "crate", "plank", "rope" }, queue.Entries.Select(entry => entry.Key));
+    }
+
+    [Fact]
+    public void Moving_an_order_no_longer_queued_changes_nothing()
+    {
+        var queue = new CraftQueue();
+
+        queue.Add("crate", "Crate", 1);
+        queue.Add("rope", "Rope", 1);
+
+        var crate = queue.Entries[0].Id;
+
+        queue.Remove(0);
+        queue.Add("plank", "Plank", 1);
+        queue.Move(crate, 1);
+
+        Assert.Equal(new[] { "rope", "plank" }, queue.Entries.Select(entry => entry.Key));
+    }
+
+    [Fact]
+    public void Setting_an_amount_keeps_the_order_so_finished_crafts_still_count_against_it()
+    {
+        var queue = new CraftQueue();
+
+        queue.Add("crate", "Crate", 2);
+
+        var crate = queue.Entries[0].Id;
+
+        queue.SetCrafts(crate, 5);
+        queue.Progress(crate, 1);
+
+        Assert.Equal(4, Assert.Single(queue.Entries).Crafts);
+    }
+
+    [Fact]
+    public void An_amount_of_zero_or_for_an_unknown_order_changes_nothing()
+    {
+        var queue = new CraftQueue();
+
+        queue.Add("crate", "Crate", 2);
+
+        var crate = queue.Entries[0].Id;
+
+        queue.SetCrafts(crate, 0);
+        queue.SetCrafts(crate, -3);
+        queue.SetCrafts(crate + 100, 7);
+
+        Assert.Equal(2, Assert.Single(queue.Entries).Crafts);
+    }
+}
+
+public class QueueForecastTests
+{
+    private static readonly KeepTarget[] NoKeeps = Array.Empty<KeepTarget>();
+
+    [Fact]
+    public void Each_order_says_whether_it_is_ready_makes_parts_first_or_is_short()
+    {
+        var ready = Plan(Bench.Mats((Bench.Plank, 4), (Bench.Rope, 1)), NoKeeps, Order("crate", 1));
+        var makesFirst = Plan(Bench.Mats((Bench.Log, 2), (Bench.Fibre, 3)), NoKeeps, Order("crate", 1));
+        var shortOf = Plan(Bench.Mats((Bench.Log, 2)), NoKeeps, Order("crate", 1));
+
+        Assert.Equal((OrderState.Ready, "Ready"), Outlook(ready, 0));
+        Assert.Equal((OrderState.MakesFirst, "Makes first: Plank x2, Rope x1"), Outlook(makesFirst, 0));
+        Assert.Equal((OrderState.Short, "Short: Fibre x3"), Outlook(shortOf, 0));
+    }
+
+    [Fact]
+    public void A_locked_or_unlisted_recipe_says_so()
+    {
+        var book = new RecipeBook(new[] { Bench.PlankRecipe, Bench.RopeRecipe with { IsLocked = true } });
+
+        var outlook = QueueForecast.Plan(new[] { Order("rope", 1, id: 1), Order("anvil", 1, id: 2) }, book, Bench.Mats((Bench.Fibre, 9)), NoKeeps, 4, Bench.Name);
+
+        Assert.Equal((OrderState.Locked, "Not unlocked yet"), Outlook(outlook, 0));
+        Assert.Equal((OrderState.NotListed, "Not in your recipe list yet"), Outlook(outlook, 1));
+    }
+
+    [Fact]
+    public void A_later_order_only_gets_what_the_orders_above_it_leave()
+    {
+        var outlook = Plan(Bench.Mats((Bench.Plank, 4), (Bench.Rope, 1)), NoKeeps, Order("crate", 1, id: 1), Order("crate", 1, id: 2));
+
+        Assert.Equal((OrderState.Ready, "Ready"), Outlook(outlook, 0));
+        Assert.Equal((OrderState.Short, "Short: Log x2, Fibre x3"), Outlook(outlook, 1));
+    }
+
+    [Fact]
+    public void Totals_are_what_the_queue_uses_from_what_you_own_short_items_first()
+    {
+        var outlook = Plan(Bench.Mats((Bench.Log, 2), (Bench.Fibre, 1)), NoKeeps, Order("crate", 1));
+
+        Assert.Equal(new[] { new MaterialTotal(Bench.Fibre, "Fibre", 3, 1, 2), new MaterialTotal(Bench.Log, "Log", 2, 2, 0) }, outlook.Totals);
+    }
+
+    [Fact]
+    public void Parts_made_for_several_orders_are_listed_once_with_their_crafts_added()
+    {
+        var outlook = Plan(Bench.Mats((Bench.Log, 4), (Bench.Fibre, 6)), NoKeeps, Order("crate", 1, id: 1), Order("crate", 1, id: 2));
+
+        Assert.Equal(new[] { new MadeOnTheWay("plank", "Plank", 4), new MadeOnTheWay("rope", "Rope", 2) }, outlook.Made);
+    }
+
+    [Fact]
+    public void The_heads_up_names_the_first_order_the_queue_will_stop_at()
+    {
+        var outlook = Plan(Bench.Mats((Bench.Plank, 4), (Bench.Rope, 1)), NoKeeps, Order("crate", 1, id: 1), Order("rope", 1, id: 2), Order("plank", 1, id: 3));
+
+        Assert.Equal("Heads up: Rope is short of Fibre x3. The queue will stop there.", outlook.HeadsUp);
+    }
+
+    [Fact]
+    public void A_queue_that_can_all_be_made_has_no_heads_up()
+    {
+        var outlook = Plan(Bench.Mats((Bench.Log, 2), (Bench.Fibre, 3)), NoKeeps, Order("crate", 1));
+
+        Assert.Equal("", outlook.HeadsUp);
+    }
+
+    [Fact]
+    public void A_top_up_leaves_kept_stock_alone_where_a_players_order_may_use_it()
+    {
+        var stock = Bench.Mats((Bench.Plank, 4), (Bench.Rope, 1), (Bench.Log, 2));
+        var kept = new[] { new KeepTarget(Bench.Plank, "plank", "Plank", 4) };
+
+        var players = Plan(stock, kept, Order("crate", 1));
+        var topUp = Plan(stock, kept, Order("crate", 1) with { IsTopUp = true });
+
+        Assert.Equal((OrderState.Ready, "Ready"), Outlook(players, 0));
+        Assert.Equal((OrderState.MakesFirst, "Makes first: Plank x2"), Outlook(topUp, 0));
+    }
+
+    /// <summary>An order named as its recipe: "crate" is Crate.</summary>
+    private static QueueEntry Order(string key, int crafts, long id = 1) => new(key, char.ToUpperInvariant(key[0]) + key.Substring(1), crafts, Id: id);
+
+    private static QueueOutlook Plan(Dictionary<int, int> stock, KeepTarget[] kept, params QueueEntry[] queue) =>
+        QueueForecast.Plan(queue, Bench.Book(), stock, kept, 4, Bench.Name);
+
+    private static (OrderState, string) Outlook(QueueOutlook outlook, int index) => (outlook.Orders[index].State, outlook.Orders[index].Note);
 }
 
 public class QueuePlannerTests
@@ -919,6 +1101,29 @@ public class PageCommandTests
     }
 
     [Fact]
+    public void A_move_names_the_order_by_id_and_its_new_place()
+    {
+        Assert.Equal(new PageCommand.Move(7, 2), PageCommand.Parse(PageCommand.Prefix + "move|7|2"));
+        Assert.Equal(new PageCommand.Move(7, 0), PageCommand.Parse(PageCommand.Prefix + "move|7|0"));
+    }
+
+    [Fact]
+    public void A_move_without_a_real_order_or_place_is_rejected()
+    {
+        Assert.IsType<PageCommand.Unknown>(PageCommand.Parse(PageCommand.Prefix + "move|0|1"));
+        Assert.IsType<PageCommand.Unknown>(PageCommand.Parse(PageCommand.Prefix + "move|7|-1"));
+        Assert.IsType<PageCommand.Unknown>(PageCommand.Parse(PageCommand.Prefix + "move|7"));
+    }
+
+    [Fact]
+    public void An_amount_sets_an_orders_crafts_and_never_to_zero()
+    {
+        Assert.Equal(new PageCommand.Amount(7, 3), PageCommand.Parse(PageCommand.Prefix + "amount|7|3"));
+        Assert.IsType<PageCommand.Unknown>(PageCommand.Parse(PageCommand.Prefix + "amount|7|0"));
+        Assert.IsType<PageCommand.Unknown>(PageCommand.Parse(PageCommand.Prefix + "amount|0|3"));
+    }
+
+    [Fact]
     public void Other_mods_messages_are_not_ours()
     {
         Assert.False(PageCommand.IsOurs("slmod|storagehub|ready"));
@@ -953,6 +1158,69 @@ public class HubViewTests
         Assert.Equal("Rope \"tough\"", shown.GetProperty("targets")[0].GetProperty("name").GetString());
         Assert.Equal(5, shown.GetProperty("targets")[0].GetProperty("count").GetInt32());
         Assert.Equal(5, shown.GetProperty("byKey").GetProperty("rope").GetInt32());
+    }
+
+    [Fact]
+    public void Each_order_carries_its_id_and_where_it_stands_and_the_queue_its_totals()
+    {
+        var queue = new[] { new QueueEntry("crate", "Crate", 1, Id: 4), new QueueEntry("rope", "Rope", 1, Id: 9) };
+        var outlook = new QueueOutlook(
+            new[] { new OrderOutlook(4, OrderState.MakesFirst, "Makes first: Plank x2") },
+            new[] { new MaterialTotal(Bench.Fibre, "Fibre", 3, 1, 2) },
+            new[] { new MadeOnTheWay("plank", "Plank", 2) },
+            "Heads up: Crate is short of Fibre x2. The queue will stop there.");
+
+        var json = HubView.Build(new Dictionary<string, string>(), queue, false, "", NoKeep, outlook: outlook);
+
+        using var parsed = System.Text.Json.JsonDocument.Parse(json);
+        var root = parsed.RootElement;
+        Assert.Equal(4, root.GetProperty("queue")[0].GetProperty("id").GetInt64());
+        Assert.Equal("via", root.GetProperty("queue")[0].GetProperty("state").GetString());
+        Assert.Equal("Makes first: Plank x2", root.GetProperty("queue")[0].GetProperty("note").GetString());
+        Assert.Equal("", root.GetProperty("queue")[1].GetProperty("state").GetString());
+        Assert.Equal("Heads up: Crate is short of Fibre x2. The queue will stop there.", root.GetProperty("headsUp").GetString());
+        Assert.Equal(2, root.GetProperty("totals")[0].GetProperty("short").GetInt32());
+        Assert.Equal(3, root.GetProperty("totals")[0].GetProperty("need").GetInt32());
+        Assert.Equal(2, root.GetProperty("made")[0].GetProperty("crafts").GetInt32());
+    }
+
+    [Fact]
+    public void Only_a_running_queue_can_show_as_paused()
+    {
+        var idle = HubView.Build(new Dictionary<string, string>(), Array.Empty<QueueEntry>(), false, "", NoKeep, isPaused: true);
+        var running = HubView.Build(new Dictionary<string, string>(), Array.Empty<QueueEntry>(), true, "", NoKeep, isPaused: true);
+
+        using var idleParsed = System.Text.Json.JsonDocument.Parse(idle);
+        using var runningParsed = System.Text.Json.JsonDocument.Parse(running);
+        Assert.False(idleParsed.RootElement.GetProperty("paused").GetBoolean());
+        Assert.True(runningParsed.RootElement.GetProperty("paused").GetBoolean());
+    }
+
+    [Fact]
+    public void Only_recipes_that_make_more_than_one_list_their_yield()
+    {
+        var yields = new Dictionary<string, int> { ["plank"] = 2, ["rope"] = 1 };
+
+        var json = HubView.Build(new Dictionary<string, string>(), Array.Empty<QueueEntry>(), false, "", NoKeep, yields: yields);
+
+        using var parsed = System.Text.Json.JsonDocument.Parse(json);
+        var shown = parsed.RootElement.GetProperty("yields");
+        Assert.Equal(2, shown.GetProperty("plank").GetInt32());
+        Assert.False(shown.TryGetProperty("rope", out _));
+    }
+
+    [Fact]
+    public void A_kept_item_shows_how_many_the_home_holds_and_null_when_it_could_not_be_counted()
+    {
+        var targets = new[] { new KeepTarget(Bench.Rope, "rope", "Rope", 5), new KeepTarget(Bench.Plank, "plank", "Plank", 9) };
+        var keep = new KeepView(true, targets, new Dictionary<string, int>(), new Dictionary<int, int> { [Bench.Rope] = 3 });
+
+        var json = HubView.Build(new Dictionary<string, string>(), Array.Empty<QueueEntry>(), false, "", keep);
+
+        using var parsed = System.Text.Json.JsonDocument.Parse(json);
+        var shown = parsed.RootElement.GetProperty("keep").GetProperty("targets");
+        Assert.Equal(3, shown[0].GetProperty("have").GetInt32());
+        Assert.Equal(System.Text.Json.JsonValueKind.Null, shown[1].GetProperty("have").ValueKind);
     }
 
     private static readonly KeepView NoKeep = new(false, Array.Empty<KeepTarget>(), new Dictionary<string, int>());

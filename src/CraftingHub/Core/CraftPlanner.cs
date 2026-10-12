@@ -18,6 +18,9 @@ public abstract record CraftPlan
     public sealed record Short(IReadOnlyDictionary<int, int> Missing) : CraftPlan;
 }
 
+/// <summary>A plan walked to the end: its steps, what was short, and the stock left once it ran.</summary>
+public sealed record CraftWalk(IReadOnlyList<CraftStep> Steps, IReadOnlyDictionary<int, int> Missing, IReadOnlyDictionary<int, int> Left);
+
 /// <summary>
 /// Works out what to craft, and in what order, to make a recipe from the stock on hand. Materials already owned are
 /// used first; anything short is crafted from its own recipe, down to a depth cap. Stock is reserved as the plan is
@@ -27,11 +30,22 @@ public static class CraftPlanner
 {
     public static CraftPlan Plan(RecipeBook book, IReadOnlyDictionary<int, int> stock, Recipe target, int crafts, int maxDepth)
     {
+        var walk = Walk(book, stock, target, crafts, maxDepth);
+
+        return walk.Missing.Count == 0 ? new CraftPlan.Ready(walk.Steps) : new CraftPlan.Short(walk.Missing);
+    }
+
+    /// <summary>
+    /// The plan worked through to the end even when something is short, with the stock it would leave behind, so a
+    /// whole queue can be costed order by order. What is short is taken as found, so later orders do not count it twice.
+    /// </summary>
+    public static CraftWalk Walk(RecipeBook book, IReadOnlyDictionary<int, int> stock, Recipe target, int crafts, int maxDepth)
+    {
         var run = new Run(book, stock, maxDepth);
 
         run.Craft(target, Math.Max(1, crafts), depth: 0);
 
-        return run.Missing.Count == 0 ? new CraftPlan.Ready(run.Steps) : new CraftPlan.Short(run.Missing);
+        return new CraftWalk(run.Steps, run.Missing, run.Stock);
     }
 
     private sealed class Run
@@ -50,6 +64,8 @@ public static class CraftPlanner
         public List<CraftStep> Steps { get; } = new();
 
         public Dictionary<int, int> Missing { get; } = new();
+
+        public IReadOnlyDictionary<int, int> Stock => _stock;
 
         public void Craft(Recipe recipe, int crafts, int depth)
         {

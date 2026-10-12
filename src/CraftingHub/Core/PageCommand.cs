@@ -31,6 +31,12 @@ public abstract record PageCommand
 
     public sealed record Clear : PageCommand;
 
+    /// <summary>Move the order with this id to place <see cref="To"/> in the queue, 0 being the front.</summary>
+    public sealed record Move(long Id, int To) : PageCommand;
+
+    /// <summary>Set how many crafts the order with this id still wants.</summary>
+    public sealed record Amount(long Id, int Crafts) : PageCommand;
+
     /// <summary>Keep <see cref="Count"/> of what a recipe makes in the home; 0 stops keeping it.</summary>
     public sealed record Keep(string Key, int Count) : PageCommand;
 
@@ -68,6 +74,8 @@ public abstract record PageCommand
             ("stop", 1) => new Stop(),
             ("remove", 2) when TryInt(parts[1], out var index) => new Remove(index),
             ("clear", 1) => new Clear(),
+            ("move", 3) when TryId(parts[1], out var id) && TryInt(parts[2], out var to) => new Move(id, to),
+            ("amount", 3) when TryId(parts[1], out var id) && TryCount(parts[2], out var crafts) => new Amount(id, crafts),
             ("keep", 3) when TryKey(parts[1], out var key) && TryInt(parts[2], out var count) && count <= KeepTarget.MaxCount => new Keep(key, count),
             ("unkeep", 2) when TryCount(parts[1], out var itemId) => new Unkeep(itemId),
             ("ready", 1) => new Ready(),
@@ -93,4 +101,6 @@ public abstract record PageCommand
     private static bool TryCount(string text, out int count) => TryInt(text, out count) && count > 0;
 
     private static bool TryInt(string text, out int value) => int.TryParse(text, NumberStyles.None, CultureInfo.InvariantCulture, out value);
+
+    private static bool TryId(string text, out long id) => long.TryParse(text, NumberStyles.None, CultureInfo.InvariantCulture, out id) && id > 0;
 }

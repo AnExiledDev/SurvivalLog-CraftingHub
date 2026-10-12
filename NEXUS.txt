@@ -1,5 +1,5 @@
 Name: Crafting Hub
-Summary: Workbenches use every storage in your home, make intermediate materials for you, and craft a queue of different recipes. Recipes you could make after crafting their intermediates are marked.
+Summary: A wider, searchable workbench screen with a craft queue. Workbenches use every storage in your home, make intermediate materials for you, and craft a queue of different recipes.
 
 Description (BBCode):
 A workbench normally only uses its linked storages and makes one recipe at a time. Crafting Hub lets every workbench use every storage in your home, makes the planks and parts in between for you, and crafts a whole queue of recipes in order.
@@ -7,12 +7,15 @@ A workbench normally only uses its linked storages and makes one recipe at a tim
 [size=5]Main features[/size]
 [list]
 [*][b]Every home storage counts[/b]: workbenches count and take materials from every storage in your home.[/*]
-[*][b]Craftable through intermediates[/b]: recipes you could make after crafting their intermediates get a dashed amber edge and a hammer badge. Select one to see what gets made first.[/*]
-[*][b]Craft with intermediates[/b]: one button makes the intermediates and then the recipe, using the quantity box.[/*]
-[*][b]Queue[/b]: "Add to queue" and "Start queue" craft different recipes one after another, intermediates included. Remove an order with its x, or press Clear.[/*]
+[*][b]A wider workbench screen[/b]: the recipe list becomes a wider one in two columns, with a craft queue column beside it. Your bag, the bench grid and its Craft button stay as they were.[/*]
+[*][b]Search and filters[/b]: search by recipe name or by a material it uses. Filter to what you can make now, what needs parts first, what you are short of, or what you keep in stock, and pick one recipe group at a time.[/*]
+[*][b]Craftable through intermediates[/b]: recipes you could make after crafting their intermediates show in amber with what gets made first.[/*]
+[*][b]Craft with intermediates[/b]: one button under the bench's Craft button makes the intermediates and then the recipe, using the quantity box.[/*]
+[*][b]Queue[/b]: set an amount on any recipe and press Add, then "Craft queue" crafts different recipes one after another, intermediates included. Change an order's amount, move it with the arrows or by dragging, remove it with its x, or press Clear. Each order says whether it is ready, what it makes first, or what it is short of.[/*]
+[*][b]Materials for the whole queue[/b]: what the queue uses in total, what you have, what is short, and the intermediates it makes on the way. A warning names the first order that will come up short before you start.[/*]
 [*][b]Stop[/b]: nothing more is started and the queue is kept.[/*]
 [*][b]Closing pauses the queue[/b]: close the workbench mid-run and the queue waits. Open any workbench (you walk there yourself) and it carries on by itself. Crafts finished before the close are counted, so they are not made twice.[/*]
-[*][b]Keep stocked[/b]: set how many of an item to keep (say 10 bandages) next to its recipe. Each time you open a workbench, the crafts that bring your home back up to that count are queued, and started if the queue was empty. Kept items show as chips with an x to stop keeping them.[/*]
+[*][b]Keep stocked[/b]: press Keep on a recipe to keep 10 of it in your home, and change the count in the Keep in stock list (say 20 bandages). Each time you open a workbench, the crafts that bring your home back up to that count are queued, and started if the queue was empty. The list shows how many your home holds, with an x to stop keeping an item.[/*]
 [*][b]Game's own clicks[/b]: every craft goes through the workbench's own buttons, so the game's checks and timings apply.[/*]
 [/list]
 
