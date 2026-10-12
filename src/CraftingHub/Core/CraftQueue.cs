@@ -57,10 +57,8 @@ public sealed class CraftQueue
         _entries.Insert(at, new QueueEntry(key, name, crafts, Id: ++_lastId));
     }
 
-    public void Remove(int index)
-    {
-        if (index >= 0 && index < _entries.Count) _entries.RemoveAt(index);
-    }
+    /// <summary>Takes an order off by its id, so a remove that lands after the queue changed takes the order the player meant.</summary>
+    public void Remove(long orderId) => _entries.RemoveAll(entry => entry.Id == orderId);
 
     public void Clear() => _entries.Clear();
 

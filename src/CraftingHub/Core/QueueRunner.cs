@@ -165,6 +165,9 @@ public sealed class QueueRunner
 
     public CraftNowPlace CraftNowPlace => IsPaused ? CraftNowPlace.Refused : _current != null ? CraftNowPlace.BehindHead : CraftNowPlace.Front;
 
+    /// <summary>The order the step in progress counts for, wherever it now sits in the queue; null between steps.</summary>
+    public long? CraftingFor => _current?.OrderId;
+
     /// <summary>
     /// Starts a run. A paused run is left waiting to carry on; with other workbenches off, Stop, then Start, runs the
     /// queue at the workbench open now.

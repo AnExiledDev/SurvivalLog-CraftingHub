@@ -385,17 +385,30 @@ public class PageScriptTests
     }
 
     [Fact]
-    public void An_orders_amount_steps_by_one_and_never_to_zero_and_x_removes_it()
+    public void An_orders_amount_counts_every_click_before_the_redraw_and_never_reaches_zero()
     {
         var page = BenchWithRecipes();
 
         page.Show(View(TwoOrders, outlook: TwoOrdersOutlook));
         page.Press("queueRow(0).querySelector('.cc-more')");
+        page.Press("queueRow(0).querySelector('.cc-more')");
         page.Press("queueRow(0).querySelector('.cc-less')");
         page.Press("queueRow(1).querySelector('.cc-less')");
+
+        Assert.Equal(new PageCommand[] { new PageCommand.Amount(4, 3), new PageCommand.Amount(4, 4), new PageCommand.Amount(4, 3) }, Sent(page));
+    }
+
+    [Fact]
+    public void The_x_removes_its_own_order_by_id_wherever_that_order_now_sits()
+    {
+        var page = BenchWithRecipes();
+        var ropeFirst = new[] { TwoOrders[1], TwoOrders[0] };
+
+        page.Show(View(ropeFirst, isRunning: true, outlook: TwoOrdersOutlook, activeOrderId: 4));
+        page.Press("queueRow(0).querySelector('.cc-x')");
         page.Press("queueRow(1).querySelector('.cc-x')");
 
-        Assert.Equal(new PageCommand[] { new PageCommand.Amount(4, 3), new PageCommand.Amount(4, 1), new PageCommand.Remove(1) }, Sent(page));
+        Assert.Equal(new PageCommand[] { new PageCommand.Remove(9), new PageCommand.Remove(4) }, Sent(page));
     }
 
     [Fact]
@@ -442,14 +455,27 @@ public class PageScriptTests
     }
 
     [Fact]
-    public void A_paused_queue_says_it_carries_on_at_the_next_workbench()
+    public void A_paused_queue_shows_the_runs_own_word_on_where_it_carries_on()
     {
         var page = BenchWithRecipes();
+        const string elsewhere = "the queue carries on at the workbench it was running on; press Stop, then Craft queue, to run it here";
 
-        page.Show(View(TwoOrders, isRunning: true, isPaused: true, outlook: TwoOrdersOutlook));
+        page.Show(View(TwoOrders, isRunning: true, isPaused: true, outlook: TwoOrdersOutlook, status: elsewhere));
 
         Assert.Equal("Paused", page.Text("$('cc-pill').textContent"));
-        Assert.Contains("carries on by itself when you open any workbench", page.Text("$('cc-notes').textContent"));
+        Assert.Equal(elsewhere, page.Text("$('cc-notes').textContent"));
+        Assert.True(page.Truth("$('cc-notes').querySelector('.cc-banner') !== null"));
+    }
+
+    [Fact]
+    public void A_button_refused_while_paused_says_why()
+    {
+        var page = BenchWithRecipes();
+        const string refused = "the queue is paused and carries on here in a moment; press Stop first to craft this now";
+
+        page.Show(View(TwoOrders, isRunning: true, isPaused: true, outlook: TwoOrdersOutlook, status: refused));
+
+        Assert.Equal(refused, page.Text("$('cc-notes').textContent"));
     }
 
     [Fact]
@@ -457,12 +483,43 @@ public class PageScriptTests
     {
         var page = BenchWithRecipes();
 
-        page.Show(View(TwoOrders, isRunning: true, outlook: TwoOrdersOutlook));
+        page.Show(View(TwoOrders, isRunning: true, outlook: TwoOrdersOutlook, activeOrderId: 4));
         page.Run("$('craft-progress').style.transform = 'scaleX(0.5)'");
         page.Poll();
 
         Assert.Equal("scaleX(0.5)", page.Text("$('cc-prog').style.transform"));
         Assert.True(page.Truth("queueRow(0).contains($('cc-prog'))"));
+    }
+
+    [Fact]
+    public void The_bar_stays_with_the_order_being_crafted_after_another_is_moved_above_it()
+    {
+        var page = BenchWithRecipes();
+
+        page.Show(View(TwoOrders, isRunning: true, outlook: TwoOrdersOutlook, activeOrderId: 9));
+
+        Assert.True(page.Truth("queueRow(1).contains($('cc-prog'))"));
+        Assert.False(page.Truth("queueRow(0).contains($('cc-prog'))"));
+    }
+
+    // ---------------------------------------------------------------- when drawing fails
+
+    [Fact]
+    public void A_hub_that_cannot_draw_gives_the_game_its_own_list_back_and_returns_once_it_can()
+    {
+        var page = BenchWithRecipes();
+
+        page.Run("benchDoc().createElement = function () { throw new Error('cannot draw'); }");
+        page.Show(View(TwoOrders, outlook: TwoOrdersOutlook));
+
+        Assert.False(page.Truth("benchDoc().querySelector('.combined-panel').classList.contains('cc-hub')"));
+        Assert.True(page.Truth("$('cc-mid') === null && $('cc-queue') === null && $('cc-panel') === null"));
+
+        page.Run("delete benchDoc().createElement");
+        page.Poll();
+
+        Assert.True(page.Truth("benchDoc().querySelector('.combined-panel').classList.contains('cc-hub')"));
+        Assert.Equal("plank,rope,crate,shirt,torch", page.Text("cardKeys()"));
     }
 
     [Fact]
@@ -552,8 +609,10 @@ public class PageScriptTests
         bool isPaused = false,
         QueueOutlook? outlook = null,
         KeepView? keep = null,
-        IReadOnlyDictionary<string, int>? yields = null) =>
-        HubView.Build(Marks, queue ?? Array.Empty<QueueEntry>(), isRunning, "", keep ?? NoKeep, isPaused, outlook, yields);
+        IReadOnlyDictionary<string, int>? yields = null,
+        string status = "",
+        long activeOrderId = 0) =>
+        HubView.Build(Marks, queue ?? Array.Empty<QueueEntry>(), isRunning, status, keep ?? NoKeep, isPaused, outlook, yields, activeOrderId);
 
     /// <summary>What the script asked of the plugin, past its hello.</summary>
     private static List<PageCommand> Sent(PageScript page) => page.Posted.Where(command => command is not PageCommand.Ready).ToList();
