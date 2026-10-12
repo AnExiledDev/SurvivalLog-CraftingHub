@@ -86,7 +86,10 @@ internal sealed class Workbench
     {
         var state = _state;
 
-        if (state == null || !IsOpen) return new BenchView(false, false, false, 0, new Dictionary<int, int>(), 0);
+        if (state == null) return new BenchView(false, false, false, 0, new Dictionary<int, int>(), 0);
+
+        // A craft can finish in the moment before the window closes; the kept state still holds its count.
+        if (!IsOpen) return new BenchView(false, false, false, 0, new Dictionary<int, int>(), state.BatchDone, BatchActive: state.BatchActive);
 
         return new BenchView(
             IsOpen: true,
@@ -95,7 +98,8 @@ internal sealed class Workbench
             MaxCrafts: state.MaxCraftCount?.Value ?? 0,
             Contents: Contents(state.WorkbenchOwnerId?.Value ?? 0),
             BatchDone: state.BatchDone,
-            BenchId: state.CurrentFurnitureId);
+            BenchId: state.CurrentFurnitureId,
+            BatchActive: state.BatchActive);
     }
 
     public string ItemName(int configId)
