@@ -8,11 +8,11 @@ A workbench in Survival Log only takes materials from the storages linked to it,
 
 - **Every home storage counts**: a workbench counts and takes materials from every storage in your home, not only the ones linked to it. This applies to the materials list, the craftable check, the most you can craft at once, and laying out the materials.
 - **Craftable through intermediates**: a recipe you can't make yet, but could after crafting its intermediates (planks for a crate, say), is marked in the recipe list with a dashed amber left edge and a small hammer badge on its icon. Select it and the panel under the craft button says what gets made first, for example "Makes first: Plank x2".
-- **Craft with intermediates**: on a marked recipe, this button makes the intermediates and then the recipe, using the number in the quantity box. It goes to the front of the queue and starts right away. If a craft is already in progress, the order goes second and is made as soon as that craft is done. While the queue is paused it is not taken ("the queue is paused and carries on at the workbench it was running on; press Stop first to craft this now"), and the queue is left as it was.
+- **Craft with intermediates**: on a marked recipe, this button makes the intermediates and then the recipe, using the number in the quantity box. It goes to the front of the queue and starts right away. If a craft is already in progress, the order goes second and is made as soon as that craft is done. While the queue is paused it is not taken ("the queue is paused and carries on here in a moment; press Stop first to craft this now"), and the queue is left as it was.
 - **Add to queue**: queues the selected recipe with the number in the quantity box. Adding the same recipe as the last order adds to that order instead of making a new one.
 - **Start queue**: crafts the queue in order, making intermediates as needed.
 - **Stop**: shown while the queue runs or is paused. Nothing more is started; the queue is kept.
-- **Closing the workbench pauses the queue**: the game cancels a craft when its window closes, so the queue waits instead. Open the same workbench again and, after about a second, it carries on where it left off. Crafts the game finished before the close are counted, so they are not made twice.
+- **Closing the workbench pauses the queue**: the game cancels a craft when its window closes, so the queue waits instead. Open any workbench and, after about a second, it carries on there where it left off. You walk to the workbench yourself. Crafts the game finished before the close are counted, so they are not made twice.
 - **Queue chips**: each order shows as "Name xN" with a small x to remove it. Removing the order that is running stops the run.
 - **Clear**: empties the queue (shown when the queue is not running).
 - **Keep in stock**: under the selected recipe, a box with - and + buttons sets how many of its item to keep in your home (10 to start with), and **Keep stocked** saves that count. Once a count is kept the row shows "(keeping N)". Set 0 and press Keep stocked to stop keeping it.
@@ -29,13 +29,13 @@ Recipe and item names come from the game, so they show in whatever language the 
 
 ## How it works
 
-The intermediates for a recipe come only from recipes the same workbench lists. A recipe that is still locked is never marked and never used as an intermediate. `MaxDepth` limits how many layers of intermediates one recipe may need.
+The intermediates for a recipe come only from recipes the workbench lists. Every workbench lists the same recipes (the game picks them by your level and what you have unlocked, not by which workbench it is), so any workbench can make every step. A recipe that is still locked is never marked and never used as an intermediate. `MaxDepth` limits how many layers of intermediates one recipe may need.
 
 Before each step the run plans again from what your house holds right now, so materials you add or use while it runs are taken into account. Each batch is capped at the most the game allows with what is laid out.
 
-Crafting only happens while the workbench window is open: the game cancels a craft in progress when its window closes, before any materials are used. So when you close the workbench during a run, the queue pauses ("the workbench closed; the queue carries on when you open it again"). Crafts the game finished before the close, a whole batch or part of one, count against their order. The craft that was cancelled is made again when the queue carries on.
+Crafting only happens while the workbench window is open: the game cancels a craft in progress when its window closes, before any materials are used. So when you close the workbench during a run, the queue pauses ("the workbench closed; the queue carries on when you open any workbench"). Crafts the game finished before the close, a whole batch or part of one, count against their order. The craft that was cancelled is made again when the queue carries on.
 
-A paused queue carries on at the workbench it was running on, about a second after you open it, and plans again from what your house holds then. Opening a different workbench leaves it waiting ("the queue carries on at the workbench it was running on; press Stop, then Start, to run it here"). Press Stop to end the pause; Start then runs the queue at the workbench you have open. Nothing is topped up while a queue is paused. With `ResumeOnReopen` off, closing the workbench stops the run instead and Start carries on.
+A paused queue carries on at the next workbench you open, the same one or another, about a second after you open it, and plans again from what your house holds then. The mod never moves your character: you walk to a workbench and open it yourself. With `UseAllHomeStorages` off, another workbench plans from its own linked storages, so it can come up short where the first one did not; the run then stops and says what it is short of. Press Stop to end the pause. Nothing is topped up while a queue is paused. With `OtherBenches` off, the queue carries on only at the workbench it was running on; opening a different one leaves it waiting ("the queue carries on at the workbench it was running on; press Stop, then Start, to run it here"), and Stop, then Start, runs it at the one you have open. With `ResumeOnReopen` off, closing the workbench stops the run instead and Start carries on.
 
 As a safety net, if the workbench ever shows a batch in progress with nothing being made, the queue waits 3 seconds, says so on the status line, and carries on with the next craft. If the workbench shows a craft in progress with no change for 30 seconds, the status line says it is still waiting; the queue keeps waiting and does nothing else.
 
@@ -65,9 +65,9 @@ Kept counts belong to the save you are playing. They are stored in `BepInEx\conf
 
 This mod uses materials from every storage in your home and crafts many times on its own. Back up your save before trying it for the first time.
 
-- Intermediates are only made at the workbench you are using. The game only crafts at a workbench whose window is open, and it uses your character for that, so the mod cannot craft at another workbench for you. When an intermediate comes from another workbench, make it there first.
+- The queue only crafts at the workbench whose window is open, because the game uses your character for that. The mod never moves your character: when the queue pauses, you walk to a workbench and open it yourself. Anything made somewhere other than a workbench is not made for you; the run stops and says what it is short of.
 - The queue lives in memory only: quitting the game or loading another save empties it.
-- When the queue carries on after the workbench reopens, it starts crafting right away. Press Stop first if you opened the workbench to do something else.
+- When the queue carries on after you open a workbench, it starts crafting right away. Press Stop first if you opened the workbench to do something else.
 - A craft that is still going when you press Stop is not counted against its order, so starting the queue again can make that batch a second time. Check the queue chips before you press Start again.
 - If you close the workbench in the same moment a single craft finishes, that craft can be made once more when the queue carries on, using the materials for one more craft.
 - A failed craft still counts against its order, because the game spent the materials. It is not retried; the next step is planned from what the house holds.
@@ -104,7 +104,7 @@ Settings live in `BepInEx\config\com.dev.survivallog.craftinghub.cfg`, created t
 
 Tested on Survival Log 1.1.18317 with BepInEx `6.0.0-be.788`.
 
-Check `BepInEx\LogOutput.log` for `===== Crafting Hub 0.3.0 started: all home storages on, intermediates up to 4 deep, keep stocked on, resume on reopen on` (the words change with your settings). The same line, plus every step of every run and why it stopped, is in `BepInEx\crafting-hub.log`, which survives restarts. When that file passes 1 MB, it is cut down to its newest part at the next game start.
+Check `BepInEx\LogOutput.log` for `===== Crafting Hub 0.4.0 started: all home storages on, intermediates up to 4 deep, keep stocked on, resume on reopen on, other workbenches on` (the words change with your settings). The same line, plus every step of every run and why it stopped, is in `BepInEx\crafting-hub.log`, which survives restarts. When that file passes 1 MB, it is cut down to its newest part at the next game start.
 
 If workbenches still only see their linked storages, look in the logs for "BetterCrafting is also loaded".
 

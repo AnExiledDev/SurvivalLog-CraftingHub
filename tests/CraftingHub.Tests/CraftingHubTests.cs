@@ -573,6 +573,51 @@ public class QueueRunnerTests
     }
 
     [Fact]
+    public void With_other_workbenches_on_a_paused_run_carries_on_at_whichever_workbench_opens()
+    {
+        var runner = PausedRunner(resumesAtOtherBenches: true);
+
+        Assert.IsType<RunnerCommand.None>(runner.Tick(Idle(bench: OtherBench), 10, PlankNext));
+        Assert.IsType<RunnerCommand.Resumed>(runner.Tick(Idle(bench: OtherBench), 10 + QueueRunner.ResumeSettleSeconds, PlankNext));
+        Assert.Equal(new RunnerCommand.ClickRecipe("plank"), runner.Tick(Idle(bench: OtherBench), 11.1, PlankNext));
+    }
+
+    [Fact]
+    public void With_other_workbenches_on_closing_tells_the_player_any_workbench_will_do()
+    {
+        var runner = CraftingRunner(resumesAtOtherBenches: true);
+
+        var paused = Assert.IsType<RunnerCommand.Paused>(runner.Tick(Closed, 1, PlankNext));
+        Assert.Contains("any workbench", paused.Reason);
+    }
+
+    [Fact]
+    public void With_other_workbenches_on_crafts_finished_before_the_close_count_once_and_the_run_moves_on()
+    {
+        var runner = CraftingRunner(resumesAtOtherBenches: true);
+
+        runner.Tick(new BenchView(true, true, false, 0, Empty, 2, RunBench, BatchActive: true, BatchSuccess: 2, IsCrafting: true), 1, PlankNext);
+        Assert.Equal(2, Assert.IsType<RunnerCommand.StepDone>(runner.Tick(Closed, 1.1, PlankNext)).Crafts);
+        Assert.IsType<RunnerCommand.Paused>(runner.Tick(Closed, 1.2, PlankNext));
+
+        runner.Tick(Idle(bench: OtherBench), 10, PlankNext);
+        Assert.IsType<RunnerCommand.Resumed>(runner.Tick(Idle(bench: OtherBench), 10 + QueueRunner.ResumeSettleSeconds, PlankNext));
+        Assert.Equal(new RunnerCommand.ClickRecipe("plank"), runner.Tick(Idle(bench: OtherBench), 11.1, PlankNext));
+    }
+
+    [Fact]
+    public void With_other_workbenches_on_craft_now_is_still_refused_while_paused()
+    {
+        var runner = PausedRunner(resumesAtOtherBenches: true);
+
+        Assert.Equal(CraftNowPlace.Refused, runner.CraftNowPlace);
+
+        runner.Tick(Idle(bench: OtherBench), 10, PlankNext);
+
+        Assert.Equal(CraftNowPlace.Refused, runner.CraftNowPlace);
+    }
+
+    [Fact]
     public void Stop_ends_a_paused_run()
     {
         var runner = PausedRunner();
@@ -777,9 +822,9 @@ public class QueueRunnerTests
         return runner;
     }
 
-    private static QueueRunner CraftingRunner(bool resumesOnReopen = true)
+    private static QueueRunner CraftingRunner(bool resumesOnReopen = true, bool resumesAtOtherBenches = false)
     {
-        var runner = new QueueRunner(resumesOnReopen);
+        var runner = new QueueRunner(resumesOnReopen, resumesAtOtherBenches);
 
         runner.Start();
         runner.Tick(Idle(), 0, PlankNext);
@@ -790,9 +835,9 @@ public class QueueRunnerTests
     }
 
     /// <summary>A run at <see cref="RunBench"/> whose craft the close cancelled, so nothing was made.</summary>
-    private static QueueRunner PausedRunner()
+    private static QueueRunner PausedRunner(bool resumesAtOtherBenches = false)
     {
-        var runner = CraftingRunner();
+        var runner = CraftingRunner(resumesAtOtherBenches: resumesAtOtherBenches);
 
         runner.Tick(Closed, 1, PlankNext);
 
