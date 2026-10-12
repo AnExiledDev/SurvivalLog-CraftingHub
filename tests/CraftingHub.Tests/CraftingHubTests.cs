@@ -373,7 +373,7 @@ public class QueueRunnerTests
     {
         var runner = CraftingRunner();
 
-        runner.Tick(new BenchView(true, true, false, 0, Empty, 2, RunBench, BatchActive: true), 1, PlankNext);
+        runner.Tick(new BenchView(true, true, false, 0, Empty, 2, RunBench, BatchActive: true, IsCrafting: true), 1, PlankNext);
         runner.Tick(new BenchView(true, false, true, 0, Empty, 2), 2, PlankNext);
 
         Assert.Equal(2, Assert.IsType<RunnerCommand.StepDone>(runner.Tick(Idle(), 3, PlankNext)).Crafts);
@@ -385,8 +385,9 @@ public class QueueRunnerTests
         var runner = CraftingRunner();
 
         runner.Tick(new BenchView(true, false, false, 0, Empty, 5), 0.6, PlankNext);
-        runner.Tick(new BenchView(true, true, false, 0, Empty, 0, RunBench, BatchActive: true), 1, PlankNext);
-        runner.Tick(new BenchView(true, true, false, 0, Empty, 1, RunBench, BatchActive: true), 2, PlankNext);
+        runner.Tick(new BenchView(true, true, false, 0, Empty, 5, RunBench, BatchActive: true), 0.75, PlankNext);
+        runner.Tick(new BenchView(true, true, false, 0, Empty, 0, RunBench, BatchActive: true, IsCrafting: true), 1, PlankNext);
+        runner.Tick(new BenchView(true, true, false, 0, Empty, 1, RunBench, BatchActive: true, IsCrafting: true), 2, PlankNext);
 
         Assert.Equal(1, Assert.IsType<RunnerCommand.StepDone>(runner.Tick(Closed, 2.1, PlankNext)).Crafts);
     }
@@ -396,7 +397,7 @@ public class QueueRunnerTests
     {
         var runner = CraftingRunner();
 
-        runner.Tick(new BenchView(true, true, false, 0, Empty, 1, RunBench, BatchActive: true), 1, PlankNext);
+        runner.Tick(new BenchView(true, true, false, 0, Empty, 1, RunBench, BatchActive: true, IsCrafting: true), 1, PlankNext);
         runner.Tick(new BenchView(true, false, true, 0, Empty, 2), 2, PlankNext);
 
         Assert.Equal(2, Assert.IsType<RunnerCommand.StepDone>(runner.Tick(Idle(), 3, PlankNext)).Crafts);
@@ -541,7 +542,7 @@ public class QueueRunnerTests
     {
         var runner = CraftingRunner();
 
-        runner.Tick(new BenchView(true, true, false, 0, Empty, 2, RunBench, BatchActive: true), 1, PlankNext);
+        runner.Tick(new BenchView(true, true, false, 0, Empty, 2, RunBench, BatchActive: true, BatchSuccess: 2, IsCrafting: true), 1, PlankNext);
 
         var done = Assert.IsType<RunnerCommand.StepDone>(runner.Tick(Closed, 1.1, PlankNext));
         Assert.Equal(2, done.Crafts);
@@ -553,10 +554,49 @@ public class QueueRunnerTests
     {
         var runner = CraftingRunner();
 
-        runner.Tick(new BenchView(true, true, false, 0, Empty, 1, RunBench, BatchActive: true), 1, PlankNext);
+        runner.Tick(new BenchView(true, true, false, 0, Empty, 1, RunBench, BatchActive: true, BatchSuccess: 1, IsCrafting: true), 1, PlankNext);
 
-        var closedAfterAnother = new BenchView(false, false, false, 0, Empty, 2, BatchActive: true);
+        var closedAfterAnother = new BenchView(false, false, false, 0, Empty, 2, BatchActive: true, BatchSuccess: 2);
         Assert.Equal(2, Assert.IsType<RunnerCommand.StepDone>(runner.Tick(closedAfterAnother, 1.1, PlankNext)).Crafts);
+    }
+
+    [Fact]
+    public void A_close_that_posts_its_cancelled_craft_as_failed_counts_nothing_extra()
+    {
+        var runner = CraftingRunner();
+
+        runner.Tick(new BenchView(true, true, false, 0, Empty, 2, RunBench, BatchActive: true, BatchSuccess: 2, IsCrafting: true), 1, PlankNext);
+
+        var closedWithCancelledFailure = new BenchView(false, false, false, 0, Empty, 3, BatchActive: true, BatchSuccess: 2);
+        Assert.Equal(2, Assert.IsType<RunnerCommand.StepDone>(runner.Tick(closedWithCancelledFailure, 1.1, PlankNext)).Crafts);
+    }
+
+    [Fact]
+    public void A_batch_flag_left_by_a_close_with_nothing_crafting_is_crafted_past_after_a_resume()
+    {
+        var runner = ResumedRunner();
+        var leftOver = new BenchView(true, true, false, 3, LogsLaidOut, 2, RunBench, BatchActive: true);
+
+        Assert.IsType<RunnerCommand.None>(runner.Tick(leftOver with { Contents = Empty, MaxCrafts = 0 }, 11.25, PlankNext));
+        Assert.IsType<RunnerCommand.Notice>(runner.Tick(leftOver with { Contents = Empty, MaxCrafts = 0 }, 11.25 + QueueRunner.StaleBatchSeconds, PlankNext));
+        Assert.Equal(new RunnerCommand.ClickRecipe("plank"), runner.Tick(leftOver with { Contents = Empty, MaxCrafts = 0 }, 14.5, PlankNext));
+        Assert.IsType<RunnerCommand.None>(runner.Tick(leftOver, 14.75, PlankNext));
+        Assert.Equal(new RunnerCommand.Craft(3), runner.Tick(leftOver, 15, PlankNext));
+    }
+
+    [Fact]
+    public void A_live_batch_is_waited_out_and_a_long_unchanged_wait_is_shown_once()
+    {
+        var runner = ResumedRunner();
+        var live = new BenchView(true, true, false, 0, Empty, 1, RunBench, BatchActive: true, IsCrafting: true);
+
+        Assert.IsType<RunnerCommand.None>(runner.Tick(live, 11.25, PlankNext));
+        Assert.IsType<RunnerCommand.None>(runner.Tick(live, 11.25 + QueueRunner.StaleBatchSeconds + 1, PlankNext));
+
+        var notice = Assert.IsType<RunnerCommand.Notice>(runner.Tick(live, 11.25 + QueueRunner.BusyNoticeSeconds, PlankNext));
+        Assert.Contains("waiting", notice.Text);
+        Assert.IsType<RunnerCommand.None>(runner.Tick(live, 50, PlankNext));
+        Assert.True(runner.IsRunning);
     }
 
     [Fact]
@@ -569,7 +609,7 @@ public class QueueRunnerTests
         runner.Tick(Idle(), 0, () => single);
         runner.Tick(Idle(LogsLaidOut, 3), 0.1, () => single);
         Assert.Equal(new RunnerCommand.Craft(1), runner.Tick(Idle(LogsLaidOut, 3), 0.5, () => single));
-        runner.Tick(new BenchView(true, true, false, 0, Empty, 4, RunBench, BatchActive: true), 1, () => single);
+        runner.Tick(new BenchView(true, true, false, 0, Empty, 4, RunBench, BatchActive: true, IsCrafting: true), 1, () => single);
 
         Assert.IsType<RunnerCommand.Paused>(runner.Tick(new BenchView(false, false, false, 0, Empty, 4), 1.1, () => single));
     }
@@ -633,6 +673,17 @@ public class QueueRunnerTests
     public void A_stopped_runner_does_nothing()
     {
         Assert.IsType<RunnerCommand.None>(new QueueRunner().Tick(Idle(), 0, PlankNext));
+    }
+
+    /// <summary>A paused run whose workbench reopened, now about to pick its next step.</summary>
+    private static QueueRunner ResumedRunner()
+    {
+        var runner = PausedRunner();
+
+        runner.Tick(Idle(), 10, PlankNext);
+        Assert.IsType<RunnerCommand.Resumed>(runner.Tick(Idle(), 10 + QueueRunner.ResumeSettleSeconds, PlankNext));
+
+        return runner;
     }
 
     private static QueueRunner CraftingRunner(bool resumesOnReopen = true)

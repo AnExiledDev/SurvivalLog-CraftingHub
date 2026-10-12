@@ -186,6 +186,10 @@ internal sealed class HubSession
                 _status = "the workbench is open again; carrying on with the queue";
                 _logFileOnly("queue resumed");
                 break;
+            case RunnerCommand.Notice notice:
+                _status = notice.Text;
+                _logFileOnly("queue: " + notice.Text);
+                break;
         }
     }
 

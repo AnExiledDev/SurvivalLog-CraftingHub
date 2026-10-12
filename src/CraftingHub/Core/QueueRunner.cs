@@ -13,8 +13,13 @@ namespace CraftingHub.Core;
 /// outside one it still holds the last batch's count. Reported from the last known state even once the window closed.
 /// </param>
 /// <param name="BenchId">Which workbench is open, so a paused run carries on only at its own; 0 when unknown.</param>
-/// <param name="BatchActive">A batch of several crafts is running; the game zeroed <see cref="BatchDone"/> as it began.</param>
-public readonly record struct BenchView(bool IsOpen, bool IsBusy, bool HasResult, int MaxCrafts, IReadOnlyDictionary<int, int> Contents, int BatchDone, long BenchId = 0, bool BatchActive = false);
+/// <param name="BatchActive">
+/// The game's batch flag. Set when a batch of several crafts starts, which also zeroes <see cref="BatchDone"/> and
+/// <see cref="BatchSuccess"/>; closing the window mid-batch leaves it set with nothing crafting until the next craft.
+/// </param>
+/// <param name="BatchSuccess">The crafts in <see cref="BatchDone"/> that succeeded; reset with it.</param>
+/// <param name="IsCrafting">A craft is being made right now, as opposed to a batch flag left set.</param>
+public readonly record struct BenchView(bool IsOpen, bool IsBusy, bool HasResult, int MaxCrafts, IReadOnlyDictionary<int, int> Contents, int BatchDone, long BenchId = 0, bool BatchActive = false, int BatchSuccess = 0, bool IsCrafting = false);
 
 /// <summary>What to craft next, worked out fresh from the queue and the stock each time it is asked.</summary>
 public abstract record NextStep
@@ -54,6 +59,9 @@ public abstract record RunnerCommand
     public sealed record Paused(string Reason) : RunnerCommand;
 
     public sealed record Resumed : RunnerCommand;
+
+    /// <summary>Something the player should know while the run carries on; only the status line changes.</summary>
+    public sealed record Notice(string Text) : RunnerCommand;
 }
 
 /// <summary>
@@ -73,9 +81,17 @@ public sealed class QueueRunner
     public const int MaxIntermediateBatches = 30;
     public const double ResumeSettleSeconds = 1;
 
+    /// <summary>A batch flag with nothing crafting for this long is left over from a close, not a batch between crafts.</summary>
+    public const double StaleBatchSeconds = 3;
+
+    /// <summary>A workbench that stays busy and unchanged this long gets a status line, so a stall is not silent.</summary>
+    public const double BusyNoticeSeconds = 30;
+
     private const string ClosedReason = "the workbench closed; the queue is kept, press Start to carry on";
     private const string PausedReason = "the workbench closed; the queue carries on when you open it again";
     private const string ElsewhereReason = "the queue carries on at the workbench it was running on; press Stop, then Start, to run it here";
+    private const string StaleBatchNotice = "the workbench still showed a batch from before it closed, with nothing crafting; carrying on, the next craft clears it";
+    private const string BusyNotice = "waiting for the workbench: it has shown a craft in progress for a while with no change";
 
     private enum Stage
     {
@@ -94,7 +110,12 @@ public sealed class QueueRunner
     private NextStep.Craft? _current;
     private int _sentQuantity;
     private int _batchDone;
+    private int _batchSuccess;
     private bool _hasSeenBatch;
+    private bool _isBatchStale;
+    private (bool IsCrafting, bool BatchActive, bool HasResult, int BatchDone)? _busyWith;
+    private double _busySince;
+    private bool _hasToldBusy;
     private bool _hasStarted;
     private double _stageSince;
     private double? _settledSince;
@@ -125,6 +146,7 @@ public sealed class QueueRunner
         _stage = Stage.Ready;
         _benchId = 0;
         _intermediateBatches = 0;
+        _isBatchStale = false;
     }
 
     public RunnerCommand Stop(string reason, bool isDone = false)
@@ -139,11 +161,17 @@ public sealed class QueueRunner
     {
         if (_stage == Stage.Idle) return new RunnerCommand.None();
 
+        // The busy clock only runs while the run waits to pick its next step.
+        if (_stage != Stage.Ready) _busyWith = null;
+
         if (IsPaused) return WaitForBench(bench, now);
 
         if (!bench.IsOpen) return Interrupted(bench);
 
         if (bench.BenchId != 0) _benchId = bench.BenchId;
+
+        // The game clears a left-over batch flag at the next craft, or a real batch takes its place.
+        if (!bench.BatchActive || bench.IsCrafting) _isBatchStale = false;
 
         return _stage switch
         {
@@ -170,7 +198,9 @@ public sealed class QueueRunner
 
     private RunnerCommand PickNext(BenchView bench, double now, Func<NextStep> next)
     {
-        if (bench.IsBusy || bench.HasResult) return new RunnerCommand.None();
+        if (IsBusy(bench) || bench.HasResult) return WaitWhileBusy(bench, now);
+
+        _busyWith = null;
 
         switch (next())
         {
@@ -193,11 +223,47 @@ public sealed class QueueRunner
         }
     }
 
+    /// <summary>
+    /// The workbench is busy before the next step. A batch flag with nothing crafting that holds for a few seconds was
+    /// left by a close and is crafted past (the game clears it at the next craft). Anything else that sits unchanged for
+    /// long is shown on the status line once and otherwise waited out.
+    /// </summary>
+    private RunnerCommand WaitWhileBusy(BenchView bench, double now)
+    {
+        var busyWith = (bench.IsCrafting, bench.BatchActive, bench.HasResult, bench.BatchDone);
+
+        if (_busyWith != busyWith)
+        {
+            _busyWith = busyWith;
+            _busySince = now;
+            _hasToldBusy = false;
+        }
+
+        var isLeftOverBatch = bench.BatchActive && !bench.IsCrafting && !bench.HasResult;
+
+        if (isLeftOverBatch && now - _busySince >= StaleBatchSeconds)
+        {
+            _isBatchStale = true;
+            _busyWith = null;
+
+            return new RunnerCommand.Notice(StaleBatchNotice);
+        }
+
+        if (_hasToldBusy || now - _busySince < BusyNoticeSeconds) return new RunnerCommand.None();
+
+        _hasToldBusy = true;
+
+        return new RunnerCommand.Notice(BusyNotice);
+    }
+
+    /// <summary>Busy as the game shows it, except that a batch flag known to be left over no longer counts.</summary>
+    private bool IsBusy(BenchView bench) => _isBatchStale ? bench.IsCrafting : bench.IsBusy;
+
     private RunnerCommand CraftWhenLaidOut(BenchView bench, double now)
     {
         var step = Current.Step;
 
-        if (bench.IsBusy || bench.MaxCrafts < 1 || !HoldsOneCraft(bench.Contents, step.Recipe.Materials))
+        if (IsBusy(bench) || bench.MaxCrafts < 1 || !HoldsOneCraft(bench.Contents, step.Recipe.Materials))
         {
             _settledSince = null;
 
@@ -211,6 +277,7 @@ public sealed class QueueRunner
 
         _sentQuantity = Math.Min(step.Crafts, bench.MaxCrafts);
         _batchDone = 0;
+        _batchSuccess = 0;
         _hasSeenBatch = false;
         _hasStarted = false;
         _quietSince = null;
@@ -221,7 +288,7 @@ public sealed class QueueRunner
 
     private RunnerCommand WaitForResult(BenchView bench, double now)
     {
-        var isActive = bench.IsBusy || bench.HasResult;
+        var isActive = IsBusy(bench) || bench.HasResult;
 
         CountBatch(bench);
 
@@ -259,26 +326,43 @@ public sealed class QueueRunner
     }
 
     /// <summary>
-    /// The game's batch count belongs to this step only once its batch has begun: a single craft never resets the
-    /// count, and a batch zeroes it as it starts, so any count read before then is left over from an earlier batch.
-    /// Once begun, the count stays this step's after the batch ends too, which is when its last craft shows.
+    /// The game's batch count belongs to this step only once its batch is seen crafting: a single craft never resets
+    /// the count, a batch zeroes it as it starts, and a batch flag left over from a close sits there with nothing
+    /// crafting, so any count read before then is from an earlier batch. Once begun, the count stays this step's after
+    /// the batch ends too, which is when its last craft shows.
     /// </summary>
     private void CountBatch(BenchView bench)
     {
-        if (_sentQuantity > 1 && bench.BatchActive) _hasSeenBatch = true;
+        if (_sentQuantity > 1 && bench.BatchActive && bench.IsCrafting) _hasSeenBatch = true;
 
-        if (_hasSeenBatch) _batchDone = Math.Max(_batchDone, bench.BatchDone);
+        if (!_hasSeenBatch) return;
+
+        _batchDone = Math.Max(_batchDone, bench.BatchDone);
+        _batchSuccess = Math.Max(_batchSuccess, bench.BatchSuccess);
+    }
+
+    /// <summary>
+    /// Read from the window just closed. The close may post its cancelled craft as a failed one, so only successes
+    /// since the last look add to the count; a real failure in that moment is made again rather than risk counting
+    /// the cancelled craft.
+    /// </summary>
+    private void CountLateSuccesses(BenchView closed)
+    {
+        if (!_hasSeenBatch) return;
+
+        _batchDone += Math.Max(0, closed.BatchSuccess - _batchSuccess);
+        _batchSuccess = Math.Max(_batchSuccess, closed.BatchSuccess);
     }
 
     /// <summary>
     /// The workbench closed under the run. Closing ends the craft in progress before it uses anything, so only crafts
     /// the game already finished count: a result on screen or a quiet finish means the whole step was made, otherwise
-    /// the batch's finished crafts, read once more from the closed window in case one finished since the last look.
+    /// the batch's finished crafts, plus any that succeeded in the moment before the close.
     /// Those are reported first; the next tick, still closed, pauses or stops the run.
     /// </summary>
     private RunnerCommand Interrupted(BenchView bench)
     {
-        if (_stage is Stage.Crafting or Stage.Collecting) CountBatch(bench);
+        if (_stage is Stage.Crafting or Stage.Collecting) CountLateSuccesses(bench);
 
         var batchCrafts = Math.Min(_batchDone, _sentQuantity);
 

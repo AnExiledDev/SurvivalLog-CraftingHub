@@ -89,17 +89,20 @@ internal sealed class Workbench
         if (state == null) return new BenchView(false, false, false, 0, new Dictionary<int, int>(), 0);
 
         // A craft can finish in the moment before the window closes; the kept state still holds its count.
-        if (!IsOpen) return new BenchView(false, false, false, 0, new Dictionary<int, int>(), state.BatchDone, BatchActive: state.BatchActive);
+        if (!IsOpen) return new BenchView(false, false, false, 0, new Dictionary<int, int>(), state.BatchDone, BatchActive: state.BatchActive, BatchSuccess: state.BatchSuccess);
 
         return new BenchView(
             IsOpen: true,
             IsBusy: state.IsCrafting?.Value == true || state.BatchActive,
+            // The game's own test for a live craft (HandMadeState 1, Making); a batch flag without it is left over.
+            IsCrafting: state.IsCrafting?.Value == true || (int)state.HandMadeState == 1,
             HasResult: state.ResultShow?.Value == true,
             MaxCrafts: state.MaxCraftCount?.Value ?? 0,
             Contents: Contents(state.WorkbenchOwnerId?.Value ?? 0),
             BatchDone: state.BatchDone,
             BenchId: state.CurrentFurnitureId,
-            BatchActive: state.BatchActive);
+            BatchActive: state.BatchActive,
+            BatchSuccess: state.BatchSuccess);
     }
 
     public string ItemName(int configId)
