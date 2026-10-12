@@ -7,7 +7,7 @@ using CraftingHub.Core;
 namespace CraftingHub.Adapters;
 
 /// <summary>The settings the session reads; fixed for the game session.</summary>
-internal sealed record HubSettings(int MaxDepth, bool ShowMarks, bool KeepStocked, bool AutoStartTopUps, bool ResumeOnReopen);
+internal sealed record HubSettings(int MaxDepth, bool ShowMarks, bool KeepStocked, bool AutoStartTopUps, bool ResumeOnReopen, bool ResumeAtOtherBenches);
 
 /// <summary>What keep-stocked targets need from the game and the disk: home counts, the targets file, and which save is loaded.</summary>
 internal sealed record KeepPorts(HomeStock Stock, ITargetStore Store, Func<string?> SaveKey);
@@ -49,7 +49,7 @@ internal sealed class HubSession
         _settings = settings;
         _log = log;
         _logFileOnly = logFileOnly;
-        _runner = new QueueRunner(settings.ResumeOnReopen);
+        _runner = new QueueRunner(settings.ResumeOnReopen, settings.ResumeAtOtherBenches);
         _slot = new KeepSlot(keep.Store);
     }
 
@@ -150,7 +150,9 @@ internal sealed class HubSession
         switch (_runner.CraftNowPlace)
         {
             case CraftNowPlace.Refused:
-                _status = "the queue is paused and carries on at the workbench it was running on; press Stop first to craft this now";
+                _status = _settings.ResumeAtOtherBenches
+                    ? "the queue is paused and carries on here in a moment; press Stop first to craft this now"
+                    : "the queue is paused and carries on at the workbench it was running on; press Stop first to craft this now";
                 break;
             case CraftNowPlace.BehindHead:
                 _queue.PushFront(key, name, crafts, behindHead: true);

@@ -12,7 +12,10 @@ namespace CraftingHub.Core;
 /// Crafts finished in the game's batch count. The game zeroes it only when a batch of several crafts starts, so
 /// outside one it still holds the last batch's count. Reported from the last known state even once the window closed.
 /// </param>
-/// <param name="BenchId">Which workbench is open, so a paused run carries on only at its own; 0 when unknown.</param>
+/// <param name="BenchId">
+/// Which workbench is open (the placed furniture, not its kind), so a paused run can be kept to its own when other
+/// workbenches are off; 0 when unknown.
+/// </param>
 /// <param name="BatchActive">
 /// The game's batch flag. Set when a batch of several crafts starts, which also zeroes <see cref="BatchDone"/> and
 /// <see cref="BatchSuccess"/>. Not expected to show with nothing crafting, though the runner copes if it ever does.
@@ -74,7 +77,7 @@ public enum CraftNowPlace
     /// <summary>Second, behind the order whose step is being made, so that step is still credited to it.</summary>
     BehindHead,
 
-    /// <summary>Not taken: a paused run plans at its own workbench, which may not make this recipe.</summary>
+    /// <summary>Not taken: a paused run holds the head of the queue until it carries on.</summary>
     Refused,
 }
 
@@ -83,7 +86,10 @@ public enum CraftNowPlace
 /// confirm the result, repeat. One step at a time and re-planned before every step, so a failed craft or a short
 /// batch is planned around rather than tracked. Every wait has a timeout, so a game that does not respond stops the
 /// run with a reason instead of leaving it stuck. The game cancels a craft whose window closes, so a closed workbench
-/// pauses the run (or stops it, when resuming is off) and the run carries on once that workbench is open again.
+/// pauses the run (or stops it, when resuming is off) and the run carries on once a workbench is open again: any
+/// workbench, or only the one it was running on when other workbenches are off. Every workbench lists the same
+/// recipes (the game builds the list from the whole recipe table, filtered by the player's level and unlocks, never by
+/// which workbench is open), so any of them can make the next step.
 /// </summary>
 public sealed class QueueRunner
 {
@@ -103,6 +109,7 @@ public sealed class QueueRunner
 
     private const string ClosedReason = "the workbench closed; the queue is kept, press Start to carry on";
     private const string PausedReason = "the workbench closed; the queue carries on when you open it again";
+    private const string PausedAnyBenchReason = "the workbench closed; the queue carries on when you open any workbench";
     private const string ElsewhereReason = "the queue carries on at the workbench it was running on; press Stop, then Start, to run it here";
     private const string StaleBatchNotice = "the workbench shows a batch in progress with nothing being made; carrying on with the next craft";
     private const string BusyNotice = "waiting for the workbench: it has shown a craft in progress for a while with no change";
@@ -119,6 +126,7 @@ public sealed class QueueRunner
     }
 
     private readonly bool _resumesOnReopen;
+    private readonly bool _resumesAtOtherBenches;
 
     private Stage _stage = Stage.Idle;
     private NextStep.Craft? _current;
@@ -139,9 +147,13 @@ public sealed class QueueRunner
     private bool _hasToldElsewhere;
 
     /// <param name="resumesOnReopen">Off, a closed workbench stops the run, as it did before runs could pause.</param>
-    public QueueRunner(bool resumesOnReopen = true)
+    /// <param name="resumesAtOtherBenches">
+    /// On, a paused run carries on at whichever workbench opens next. Off, only at the one it was running on.
+    /// </param>
+    public QueueRunner(bool resumesOnReopen = true, bool resumesAtOtherBenches = false)
     {
         _resumesOnReopen = resumesOnReopen;
+        _resumesAtOtherBenches = resumesAtOtherBenches;
     }
 
     /// <summary>A run is in progress, paused ones included: they still hold the queue's head and wait to carry on.</summary>
@@ -152,8 +164,8 @@ public sealed class QueueRunner
     public CraftNowPlace CraftNowPlace => IsPaused ? CraftNowPlace.Refused : _current != null ? CraftNowPlace.BehindHead : CraftNowPlace.Front;
 
     /// <summary>
-    /// Starts a run. A paused run is left waiting for its own workbench; Stop, then Start, runs the queue at the
-    /// workbench open now.
+    /// Starts a run. A paused run is left waiting to carry on; with other workbenches off, Stop, then Start, runs the
+    /// queue at the workbench open now.
     /// </summary>
     public void Start()
     {
@@ -393,12 +405,13 @@ public sealed class QueueRunner
         _stage = Stage.Paused;
         _hasToldElsewhere = false;
 
-        return new RunnerCommand.Paused(PausedReason);
+        return new RunnerCommand.Paused(_resumesAtOtherBenches ? PausedAnyBenchReason : PausedReason);
     }
 
     /// <summary>
-    /// Paused: carry on once the run's own workbench has stayed open a moment, so the game has rebuilt its recipe list
-    /// before the next step is planned. Another workbench leaves the run waiting, said once per opening.
+    /// Paused: carry on once a workbench has stayed open a moment, so the game has rebuilt its recipe list before the
+    /// next step is planned. With other workbenches off, only the run's own workbench will do; another leaves the run
+    /// waiting, said once per opening.
     /// </summary>
     private RunnerCommand WaitForBench(BenchView bench, double now)
     {
@@ -410,7 +423,7 @@ public sealed class QueueRunner
             return new RunnerCommand.None();
         }
 
-        if (_benchId != 0 && bench.BenchId != _benchId) return WaitElsewhere();
+        if (!_resumesAtOtherBenches && _benchId != 0 && bench.BenchId != _benchId) return WaitElsewhere();
 
         if (_stage == Stage.Paused)
         {
