@@ -94,7 +94,7 @@ internal sealed class HubSession
             case PageCommand.CraftNow craftNow:
                 _queue.PushFront(craftNow.Key, RecipeName(craftNow.Key), craftNow.Crafts);
                 _runner.Start();
-                _status = $"Making {RecipeName(craftNow.Key)} ×{craftNow.Crafts} with its intermediates";
+                _status = _runner.IsPaused ? $"Queued {RecipeName(craftNow.Key)} x{craftNow.Crafts} first; the queue carries on at the workbench it was running on" : $"Making {RecipeName(craftNow.Key)} ×{craftNow.Crafts} with its intermediates";
                 break;
             case PageCommand.Start:
                 StartQueue();

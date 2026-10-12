@@ -8,7 +8,7 @@ A workbench in Survival Log only takes materials from the storages linked to it,
 
 - **Every home storage counts**: a workbench counts and takes materials from every storage in your home, not only the ones linked to it. This applies to the materials list, the craftable check, the most you can craft at once, and laying out the materials.
 - **Craftable through intermediates**: a recipe you can't make yet, but could after crafting its intermediates (planks for a crate, say), is marked in the recipe list with a dashed amber left edge and a small hammer badge on its icon. Select it and the panel under the craft button says what gets made first, for example "Makes first: Plank x2".
-- **Craft with intermediates**: on a marked recipe, this button makes the intermediates and then the recipe, using the number in the quantity box. It goes to the front of the queue and starts right away.
+- **Craft with intermediates**: on a marked recipe, this button makes the intermediates and then the recipe, using the number in the quantity box. It goes to the front of the queue and starts right away. While the queue is paused, the order still goes to the front, and it is made when the queue carries on.
 - **Add to queue**: queues the selected recipe with the number in the quantity box. Adding the same recipe as the last order adds to that order instead of making a new one.
 - **Start queue**: crafts the queue in order, making intermediates as needed.
 - **Stop**: shown while the queue runs or is paused. Nothing more is started; the queue is kept.
@@ -63,7 +63,7 @@ Kept counts belong to the save you are playing. They are stored in `BepInEx\conf
 
 This mod uses materials from every storage in your home and crafts many times on its own. Back up your save before trying it for the first time.
 
-- Intermediates must be made at the same workbench as the recipe that needs them. The game only crafts at a workbench whose window is open, and opening one takes your character walking over to it, so the queue cannot hop to another workbench for you. When an intermediate comes from another workbench, make it there first.
+- Intermediates are only made at the workbench you are using. Making them on another workbench is not done yet; it may be possible later. For now, when an intermediate comes from another workbench, make it there first.
 - The queue lives in memory only: quitting the game or loading another save empties it.
 - When the queue carries on after the workbench reopens, it starts crafting right away. Press Stop first if you opened the workbench to do something else.
 - A craft that is still going when you press Stop is not counted against its order, so starting the queue again can make that batch a second time. Check the queue chips before you press Start again.

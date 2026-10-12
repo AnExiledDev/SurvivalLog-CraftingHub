@@ -373,7 +373,30 @@ public class QueueRunnerTests
     {
         var runner = CraftingRunner();
 
-        runner.Tick(new BenchView(true, true, false, 0, Empty, 2), 1, PlankNext);
+        runner.Tick(new BenchView(true, true, false, 0, Empty, 2, RunBench, BatchActive: true), 1, PlankNext);
+        runner.Tick(new BenchView(true, false, true, 0, Empty, 2), 2, PlankNext);
+
+        Assert.Equal(2, Assert.IsType<RunnerCommand.StepDone>(runner.Tick(Idle(), 3, PlankNext)).Crafts);
+    }
+
+    [Fact]
+    public void A_batch_count_left_over_from_an_earlier_batch_is_not_taken_as_this_steps()
+    {
+        var runner = CraftingRunner();
+
+        runner.Tick(new BenchView(true, false, false, 0, Empty, 5), 0.6, PlankNext);
+        runner.Tick(new BenchView(true, true, false, 0, Empty, 0, RunBench, BatchActive: true), 1, PlankNext);
+        runner.Tick(new BenchView(true, true, false, 0, Empty, 1, RunBench, BatchActive: true), 2, PlankNext);
+
+        Assert.Equal(1, Assert.IsType<RunnerCommand.StepDone>(runner.Tick(Closed, 2.1, PlankNext)).Crafts);
+    }
+
+    [Fact]
+    public void The_last_craft_of_a_batch_counts_though_the_game_ends_the_batch_as_it_finishes()
+    {
+        var runner = CraftingRunner();
+
+        runner.Tick(new BenchView(true, true, false, 0, Empty, 1, RunBench, BatchActive: true), 1, PlankNext);
         runner.Tick(new BenchView(true, false, true, 0, Empty, 2), 2, PlankNext);
 
         Assert.Equal(2, Assert.IsType<RunnerCommand.StepDone>(runner.Tick(Idle(), 3, PlankNext)).Crafts);
@@ -478,11 +501,25 @@ public class QueueRunnerTests
     }
 
     [Fact]
-    public void Start_at_another_workbench_carries_a_paused_run_on_there()
+    public void Start_at_another_workbench_leaves_a_paused_run_waiting_for_its_own()
     {
         var runner = PausedRunner();
 
         runner.Tick(Idle(bench: OtherBench), 10, PlankNext);
+        runner.Start();
+
+        Assert.IsType<RunnerCommand.None>(runner.Tick(Idle(bench: OtherBench), 10.1, PlankNext));
+        Assert.IsType<RunnerCommand.None>(runner.Tick(Idle(bench: OtherBench), 10 + QueueRunner.ResumeSettleSeconds + 1, PlankNext));
+        Assert.True(runner.IsPaused);
+    }
+
+    [Fact]
+    public void Stop_then_Start_runs_the_queue_at_the_workbench_open_now()
+    {
+        var runner = PausedRunner();
+
+        runner.Tick(Idle(bench: OtherBench), 10, PlankNext);
+        runner.Stop("stopped");
         runner.Start();
 
         Assert.Equal(new RunnerCommand.ClickRecipe("plank"), runner.Tick(Idle(bench: OtherBench), 10.1, PlankNext));
@@ -504,11 +541,37 @@ public class QueueRunnerTests
     {
         var runner = CraftingRunner();
 
-        runner.Tick(new BenchView(true, true, false, 0, Empty, 2, RunBench), 1, PlankNext);
+        runner.Tick(new BenchView(true, true, false, 0, Empty, 2, RunBench, BatchActive: true), 1, PlankNext);
 
         var done = Assert.IsType<RunnerCommand.StepDone>(runner.Tick(Closed, 1.1, PlankNext));
         Assert.Equal(2, done.Crafts);
         Assert.IsType<RunnerCommand.Paused>(runner.Tick(Closed, 1.2, PlankNext));
+    }
+
+    [Fact]
+    public void A_craft_that_finished_just_before_the_close_counts()
+    {
+        var runner = CraftingRunner();
+
+        runner.Tick(new BenchView(true, true, false, 0, Empty, 1, RunBench, BatchActive: true), 1, PlankNext);
+
+        var closedAfterAnother = new BenchView(false, false, false, 0, Empty, 2, BatchActive: true);
+        Assert.Equal(2, Assert.IsType<RunnerCommand.StepDone>(runner.Tick(closedAfterAnother, 1.1, PlankNext)).Crafts);
+    }
+
+    [Fact]
+    public void A_single_craft_closed_mid_craft_counts_nothing_from_an_earlier_batch()
+    {
+        var runner = new QueueRunner();
+        var single = new NextStep.Craft(new CraftStep(Bench.PlankRecipe, 1), IsTarget: true);
+
+        runner.Start();
+        runner.Tick(Idle(), 0, () => single);
+        runner.Tick(Idle(LogsLaidOut, 3), 0.1, () => single);
+        Assert.Equal(new RunnerCommand.Craft(1), runner.Tick(Idle(LogsLaidOut, 3), 0.5, () => single));
+        runner.Tick(new BenchView(true, true, false, 0, Empty, 4, RunBench, BatchActive: true), 1, () => single);
+
+        Assert.IsType<RunnerCommand.Paused>(runner.Tick(new BenchView(false, false, false, 0, Empty, 4), 1.1, () => single));
     }
 
     [Fact]

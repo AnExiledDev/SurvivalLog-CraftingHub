@@ -22,7 +22,7 @@ The mod adds no data of its own to your save (kept counts go in their own file i
 [list]
 [*]Back up your save before trying it for the first time.[/*]
 [*]Do not use it together with BetterCrafting. Remove BetterCrafting first.[/*]
-[*]Intermediates must be made at the same workbench. The game only crafts at a workbench whose window is open, so the queue cannot use another one for you.[/*]
+[*]Intermediates are only made at the workbench you are using. Making them on another workbench is not done yet; it may be possible later.[/*]
 [*]The game cancels a craft when the workbench closes; that craft is made again when the queue carries on. Quitting the game empties the queue.[/*]
 [*]A craft still going when you press Stop is not counted, so starting again can make that batch twice.[/*]
 [*]Every storage in your home is used, including ones you meant to keep for something else.[/*]
