@@ -179,9 +179,10 @@
       '.cc-search input{flex:1;min-width:0;background:transparent;border:0;outline:0;color:#fff;font-size:15px;font-family:inherit}',
       '.cc-search input::placeholder{color:#888}',
       '.cc-search-clear{border:0;background:transparent;color:#aaa;cursor:pointer;font-size:14px}',
-      '.cc-chips{display:flex;flex-wrap:nowrap;gap:6px;margin-top:8px;flex:none;overflow-x:auto;overflow-y:hidden}',
-      '.cc-chips::-webkit-scrollbar{height:3px}',
-      '.cc-chips::-webkit-scrollbar-thumb{background:rgba(255,193,7,.3);border-radius:2px}',
+      '.cc-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;flex:none}',
+      '.cc-chips.cc-slide{flex-wrap:nowrap;overflow-x:auto;overflow-y:hidden}',
+      '.cc-slide::-webkit-scrollbar{height:3px}',
+      '.cc-slide::-webkit-scrollbar-thumb{background:rgba(255,193,7,.3);border-radius:2px}',
       '.cc-fchip{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:16px;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.04);color:#ccc;cursor:pointer;font-size:12px;flex:none;white-space:nowrap}',
       '.cc-fchip .n{font-size:11px;color:#1b1406;background:#ffc107;border-radius:9px;padding:0 6px;font-weight:700}',
       '.cc-fchip .n.z{background:#444;color:#aaa}',
@@ -192,7 +193,7 @@
       '.cc-ghead{grid-column:1/-1;display:flex;align-items:center;gap:8px;padding:5px 10px;border-radius:6px;background:linear-gradient(90deg,#6b5726,#48381a);border-left:3px solid #ffc107;color:#fff3cf;font-weight:700;cursor:pointer;font-size:13px}',
       '.cc-arrow{font-size:10px;opacity:.8;width:12px}',
       '.cc-gcount{margin-left:auto;font-size:12px;font-weight:600;color:#ffe6a8}',
-      '.cc-card{display:grid;grid-template-columns:40px minmax(0,1fr);gap:5px 8px;align-items:start;padding:6px 8px;background:rgba(8,8,10,.55);border:1px solid rgba(255,255,255,.07);border-left:3px solid #7ce087;border-radius:8px;min-width:0;cursor:pointer}',
+      '.cc-card{display:grid;grid-template-columns:40px minmax(0,1fr);gap:5px 8px;align-items:start;align-content:space-between;padding:6px 8px;background:rgba(8,8,10,.55);border:1px solid rgba(255,255,255,.07);border-left:3px solid #7ce087;border-radius:8px;min-width:0;cursor:pointer}',
       '.cc-card.cc-k-via{border-left-color:#e0b45a}',
       '.cc-card.cc-k-short{border-left-color:#e08b6a}',
       '.cc-card.cc-k-locked{border-left-color:#5f5f66;opacity:.7;cursor:default}',
@@ -241,7 +242,7 @@
       '.cc-handle{cursor:grab;color:#777;font-size:15px;padding:0 2px}',
       '.cc-qic{width:28px;height:28px;object-fit:contain;flex:none}',
       '.cc-qmain{flex:1;min-width:0}',
-      '.cc-qname{font-weight:700;color:#fff;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+      '.cc-qname{font-weight:700;color:#fff;font-size:13px;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;overflow-wrap:break-word}',
       '.cc-tag{display:inline-block;font-size:10px;font-weight:700;color:#1b1406;background:#e0b45a;border-radius:4px;padding:1px 6px;margin-left:6px;vertical-align:1px}',
       '.cc-qsub{font-size:12px;color:#aaa}',
       '.cc-qst{font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
@@ -519,13 +520,14 @@
       drawList(win, true);
       input.focus();
     });
-    var filters = chipRow(doc, 'cc-filters');
-    var groups = chipRow(doc, 'cc-groups');
+    var filters = el(doc, 'div', 'cc-chips');
+    var groups = slidingChipRow(doc, 'cc-groups');
     var list = el(doc, 'div', 'cc-list cc-scroll');
 
     mid.id = 'cc-mid';
     count.id = 'cc-count';
     input.id = 'cc-search';
+    filters.id = 'cc-filters';
     list.id = 'cc-list';
     input.type = 'text';
     input.placeholder = 'Search a recipe or a material';
@@ -553,10 +555,10 @@
     return mid;
   }
 
-  // A row of chips that stays on one line, so the filters never push the list down; when it holds more than fits, the
-  // mouse wheel over it scrolls it sideways, as the Quick Actions row does.
-  function chipRow(doc, id) {
-    var row = el(doc, 'div', 'cc-chips');
+  // A row of chips that stays on one line, so however many groups there are they never push the list down; when it
+  // holds more than fits, the mouse wheel over it scrolls it sideways, as the Quick Actions row does.
+  function slidingChipRow(doc, id) {
+    var row = el(doc, 'div', 'cc-chips cc-slide');
 
     row.id = id;
     row.addEventListener('wheel', function (e) { scrollSideways(row, e); }, { passive: false });
@@ -691,17 +693,16 @@
     var row = doc.getElementById('cc-filters');
     var ui = win.__ccUi;
 
-    refillRow(row, function () {
-      FILTERS.forEach(function (filter) {
-        if (filter.id === 'kept' && !view.keep.on) return;
+    row.innerHTML = '';
+    FILTERS.forEach(function (filter) {
+      if (filter.id === 'kept' && !view.keep.on) return;
 
-        var count = entries.filter(function (entry) { return inFilter(filter.id, entry); }).length;
+      var count = entries.filter(function (entry) { return inFilter(filter.id, entry); }).length;
 
-        row.appendChild(chip(doc, filter.label, count, ui.filter === filter.id, function () {
-          ui.filter = filter.id;
-          drawList(win, true);
-        }));
-      });
+      row.appendChild(chip(doc, filter.label, count, ui.filter === filter.id, function () {
+        ui.filter = filter.id;
+        drawList(win, true);
+      }));
     });
   }
 
@@ -926,6 +927,7 @@
     var handle = el(doc, 'span', 'cc-handle', GLYPH.handle);
     var main = el(doc, 'div', 'cc-qmain');
     var name = el(doc, 'div', 'cc-qname', order.name);
+    var sub = el(doc, 'div', 'cc-qsub', craftsLine(order));
     var moves = el(doc, 'div', 'cc-qmove');
 
     row.setAttribute('data-index', index);
@@ -934,9 +936,9 @@
       e.preventDefault();
       startDrag(win, row, order.id, index);
     });
-    if (order.topUp) name.appendChild(el(doc, 'span', 'cc-tag', 'Top-up'));
+    if (order.topUp) sub.appendChild(el(doc, 'span', 'cc-tag', 'Top-up'));
     main.appendChild(name);
-    main.appendChild(el(doc, 'div', 'cc-qsub', craftsLine(order)));
+    main.appendChild(sub);
     if (look) main.appendChild(el(doc, 'div', 'cc-qst cc-st-' + look, order.state === 'ready' ? 'Ready' : order.note));
     if (isActive) main.appendChild(progressBar(win));
     moves.appendChild(button(doc, 'cc-up', GLYPH.up, 'Move up', function () { post('move|' + order.id + '|' + (index - 1)); }, index === 0));

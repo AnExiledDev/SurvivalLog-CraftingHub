@@ -115,7 +115,7 @@ If workbenches still only see their linked storages, look in the logs for "Bette
 
 ## Changelog
 
-- 0.5.1: A roomier recipe list. Recipe names are no longer cut off, the cards are shorter so more recipes fit on screen, and the group buttons sit in one row that you scroll sideways with the mouse wheel. The recipe list is a little wider and the queue a little narrower.
+- 0.5.1: A roomier recipe list. Recipe names are no longer cut off, the cards are shorter so more recipes fit on screen, and the group buttons sit in one row that you scroll sideways with the mouse wheel. The recipe list is a little wider and the queue a little narrower. Long names in the queue now get two lines, and the Top-up tag sits under the name, so neither is cut off.
 
 ## Feedback and bug reports
 
