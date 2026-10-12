@@ -54,3 +54,22 @@ public sealed class KeepTargets
         return book.All.Where(recipe => counts.ContainsKey(recipe.ProductId)).ToDictionary(recipe => recipe.Key, recipe => counts[recipe.ProductId]);
     }
 }
+
+/// <summary>
+/// What keep-stocked crafts may use. A kept item counts only above its target, so topping up one item never eats
+/// another item that is being kept.
+/// </summary>
+public static class KeptStock
+{
+    public static IReadOnlyDictionary<int, int> Spare(IReadOnlyDictionary<int, int> stock, IEnumerable<KeepTarget> kept)
+    {
+        var spare = stock.ToDictionary(pair => pair.Key, pair => pair.Value);
+
+        foreach (var target in kept)
+        {
+            if (spare.TryGetValue(target.ItemId, out var have)) spare[target.ItemId] = Math.Max(0, have - target.Count);
+        }
+
+        return spare;
+    }
+}

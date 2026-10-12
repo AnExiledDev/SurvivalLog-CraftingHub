@@ -43,7 +43,13 @@ public static class TargetFile
     private static IEnumerable<string> Lines(string? text) =>
         (text ?? "").Split('\n').Select(line => line.TrimEnd('\r')).Where(line => line.Length > 0 && line != Header);
 
-    private static bool IsSave(string line, string save) => Parse(line) is { } parsed && parsed.Save == save;
+    /// <summary>A line of this save, readable or not, so writing the save replaces every line it had (a zero count included).</summary>
+    private static bool IsSave(string line, string save)
+    {
+        var fields = line.Split(Separator);
+
+        return !line.StartsWith('#') && fields.Length == 5 && Unescape(fields[0]) == save;
+    }
 
     private static string Format(string save, KeepTarget target) =>
         string.Join(Separator, Uri.EscapeDataString(save), target.ItemId.ToString(CultureInfo.InvariantCulture),

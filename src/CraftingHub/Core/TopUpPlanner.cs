@@ -17,8 +17,9 @@ public sealed record TopUpPlan(IReadOnlyList<TopUpOrder> Orders, IReadOnlyList<s
 /// Works out what to queue so each keep-stocked target is back at its count. What the house holds and what the queue
 /// will already make both count against the target, so checking twice never queues twice. Orders are capped by the
 /// materials on hand, including what the queue will already use up, so nothing is queued that would stop the run for
-/// want of materials; a target with no materials at all is only reported. Crafts are whole, so a recipe that makes
-/// several per craft can end a little over the target, by less than one craft's worth.
+/// want of materials; a target with no materials at all is only reported. Orders plan from the spare stock only, the
+/// same way <see cref="QueuePlanner"/> runs them, so no order eats an item another target keeps. Crafts are whole,
+/// so a recipe that makes several per craft can end a little over the target, by less than one craft's worth.
 /// </summary>
 public static class TopUpPlanner
 {
@@ -33,7 +34,7 @@ public static class TopUpPlanner
 
         foreach (var entry in queue)
         {
-            if (book.Find(entry.Key) is { IsLocked: false } recipe) left = Reserve(book, left, recipe, entry.Crafts, maxDepth, isKept: false).Left;
+            if (book.Find(entry.Key) is { IsLocked: false } recipe) left = Reserve(book, left, targets, recipe, entry.Crafts, maxDepth, entry.IsTopUp).Left;
         }
 
         foreach (var target in targets)
@@ -45,7 +46,7 @@ public static class TopUpPlanner
             if (deficit <= 0) continue;
 
             var wanted = (deficit + recipe.Yield - 1) / recipe.Yield;
-            var (crafts, after) = Reserve(book, left, recipe, wanted, maxDepth, isKept: true);
+            var (crafts, after) = Reserve(book, left, targets, recipe, wanted, maxDepth, isTopUp: true);
 
             if (crafts == 0)
             {
@@ -84,11 +85,13 @@ public static class TopUpPlanner
         queue.Sum(entry => book.Find(entry.Key) is { } recipe && recipe.ProductId == itemId ? entry.Crafts * recipe.Yield : 0);
 
     /// <summary>
-    /// The most crafts, up to <paramref name="wanted"/>, that the stock can make, and the stock left after them. A kept
-    /// item stays out of the stock, so a later target cannot plan to use up what this one just topped up.
+    /// The most crafts, up to <paramref name="wanted"/>, that the stock can make, and the whole stock once they ran. A
+    /// top-up plans from the spare stock only, so the kept counts, including what this order just made, stay untouched.
     /// </summary>
-    private static (int Crafts, Dictionary<int, int> Left) Reserve(RecipeBook book, Dictionary<int, int> stock, Recipe recipe, int wanted, int maxDepth, bool isKept)
+    private static (int Crafts, Dictionary<int, int> Left) Reserve(RecipeBook book, Dictionary<int, int> stock, IReadOnlyList<KeepTarget> kept,
+        Recipe recipe, int wanted, int maxDepth, bool isTopUp)
     {
+        var usable = isTopUp ? KeptStock.Spare(stock, kept) : stock;
         var best = 0;
         IReadOnlyList<CraftStep> bestSteps = Array.Empty<CraftStep>();
         var low = 1;
@@ -99,7 +102,7 @@ public static class TopUpPlanner
         {
             var mid = low + (high - low) / 2;
 
-            if (CraftPlanner.Plan(book, stock, recipe, mid, maxDepth) is CraftPlan.Ready ready)
+            if (CraftPlanner.Plan(book, usable, recipe, mid, maxDepth) is CraftPlan.Ready ready)
             {
                 best = mid;
                 bestSteps = ready.Steps;
@@ -111,21 +114,17 @@ public static class TopUpPlanner
             }
         }
 
-        return (best, After(stock, bestSteps, isKept));
+        return (best, After(stock, bestSteps));
     }
 
-    /// <summary>The stock once the steps ran, the target last; <paramref name="isKept"/> leaves the target's product out.</summary>
-    private static Dictionary<int, int> After(Dictionary<int, int> stock, IReadOnlyList<CraftStep> steps, bool isKept)
+    /// <summary>The stock once the steps ran: their materials used up and their products added.</summary>
+    private static Dictionary<int, int> After(Dictionary<int, int> stock, IReadOnlyList<CraftStep> steps)
     {
         var left = new Dictionary<int, int>(stock);
 
-        for (var i = 0; i < steps.Count; i++)
+        foreach (var step in steps)
         {
-            var step = steps[i];
-
             foreach (var (itemId, perCraft) in step.Recipe.Materials) left[itemId] = Math.Max(0, left.GetValueOrDefault(itemId) - perCraft * step.Crafts);
-
-            if (isKept && i == steps.Count - 1) continue;
 
             left[step.Recipe.ProductId] = left.GetValueOrDefault(step.Recipe.ProductId) + step.Crafts * step.Recipe.Yield;
         }

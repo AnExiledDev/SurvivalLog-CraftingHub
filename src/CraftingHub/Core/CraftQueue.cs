@@ -2,8 +2,8 @@ using System.Collections.Generic;
 
 namespace CraftingHub.Core;
 
-/// <summary>One queued order: make <see cref="Crafts"/> more crafts of a recipe.</summary>
-public readonly record struct QueueEntry(string Key, string Name, int Crafts);
+/// <summary>One queued order: make <see cref="Crafts"/> more crafts of a recipe. <see cref="IsTopUp"/> marks an order keep-stocked queued.</summary>
+public readonly record struct QueueEntry(string Key, string Name, int Crafts, bool IsTopUp = false);
 
 /// <summary>The crafts waiting their turn, run head first. Kept in memory only, so a restart empties it.</summary>
 public sealed class CraftQueue
@@ -14,19 +14,22 @@ public sealed class CraftQueue
 
     public QueueEntry? Head => _entries.Count > 0 ? _entries[0] : null;
 
-    /// <summary>Adds to the back, or tops up the last order when it is the same recipe.</summary>
-    public void Add(string key, string name, int crafts)
+    /// <summary>
+    /// Adds to the back, or tops up the last order when it is the same recipe from the same source. A top-up is never
+    /// merged into the player's own order, since the two may use different stock.
+    /// </summary>
+    public void Add(string key, string name, int crafts, bool isTopUp = false)
     {
         if (crafts <= 0) return;
 
-        if (_entries.Count > 0 && _entries[^1].Key == key)
+        if (_entries.Count > 0 && _entries[^1].Key == key && _entries[^1].IsTopUp == isTopUp)
         {
             _entries[^1] = _entries[^1] with { Crafts = _entries[^1].Crafts + crafts };
 
             return;
         }
 
-        _entries.Add(new QueueEntry(key, name, crafts));
+        _entries.Add(new QueueEntry(key, name, crafts, isTopUp));
     }
 
     /// <summary>Jumps the queue, for "craft this now" on the recipe the player is looking at.</summary>
@@ -34,7 +37,7 @@ public sealed class CraftQueue
     {
         if (crafts <= 0) return;
 
-        if (_entries.Count > 0 && _entries[0].Key == key)
+        if (_entries.Count > 0 && _entries[0].Key == key && !_entries[0].IsTopUp)
         {
             _entries[0] = _entries[0] with { Crafts = _entries[0].Crafts + crafts };
 
