@@ -967,6 +967,37 @@ public class KeepSlotTests
     }
 
     [Fact]
+    public void A_moment_with_no_save_name_between_reads_of_the_same_save_does_not_count_as_another_save()
+    {
+        var store = new FakeStore(failingReads: 0);
+        store.Saved["A.bytes"] = new KeepTargets(new[] { Rope });
+        var slot = new KeepSlot(store);
+
+        slot.Follow("A.bytes");
+        slot.Load();
+        var lost = slot.Follow(null);
+        var back = slot.Follow("A.bytes");
+        var load = slot.Load();
+
+        Assert.False(lost);
+        Assert.False(back);
+        Assert.Equal(SlotLoad.Read, load);
+        Assert.Equal(new[] { Rope }, slot.Targets.All);
+    }
+
+    [Fact]
+    public void Another_save_after_a_moment_with_no_save_name_still_counts_as_another_save()
+    {
+        var slot = new KeepSlot(new FakeStore(failingReads: 0));
+
+        slot.Follow("A.bytes");
+        slot.Follow(null);
+        var moved = slot.Follow("B.bytes");
+
+        Assert.True(moved);
+    }
+
+    [Fact]
     public void With_no_save_loaded_nothing_is_kept()
     {
         var slot = new KeepSlot(new FakeStore(failingReads: 0));

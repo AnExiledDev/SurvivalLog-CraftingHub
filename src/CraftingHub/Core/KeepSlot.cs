@@ -48,6 +48,7 @@ public sealed class KeepSlot
 {
     private readonly ITargetStore _store;
     private string? _save;
+    private string? _lastSave;
     private bool _isRead;
 
     public KeepSlot(ITargetStore store) => _store = store;
@@ -56,15 +57,20 @@ public sealed class KeepSlot
 
     public string? Save => _save;
 
-    /// <summary>Follows the save the game has loaded; true when it moved from one save to another.</summary>
+    /// <summary>
+    /// Follows the save the game has loaded; true when it moved from one save to another. The save name can read as
+    /// missing for a moment, so a gap between two reads of the same save is not a move.
+    /// </summary>
     public bool Follow(string? save)
     {
         if (save == _save) return false;
 
-        var isOtherSave = _save != null;
+        var isOtherSave = save != null && _lastSave != null && save != _lastSave;
         _save = save;
         _isRead = false;
         Targets = new KeepTargets();
+
+        if (save != null) _lastSave = save;
 
         return isOtherSave;
     }
