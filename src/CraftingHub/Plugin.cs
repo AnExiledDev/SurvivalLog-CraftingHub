@@ -11,7 +11,7 @@ namespace CraftingHub;
 public sealed class Plugin : BasePlugin
 {
     private const string Guid = "com.dev.survivallog.craftinghub";
-    private const string Version = "0.4.0";
+    private const string Version = "0.5.0";
 
     public override void Load()
     {
@@ -20,13 +20,13 @@ public sealed class Plugin : BasePlugin
         var maxDepth = Config.Bind("Chain", "MaxDepth", 4,
             "How many layers of intermediates may be made for one recipe (planks for a crate is one layer). 0 turns intermediates off.").Value;
         var showMarks = Config.Bind("Chain", "ShowMarks", true,
-            "Mark recipes you can make once their intermediates are crafted, and offer \"Craft with intermediates\" on them.").Value;
+            "Mark recipes you can make once their intermediates are crafted (\"Makes first\" in amber), and offer \"Craft with intermediates\" on them.").Value;
         var keepStocked = Config.Bind("Targets", "KeepStocked", true,
-            "Show \"Keep stocked\" under the selected recipe. Opening any workbench queues the crafts that bring your kept items back up to their counts.").Value;
+            "Show the Keep button on every recipe and the \"Keep in stock\" list under the queue. Opening any workbench queues the crafts that bring your kept items back up to their counts.").Value;
         var autoStart = Config.Bind("Targets", "AutoStart", true,
             "Start the queue by itself after topping up, when the queue had nothing else in it. Off only queues the crafts.").Value;
         var resumeOnReopen = Config.Bind("Queue", "ResumeOnReopen", true,
-            "Closing a workbench pauses a running queue, and it carries on when you open that workbench again. Off, closing stops the queue and Start carries on.").Value;
+            "Closing a workbench pauses a running queue, and it carries on when you open that workbench again. Off, closing stops the queue and \"Craft queue\" carries on.").Value;
         var otherBenches = Config.Bind("Queue", "OtherBenches", true,
             "A paused queue carries on at whichever workbench you open next, not only the one it was running on. Every workbench lists the same recipes. Off, it waits for the workbench it was running on.").Value;
 
