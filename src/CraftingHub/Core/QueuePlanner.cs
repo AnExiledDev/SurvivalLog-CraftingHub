@@ -15,7 +15,7 @@ public static class QueuePlanner
     {
         if (head is not { } order) return new NextStep.Finished();
 
-        if (book.Find(order.Key) is not { } target) return new NextStep.Blocked($"{order.Name} is not made at this workbench");
+        if (book.Find(order.Key) is not { } target) return new NextStep.Blocked($"{order.Name} is not in your recipe list yet");
 
         if (target.IsLocked) return new NextStep.Blocked($"{order.Name} is not unlocked yet");
 

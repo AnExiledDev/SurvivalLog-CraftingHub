@@ -362,7 +362,7 @@
 
     row.appendChild(el(doc, 'span', 'cc-title', 'Keep in stock'));
     row.appendChild(stepper);
-    row.appendChild(button(doc, 'Keep stocked', 'Keep this many in your home: opening a workbench that makes it queues the crafts to top it back up. 0 stops keeping it.', function () {
+    row.appendChild(button(doc, 'Keep stocked', 'Keep this many in your home: opening any workbench queues the crafts to top it back up. 0 stops keeping it.', function () {
       post('keep|' + encodeURIComponent(selectedKey) + '|' + clampKeep(input.value));
     }));
 

@@ -22,7 +22,7 @@ public sealed class Plugin : BasePlugin
         var showMarks = Config.Bind("Chain", "ShowMarks", true,
             "Mark recipes you can make once their intermediates are crafted, and offer \"Craft with intermediates\" on them.").Value;
         var keepStocked = Config.Bind("Targets", "KeepStocked", true,
-            "Show \"Keep stocked\" under the selected recipe. Opening a workbench that makes a kept item queues the crafts that bring your home back up to its count.").Value;
+            "Show \"Keep stocked\" under the selected recipe. Opening any workbench queues the crafts that bring your kept items back up to their counts.").Value;
         var autoStart = Config.Bind("Targets", "AutoStart", true,
             "Start the queue by itself after topping up, when the queue had nothing else in it. Off only queues the crafts.").Value;
         var resumeOnReopen = Config.Bind("Queue", "ResumeOnReopen", true,
