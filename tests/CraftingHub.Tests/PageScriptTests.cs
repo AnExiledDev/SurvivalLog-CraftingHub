@@ -208,16 +208,18 @@ public class PageScriptTests
     }
 
     [Fact]
-    public void Each_chip_row_stays_on_one_line_so_the_filters_never_push_the_list_down()
+    public void The_group_row_stays_on_one_line_however_many_groups_there_are_while_the_filters_wrap()
     {
         var page = BenchWithRecipes();
 
-        Assert.True(page.Truth("$('cc-filters').classList.contains('cc-chips')"));
         Assert.True(page.Truth("$('cc-groups').classList.contains('cc-chips')"));
-        Assert.Contains("flex-wrap:nowrap", page.Text("cssRule('.cc-chips')"));
-        Assert.Contains("overflow-x:auto", page.Text("cssRule('.cc-chips')"));
+        Assert.True(page.Truth("$('cc-groups').classList.contains('cc-slide')"));
+        Assert.Contains("flex-wrap:nowrap", page.Text("cssRule('.cc-chips.cc-slide')"));
+        Assert.Contains("overflow-x:auto", page.Text("cssRule('.cc-chips.cc-slide')"));
         Assert.Contains("flex:none", page.Text("cssRule('.cc-fchip')"));
         Assert.Contains("white-space:nowrap", page.Text("cssRule('.cc-fchip')"));
+        Assert.False(page.Truth("$('cc-filters').classList.contains('cc-slide')"));
+        Assert.Contains("flex-wrap:wrap", page.Text("cssRule('.cc-chips')"));
     }
 
     [Fact]
@@ -245,14 +247,25 @@ public class PageScriptTests
     }
 
     [Fact]
-    public void A_chip_row_that_fits_leaves_the_wheel_to_scroll_the_page()
+    public void A_sideways_swipe_over_the_group_row_scrolls_it_by_the_swipe_not_the_small_vertical_drift()
     {
         var page = BenchWithRecipes();
 
-        page.Run("$('cc-filters').scrollWidth = 500; $('cc-filters').clientWidth = 600");
-        page.Run("var wheel = fire(filterChip('All'), 'wheel', { deltaY: 120 })");
+        page.Run("$('cc-groups').scrollWidth = 900; $('cc-groups').clientWidth = 600");
+        page.Run("fire(groupChip('Group 1'), 'wheel', { deltaX: 80, deltaY: 5 })");
 
-        Assert.Equal(0, page.Number("$('cc-filters').scrollLeft"));
+        Assert.Equal(80, page.Number("$('cc-groups').scrollLeft"));
+    }
+
+    [Fact]
+    public void A_group_row_that_fits_leaves_the_wheel_to_scroll_the_page()
+    {
+        var page = BenchWithRecipes();
+
+        page.Run("$('cc-groups').scrollWidth = 500; $('cc-groups').clientWidth = 600");
+        page.Run("var wheel = fire(groupChip('Group 1'), 'wheel', { deltaY: 120 })");
+
+        Assert.Equal(0, page.Number("$('cc-groups').scrollLeft"));
         Assert.False(page.Truth("wheel.defaultPrevented"));
     }
 
@@ -413,6 +426,15 @@ public class PageScriptTests
         Assert.Contains("grid-column:1/-1", page.Text("cssRule('.cc-card-foot')"));
     }
 
+    [Fact]
+    public void A_cards_bottom_row_sits_at_its_bottom_so_add_lines_up_beside_a_card_whose_name_wraps()
+    {
+        var page = BenchWithRecipes();
+
+        Assert.True(page.Truth("card('plank').children[card('plank').children.length - 1] === cardPart('plank', '.cc-card-foot')"));
+        Assert.Contains("align-content:space-between", page.Text("cssRule('.cc-card')"));
+    }
+
     // ---------------------------------------------------------------- the queue
 
     [Fact]
@@ -427,6 +449,20 @@ public class PageScriptTests
         Assert.Equal("Short: Fibre x2", page.Text("queueRow(1).querySelector('.cc-qst').textContent"));
         Assert.True(page.Truth("queueRow(1).classList.contains('short')"));
         Assert.Equal("2 orders, 3 crafts", page.Text("$('cc-actions').querySelector('.cc-dim').textContent"));
+    }
+
+    [Fact]
+    public void A_top_up_order_says_so_beside_its_crafts_where_a_long_name_cannot_cut_it_off()
+    {
+        var page = BenchWithRecipes();
+
+        page.Show(View(new[] { new QueueEntry("plank", "Plank", 3, IsTopUp: true, Id: 2) }));
+
+        Assert.Equal("Plank", page.Text("queueRow(0).querySelector('.cc-qname').textContent"));
+        Assert.True(page.Truth("queueRow(0).querySelector('.cc-tag').parentElement === queueRow(0).querySelector('.cc-qsub')"));
+        Assert.Equal("Top-up", page.Text("queueRow(0).querySelector('.cc-tag').textContent"));
+        Assert.Contains("-webkit-line-clamp:2", page.Text("cssRule('.cc-qname')"));
+        Assert.DoesNotContain("nowrap", page.Text("cssRule('.cc-qname')"));
     }
 
     [Fact]
