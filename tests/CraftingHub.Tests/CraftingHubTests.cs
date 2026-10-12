@@ -322,7 +322,11 @@ public class QueueRunnerTests
     private static readonly IReadOnlyDictionary<int, int> Empty = new Dictionary<int, int>();
     private static readonly IReadOnlyDictionary<int, int> LogsLaidOut = Bench.Mats((Bench.Log, 3));
 
-    private static BenchView Idle(IReadOnlyDictionary<int, int>? contents = null, int max = 0) => new(true, false, false, max, contents ?? Empty, 0);
+    private const long RunBench = 1;
+    private const long OtherBench = 2;
+    private static readonly BenchView Closed = new(false, false, false, 0, Empty, 0);
+
+    private static BenchView Idle(IReadOnlyDictionary<int, int>? contents = null, int max = 0, long bench = RunBench) => new(true, false, false, max, contents ?? Empty, 0, bench);
 
     private static NextStep PlankNext() => new NextStep.Craft(PlankStep, IsTarget: true);
 
@@ -420,11 +424,111 @@ public class QueueRunnerTests
     }
 
     [Fact]
-    public void Closing_the_workbench_stops_the_run()
+    public void With_resuming_off_closing_the_workbench_stops_the_run()
+    {
+        var runner = CraftingRunner(resumesOnReopen: false);
+
+        Assert.IsType<RunnerCommand.Stopped>(runner.Tick(Closed, 1, PlankNext));
+        Assert.False(runner.IsRunning);
+    }
+
+    [Fact]
+    public void Closing_the_workbench_pauses_the_run_instead_of_ending_it()
     {
         var runner = CraftingRunner();
 
-        Assert.IsType<RunnerCommand.Stopped>(runner.Tick(new BenchView(false, false, false, 0, Empty, 0), 1, PlankNext));
+        Assert.IsType<RunnerCommand.Paused>(runner.Tick(Closed, 1, PlankNext));
+        Assert.True(runner.IsRunning);
+        Assert.True(runner.IsPaused);
+    }
+
+    [Fact]
+    public void A_paused_run_carries_on_once_its_workbench_has_been_open_a_moment()
+    {
+        var runner = PausedRunner();
+
+        Assert.IsType<RunnerCommand.None>(runner.Tick(Idle(), 10, PlankNext));
+        Assert.IsType<RunnerCommand.None>(runner.Tick(Idle(), 10.5, PlankNext));
+        Assert.IsType<RunnerCommand.Resumed>(runner.Tick(Idle(), 10 + QueueRunner.ResumeSettleSeconds, PlankNext));
+        Assert.Equal(new RunnerCommand.ClickRecipe("plank"), runner.Tick(Idle(), 11.1, PlankNext));
+    }
+
+    [Fact]
+    public void A_workbench_closed_again_before_the_run_carries_on_restarts_the_wait()
+    {
+        var runner = PausedRunner();
+
+        runner.Tick(Idle(), 10, PlankNext);
+        runner.Tick(Closed, 10.25, PlankNext);
+        runner.Tick(Idle(), 10.5, PlankNext);
+
+        Assert.IsType<RunnerCommand.None>(runner.Tick(Idle(), 11.25, PlankNext));
+        Assert.IsType<RunnerCommand.Resumed>(runner.Tick(Idle(), 10.5 + QueueRunner.ResumeSettleSeconds, PlankNext));
+    }
+
+    [Fact]
+    public void A_paused_run_waits_for_its_own_workbench_and_says_so_once()
+    {
+        var runner = PausedRunner();
+
+        Assert.IsType<RunnerCommand.Paused>(runner.Tick(Idle(bench: OtherBench), 10, PlankNext));
+        Assert.IsType<RunnerCommand.None>(runner.Tick(Idle(bench: OtherBench), 10.1, PlankNext));
+        Assert.IsType<RunnerCommand.None>(runner.Tick(Idle(bench: OtherBench), 30, PlankNext));
+        Assert.True(runner.IsPaused);
+    }
+
+    [Fact]
+    public void Start_at_another_workbench_carries_a_paused_run_on_there()
+    {
+        var runner = PausedRunner();
+
+        runner.Tick(Idle(bench: OtherBench), 10, PlankNext);
+        runner.Start();
+
+        Assert.Equal(new RunnerCommand.ClickRecipe("plank"), runner.Tick(Idle(bench: OtherBench), 10.1, PlankNext));
+    }
+
+    [Fact]
+    public void Stop_ends_a_paused_run()
+    {
+        var runner = PausedRunner();
+
+        runner.Stop("stopped");
+
+        Assert.False(runner.IsRunning);
+        Assert.IsType<RunnerCommand.None>(runner.Tick(Idle(), 20, PlankNext));
+    }
+
+    [Fact]
+    public void Crafts_the_batch_finished_before_the_close_count_against_the_order()
+    {
+        var runner = CraftingRunner();
+
+        runner.Tick(new BenchView(true, true, false, 0, Empty, 2, RunBench), 1, PlankNext);
+
+        var done = Assert.IsType<RunnerCommand.StepDone>(runner.Tick(Closed, 1.1, PlankNext));
+        Assert.Equal(2, done.Crafts);
+        Assert.IsType<RunnerCommand.Paused>(runner.Tick(Closed, 1.2, PlankNext));
+    }
+
+    [Fact]
+    public void A_craft_the_close_cancelled_counts_nothing()
+    {
+        var runner = CraftingRunner();
+
+        runner.Tick(new BenchView(true, true, false, 0, Empty, 0, RunBench), 1, PlankNext);
+
+        Assert.IsType<RunnerCommand.Paused>(runner.Tick(Closed, 1.1, PlankNext));
+    }
+
+    [Fact]
+    public void A_result_on_screen_when_the_workbench_closes_counts_the_whole_step()
+    {
+        var runner = CraftingRunner();
+
+        runner.Tick(new BenchView(true, false, true, 0, Empty, 0, RunBench), 1, PlankNext);
+
+        Assert.Equal(3, Assert.IsType<RunnerCommand.StepDone>(runner.Tick(Closed, 1.1, PlankNext)).Crafts);
     }
 
     [Fact]
@@ -468,14 +572,24 @@ public class QueueRunnerTests
         Assert.IsType<RunnerCommand.None>(new QueueRunner().Tick(Idle(), 0, PlankNext));
     }
 
-    private static QueueRunner CraftingRunner()
+    private static QueueRunner CraftingRunner(bool resumesOnReopen = true)
     {
-        var runner = new QueueRunner();
+        var runner = new QueueRunner(resumesOnReopen);
 
         runner.Start();
         runner.Tick(Idle(), 0, PlankNext);
         runner.Tick(Idle(LogsLaidOut, 3), 0.1, PlankNext);
         runner.Tick(Idle(LogsLaidOut, 3), 0.5, PlankNext);
+
+        return runner;
+    }
+
+    /// <summary>A run at <see cref="RunBench"/> whose craft the close cancelled, so nothing was made.</summary>
+    private static QueueRunner PausedRunner()
+    {
+        var runner = CraftingRunner();
+
+        runner.Tick(Closed, 1, PlankNext);
 
         return runner;
     }

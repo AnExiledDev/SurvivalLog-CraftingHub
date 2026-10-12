@@ -31,3 +31,13 @@ With `ShowMarks` set to `false`, recipes get no mark and the "Craft with interme
 With `KeepStocked` set to `false`, the keep row and the kept items are hidden and nothing is topped up. The counts you already set stay in `BepInEx\config\com.dev.survivallog.craftinghub.targets.txt` and come back when you turn it on again.
 
 `AutoStart` never starts orders you queued yourself: when the queue already has something in it, top-ups are added to the end and wait for Start queue.
+
+## Queue
+
+| Setting | Default | What it does |
+| --- | --- | --- |
+| `ResumeOnReopen` | `true` | Closing a workbench pauses a running queue, and it carries on when you open that workbench again. `false` stops the queue when the workbench closes; press Start queue to carry on. |
+
+The game cancels a craft when the workbench window closes, so the queue cannot keep crafting with the window shut. With `true`, it waits and carries on about a second after you open the same workbench again, planning from what your house holds then. Opening a different workbench does not start it there; press Stop, then Start queue, to run it at the one you have open.
+
+Either way, crafts the game finished before the close count against their order and are not made again.
