@@ -57,7 +57,8 @@ internal sealed class Workbench
         var state = _state;
         var items = ItemState();
 
-        if (state?.RecipeList == null || items == null) return null;
+        // The kept state outlives its window, and after a quit to title it belongs to the old world.
+        if (state?.RecipeList == null || items == null || !IsOpen) return null;
 
         var recipes = new List<Recipe>(state.RecipeList.Count);
         var craftable = new HashSet<string>();
