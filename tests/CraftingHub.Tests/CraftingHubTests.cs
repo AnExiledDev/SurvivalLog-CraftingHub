@@ -253,6 +253,17 @@ public class CraftQueueTests
 
         Assert.Single(queue.Entries);
     }
+
+    [Fact]
+    public void A_top_up_is_never_merged_into_the_players_order_for_the_same_recipe()
+    {
+        var queue = new CraftQueue();
+
+        queue.Add("crate", "Crate", 1);
+        queue.Add("crate", "Crate", 2, isTopUp: true);
+
+        Assert.Equal(new[] { (1, false), (2, true) }, queue.Entries.Select(entry => (entry.Crafts, entry.IsTopUp)));
+    }
 }
 
 public class QueuePlannerTests
@@ -260,13 +271,13 @@ public class QueuePlannerTests
     [Fact]
     public void An_empty_queue_is_finished()
     {
-        Assert.IsType<NextStep.Finished>(QueuePlanner.Next(null, Bench.Book(), new Dictionary<int, int>(), 4, Bench.Name));
+        Assert.IsType<NextStep.Finished>(QueuePlanner.Next(null, Bench.Book(), new Dictionary<int, int>(), NoKeeps, 4, Bench.Name));
     }
 
     [Fact]
     public void The_first_step_is_the_first_intermediate_and_is_not_the_target()
     {
-        var next = QueuePlanner.Next(new QueueEntry("crate", "Crate", 1), Bench.Book(), Bench.Mats((Bench.Log, 2), (Bench.Fibre, 3)), 4, Bench.Name);
+        var next = QueuePlanner.Next(new QueueEntry("crate", "Crate", 1), Bench.Book(), Bench.Mats((Bench.Log, 2), (Bench.Fibre, 3)), NoKeeps, 4, Bench.Name);
 
         var craft = Assert.IsType<NextStep.Craft>(next);
         Assert.Equal("plank", craft.Step.Recipe.Key);
@@ -276,7 +287,7 @@ public class QueuePlannerTests
     [Fact]
     public void Short_stock_blocks_with_the_missing_items_named()
     {
-        var next = QueuePlanner.Next(new QueueEntry("crate", "Crate", 1), Bench.Book(), Bench.Mats((Bench.Log, 2)), 4, Bench.Name);
+        var next = QueuePlanner.Next(new QueueEntry("crate", "Crate", 1), Bench.Book(), Bench.Mats((Bench.Log, 2)), NoKeeps, 4, Bench.Name);
 
         Assert.Equal("can't make Crate ×1: short of Fibre ×3", Assert.IsType<NextStep.Blocked>(next).Reason);
     }
@@ -284,10 +295,25 @@ public class QueuePlannerTests
     [Fact]
     public void A_recipe_from_another_workbench_blocks()
     {
-        var next = QueuePlanner.Next(new QueueEntry("anvil", "Anvil", 1), Bench.Book(), new Dictionary<int, int>(), 4, Bench.Name);
+        var next = QueuePlanner.Next(new QueueEntry("anvil", "Anvil", 1), Bench.Book(), new Dictionary<int, int>(), NoKeeps, 4, Bench.Name);
 
         Assert.IsType<NextStep.Blocked>(next);
     }
+
+    [Fact]
+    public void A_players_order_may_use_kept_stock_but_a_top_up_makes_its_own()
+    {
+        var stock = Bench.Mats((Bench.Plank, 4), (Bench.Log, 2), (Bench.Rope, 1));
+        var kept = new[] { new KeepTarget(Bench.Plank, "plank", "Plank", 4) };
+
+        var players = QueuePlanner.Next(new QueueEntry("crate", "Crate", 1), Bench.Book(), stock, kept, 4, Bench.Name);
+        var topUp = QueuePlanner.Next(new QueueEntry("crate", "Crate", 1, IsTopUp: true), Bench.Book(), stock, kept, 4, Bench.Name);
+
+        Assert.Equal("crate", Assert.IsType<NextStep.Craft>(players).Step.Recipe.Key);
+        Assert.Equal("plank", Assert.IsType<NextStep.Craft>(topUp).Step.Recipe.Key);
+    }
+
+    private static readonly KeepTarget[] NoKeeps = Array.Empty<KeepTarget>();
 }
 
 public class QueueRunnerTests
@@ -627,6 +653,32 @@ public class TopUpPlannerTests
     }
 
     [Fact]
+    public void Running_the_orders_leaves_every_kept_item_at_its_target()
+    {
+        var targets = new[] { Keep(Bench.Plank, "plank", 4), Keep(Bench.Crate, "crate", 1) };
+        var house = Bench.Mats((Bench.Log, 4), (Bench.Rope, 1));
+
+        var plan = Plan(targets, house, Bench.Mats((Bench.Plank, 0), (Bench.Crate, 0)));
+        Run(plan, targets, house);
+
+        Assert.Equal(new[] { ("plank", 2), ("crate", 1) }, Orders(plan));
+        Assert.Equal((4, 1), (house[Bench.Plank], house[Bench.Crate]));
+    }
+
+    [Fact]
+    public void A_full_kept_item_is_not_used_up_to_top_up_another()
+    {
+        var targets = new[] { Keep(Bench.Plank, "plank", 4), Keep(Bench.Crate, "crate", 1) };
+        var house = Bench.Mats((Bench.Plank, 4), (Bench.Log, 2), (Bench.Rope, 1));
+
+        var plan = Plan(targets, house, Bench.Mats((Bench.Plank, 4), (Bench.Crate, 0)));
+        Run(plan, targets, house);
+
+        Assert.Equal(new[] { ("crate", 1) }, Orders(plan));
+        Assert.Equal((4, 1), (house[Bench.Plank], house[Bench.Crate]));
+    }
+
+    [Fact]
     public void Crafts_round_up_when_a_recipe_makes_several()
     {
         var plan = Plan(new[] { Keep(Bench.Plank, "plank", 5) }, Bench.Mats((Bench.Log, 10)), Bench.Mats((Bench.Plank, 0)));
@@ -675,6 +727,36 @@ public class TopUpPlannerTests
         TopUpPlanner.Plan(targets, Bench.Book(NetRecipe), stock, held, queue, maxDepth: 4);
 
     private static (string, int)[] Orders(TopUpPlan plan) => plan.Orders.Select(order => (order.Recipe.Key, order.Crafts)).ToArray();
+
+    /// <summary>Queues the plan and runs it the way the game does: one step at a time, re-planned from the house as it stands.</summary>
+    private static void Run(TopUpPlan plan, KeepTarget[] targets, Dictionary<int, int> house)
+    {
+        var book = Bench.Book(NetRecipe);
+        var queue = new CraftQueue();
+
+        foreach (var order in plan.Orders) queue.Add(order.Recipe.Key, order.Recipe.Name, order.Crafts, isTopUp: true);
+
+        for (var steps = 0; steps < 20; steps++)
+        {
+            var next = QueuePlanner.Next(queue.Head, book, house, targets, 4, Bench.Name);
+
+            if (next is NextStep.Finished) return;
+
+            var craft = Assert.IsType<NextStep.Craft>(next);
+            Make(house, craft.Step);
+
+            if (craft.IsTarget) queue.Progress(craft.Step.Crafts);
+        }
+
+        Assert.Fail("the queue never finished");
+    }
+
+    private static void Make(Dictionary<int, int> house, CraftStep step)
+    {
+        foreach (var (itemId, perCraft) in step.Recipe.Materials) house[itemId] = house.GetValueOrDefault(itemId) - perCraft * step.Crafts;
+
+        house[step.Recipe.ProductId] = house.GetValueOrDefault(step.Recipe.ProductId) + step.Crafts * step.Recipe.Yield;
+    }
 }
 
 public class TopUpTimingTests
@@ -684,14 +766,11 @@ public class TopUpTimingTests
     {
         var timing = new TopUpTiming();
 
-        Assert.False(timing.IsDue(true, 0));
-        Assert.False(timing.IsDue(true, 1));
-        Assert.True(timing.IsDue(true, TopUpTiming.SettleSeconds));
-
-        timing.Done();
-
-        Assert.False(timing.IsDue(true, 5));
-        Assert.False(timing.IsDue(true, 60));
+        Assert.False(timing.IsDue(true, 0, Idle));
+        Assert.False(timing.IsDue(true, 1, Idle));
+        Assert.True(timing.IsDue(true, TopUpTiming.SettleSeconds, Idle));
+        Assert.False(timing.IsDue(true, 5, Idle));
+        Assert.False(timing.IsDue(true, 60, Idle));
     }
 
     [Fact]
@@ -699,13 +778,12 @@ public class TopUpTimingTests
     {
         var timing = new TopUpTiming();
 
-        timing.IsDue(true, 0);
-        timing.IsDue(true, 2);
-        timing.Done();
-        timing.IsDue(false, 3);
+        timing.IsDue(true, 0, Idle);
+        timing.IsDue(true, 2, Idle);
+        timing.IsDue(false, 3, Idle);
 
-        Assert.False(timing.IsDue(true, 4));
-        Assert.True(timing.IsDue(true, 4 + TopUpTiming.SettleSeconds));
+        Assert.False(timing.IsDue(true, 4, Idle));
+        Assert.True(timing.IsDue(true, 4 + TopUpTiming.SettleSeconds, Idle));
     }
 
     [Fact]
@@ -713,12 +791,11 @@ public class TopUpTimingTests
     {
         var timing = new TopUpTiming();
 
-        timing.IsDue(true, 0);
-        timing.IsDue(true, 2);
-        timing.Done();
+        timing.IsDue(true, 0, Idle);
+        timing.IsDue(true, 2, Idle);
         timing.Request();
 
-        Assert.True(timing.IsDue(true, 2.1));
+        Assert.True(timing.IsDue(true, 2.1, Idle));
     }
 
     [Fact]
@@ -728,8 +805,23 @@ public class TopUpTimingTests
 
         timing.Request();
 
-        Assert.False(timing.IsDue(false, 10));
+        Assert.False(timing.IsDue(false, 10, Idle));
     }
+
+    [Fact]
+    public void A_check_that_finds_the_bench_busy_is_dropped_not_fired_when_the_run_ends()
+    {
+        var timing = new TopUpTiming();
+
+        timing.IsDue(true, 0, Busy);
+
+        Assert.False(timing.IsDue(true, TopUpTiming.SettleSeconds, Busy));
+        Assert.False(timing.IsDue(true, 30, Idle));
+    }
+
+    private static bool Idle() => true;
+
+    private static bool Busy() => false;
 }
 
 public class KeepTargetsTests
@@ -821,5 +913,93 @@ public class TargetFileTests
         Assert.Equal(new[] { new KeepTarget(Bench.Rope, "rope", "Rope", 5) }, TargetFile.Read(text, "A.bytes").All);
         Assert.Contains("not a target", rewritten);
         Assert.Empty(TargetFile.Read(rewritten, "A.bytes").All);
+    }
+
+    [Fact]
+    public void A_zero_count_line_is_dropped_when_its_save_is_written()
+    {
+        var text = "A.bytes\t4\t0\trope\tRope\nB.bytes\t4\t0\trope\tRope\n";
+
+        var rewritten = TargetFile.Write(text, "A.bytes", new KeepTargets(new[] { new KeepTarget(Bench.Plank, "plank", "Plank", 9) }));
+
+        Assert.DoesNotContain("A.bytes\t4\t0", rewritten);
+        Assert.Contains("B.bytes\t4\t0", rewritten);
+    }
+}
+
+public class KeepSlotTests
+{
+    private static readonly KeepTarget Rope = new(Bench.Rope, "rope", "Rope", 5);
+    private static readonly KeepTarget Plank = new(Bench.Plank, "plank", "Plank", 9);
+
+    [Fact]
+    public void An_unreadable_targets_file_blocks_changes_until_it_reads()
+    {
+        var store = new FakeStore(failingReads: 1);
+        store.Saved["A.bytes"] = new KeepTargets(new[] { Rope });
+        var slot = new KeepSlot(store);
+
+        slot.Follow("A.bytes");
+
+        Assert.Equal(SlotLoad.Unreadable, slot.Load());
+        Assert.Equal(KeepEdit.Unreadable, slot.Set(Plank));
+        Assert.Equal(new[] { Rope }, store.Saved["A.bytes"].All);
+
+        Assert.Equal(SlotLoad.Read, slot.Load());
+        Assert.Equal(KeepEdit.Saved, slot.Set(Plank));
+        Assert.Equal(new[] { Rope, Plank }, store.Saved["A.bytes"].All.OrderBy(target => target.ItemId));
+    }
+
+    [Fact]
+    public void Loading_another_save_empties_the_targets_and_says_so()
+    {
+        var store = new FakeStore(failingReads: 0);
+        store.Saved["A.bytes"] = new KeepTargets(new[] { Rope });
+        var slot = new KeepSlot(store);
+
+        var first = slot.Follow("A.bytes");
+        slot.Load();
+        var moved = slot.Follow("B.bytes");
+
+        Assert.False(first);
+        Assert.True(moved);
+        Assert.Empty(slot.Targets.All);
+    }
+
+    [Fact]
+    public void With_no_save_loaded_nothing_is_kept()
+    {
+        var slot = new KeepSlot(new FakeStore(failingReads: 0));
+
+        Assert.Equal(KeepEdit.NoSave, slot.Set(Rope));
+    }
+
+    /// <summary>Keeps targets by save in memory; the first reads can be made to fail like a locked file.</summary>
+    private sealed class FakeStore : ITargetStore
+    {
+        private int _failingReads;
+
+        public FakeStore(int failingReads) => _failingReads = failingReads;
+
+        public Dictionary<string, KeepTargets> Saved { get; } = new();
+
+        public TargetLoad Load(string save)
+        {
+            if (_failingReads > 0)
+            {
+                _failingReads--;
+
+                return new TargetLoad.Unreadable();
+            }
+
+            return new TargetLoad.Loaded(new KeepTargets(Saved.TryGetValue(save, out var targets) ? targets.All : Array.Empty<KeepTarget>()));
+        }
+
+        public bool Save(string save, KeepTargets targets)
+        {
+            Saved[save] = new KeepTargets(targets.All);
+
+            return true;
+        }
     }
 }

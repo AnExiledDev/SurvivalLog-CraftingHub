@@ -9,7 +9,7 @@ namespace CraftingHub.Adapters;
 /// one file beside the mod's config, keyed by save. A file that cannot be read is never written over, so a passing
 /// lock or a bad line cannot wipe every other save's targets.
 /// </summary>
-internal sealed class KeepStore
+internal sealed class KeepStore : ITargetStore
 {
     private readonly string _path;
     private readonly Action<string> _log;
@@ -20,7 +20,7 @@ internal sealed class KeepStore
         _log = log;
     }
 
-    public KeepTargets Load(string save) => ReadText() is { } text ? TargetFile.Read(text.Contents, save) : new KeepTargets();
+    public TargetLoad Load(string save) => ReadText() is { } text ? new TargetLoad.Loaded(TargetFile.Read(text.Contents, save)) : new TargetLoad.Unreadable();
 
     /// <summary>Writes this save's targets; false when the file could not be read or written.</summary>
     public bool Save(string save, KeepTargets targets)

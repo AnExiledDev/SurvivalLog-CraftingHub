@@ -1,3 +1,5 @@
+using System;
+
 namespace CraftingHub.Core;
 
 /// <summary>
@@ -13,7 +15,23 @@ public sealed class TopUpTiming
     private double _openedAt;
     private bool _isDue;
 
-    public bool IsDue(bool isOpen, double now)
+    /// <summary>
+    /// True once per due check, when the bench is free. A check that comes due while the bench is busy is dropped,
+    /// not held, since holding it would fire it the moment a run ends.
+    /// </summary>
+    public bool IsDue(bool isOpen, double now, Func<bool> isIdle)
+    {
+        if (!IsSettledAndDue(isOpen, now)) return false;
+
+        _isDue = false;
+
+        return isIdle();
+    }
+
+    /// <summary>Check again on the next due tick; the targets changed.</summary>
+    public void Request() => _isDue = true;
+
+    private bool IsSettledAndDue(bool isOpen, double now)
     {
         if (!isOpen)
         {
@@ -31,10 +49,4 @@ public sealed class TopUpTiming
 
         return _isDue && now - _openedAt >= SettleSeconds;
     }
-
-    /// <summary>Check again on the next due tick; the targets changed.</summary>
-    public void Request() => _isDue = true;
-
-    /// <summary>The check ran; nothing is due until the bench opens again or a target changes.</summary>
-    public void Done() => _isDue = false;
 }

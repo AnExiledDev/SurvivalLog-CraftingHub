@@ -12,14 +12,14 @@
 
   var DEFAULT_KEEP = 10;
   var MAX_KEEP = 9999;
+  var PRESS_LIMIT_MS = 2000;
 
   var view = { marks: {}, queue: [], running: false, status: '', keep: { on: false, targets: [], byKey: {} } };
   var selectedKey = '';
   var reported = {};
-  // The keep count being typed, for the recipe it was typed on. While its box has focus the panel is not rebuilt,
-  // so a view update cannot throw away what is being typed; the skipped redraw happens on blur.
+  // The keep count being typed, for the recipe it was typed on. While its box has focus, or the mouse is down on the
+  // panel, the panel is not rebuilt (see isHoldingPanel); the skipped redraw happens once both are over.
   var keepDraft = { key: '', count: DEFAULT_KEEP };
-  var isTypingKeep = false;
   var hasSkippedRender = false;
 
   function post(message) {
@@ -201,6 +201,7 @@
 
       panel = el(doc, 'div', 'cc-panel');
       panel.id = 'cc-panel';
+      panel.addEventListener('mousedown', holdUntilReleased, true);
       controls.parentNode.insertBefore(panel, controls.nextSibling);
     }
 
@@ -327,7 +328,7 @@
 
     var row = el(doc, 'div', 'cc-row');
     var stepper = el(doc, 'span', 'qty-step');
-    var input = el(doc, 'input');
+    var input = el(doc, 'input', 'cc-keep-input');
 
     function setDraft(value) {
       keepDraft.count = clampKeep(value);
@@ -339,19 +340,15 @@
     input.value = String(keepDraft.count);
     input.title = 'How many to keep in your home';
     input.addEventListener('focus', function () {
-      isTypingKeep = true;
       input.select();
       sendFocus(win, true);
     });
+    // A press on one of the panel's buttons is what usually blurs the box; the redraw then waits for the release, so
+    // the button is still there when its click lands.
     input.addEventListener('blur', function () {
-      isTypingKeep = false;
       setDraft(input.value);
       sendFocus(win, false);
-
-      if (hasSkippedRender) {
-        hasSkippedRender = false;
-        renderAll();
-      }
+      renderSkipped();
     });
     input.addEventListener('keydown', function (e) {
       e.stopPropagation();
@@ -401,13 +398,62 @@
   function setData(next) {
     if (next) view = next;
 
-    if (isTypingKeep) {
+    if (isHoldingPanel()) {
       hasSkippedRender = true;
 
       return;
     }
 
+    hasSkippedRender = false;
     renderAll();
+  }
+
+  function renderSkipped() {
+    if (!hasSkippedRender || isHoldingPanel()) return;
+
+    hasSkippedRender = false;
+    renderAll();
+  }
+
+  // True while the keep box has focus or the mouse is down on a panel: a redraw then would throw away the number being
+  // typed or replace the button being pressed. Asked of the live pages each time rather than kept in a flag, so a page
+  // that goes away mid-typing or mid-press cannot leave redraws switched off.
+  function isHoldingPanel() {
+    var wins = benchWindows();
+
+    for (var i = 0; i < wins.length; i++) {
+      try {
+        var doc = wins[i].document;
+        var panel = doc.getElementById('cc-panel');
+        var active = doc.activeElement;
+
+        if (panel && panel.__ccPressed) return true;
+
+        if (active && active.isConnected && active.classList && active.classList.contains('cc-keep-input')) return true;
+      } catch (e) {}
+    }
+
+    return false;
+  }
+
+  // The panel's mousedown, in the capture phase so it runs before the keep box blurs. The release clears it after a
+  // turn, once the click that follows it has run; a release the page never sees clears it after PRESS_LIMIT_MS.
+  function holdUntilReleased() {
+    var panel = this;
+    var doc = panel.ownerDocument;
+    var press = {};
+
+    // Only this press's own release counts, so an earlier press's timer cannot end a later one.
+    function release() {
+      if (panel.__ccPressed !== press) return;
+
+      panel.__ccPressed = null;
+      renderSkipped();
+    }
+
+    panel.__ccPressed = press;
+    doc.addEventListener('mouseup', function () { setTimeout(release, 0); }, { capture: true, once: true });
+    setTimeout(release, PRESS_LIMIT_MS);
   }
 
   // The queue's clicks, made the way the page makes them: picking a recipe sends what a row click sends, crafting

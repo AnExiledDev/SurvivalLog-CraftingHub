@@ -10,7 +10,7 @@ namespace CraftingHub.Adapters;
 internal sealed record HubSettings(int MaxDepth, bool ShowMarks, bool KeepStocked, bool AutoStartTopUps);
 
 /// <summary>What keep-stocked targets need from the game and the disk: home counts, the targets file, and which save is loaded.</summary>
-internal sealed record KeepPorts(HomeStock Stock, KeepStore Store, Func<string?> SaveKey);
+internal sealed record KeepPorts(HomeStock Stock, ITargetStore Store, Func<string?> SaveKey);
 
 /// <summary>
 /// Wires the workbench, its page and the core together. Each tick: keep the page script in place, act on the page's
@@ -31,10 +31,9 @@ internal sealed class HubSession
     private readonly CraftQueue _queue = new();
     private readonly QueueRunner _runner = new();
     private readonly TopUpTiming _topUps = new();
+    private readonly KeepSlot _slot;
     private IReadOnlyDictionary<string, string> _marks = NoMarks;
-    private KeepTargets _targets = new();
     private IReadOnlyDictionary<string, int> _keepByKey = NoKeeps;
-    private string? _loadedSave;
     private string _status = "";
     private string _shownView = "";
     private string _pickedKey = "";
@@ -50,6 +49,7 @@ internal sealed class HubSession
         _settings = settings;
         _log = log;
         _logFileOnly = logFileOnly;
+        _slot = new KeepSlot(keep.Store);
     }
 
     public void Tick(float now)
@@ -77,7 +77,7 @@ internal sealed class HubSession
 
         if (_runner.IsRunning) Apply(_runner.Tick(_bench.View(), now, Next));
 
-        if (_settings.KeepStocked && _topUps.IsDue(isOpen, now) && IsIdle()) TopUp();
+        if (_settings.KeepStocked && _topUps.IsDue(isOpen, now, IsIdle)) TopUp();
 
         Show();
     }
@@ -186,7 +186,7 @@ internal sealed class HubSession
     {
         if (_bench.Read() is not { } read) return new NextStep.Blocked("could not read the workbench");
 
-        return QueuePlanner.Next(_queue.Head, read.Book, read.Stock, _settings.MaxDepth, _bench.ItemName);
+        return QueuePlanner.Next(_queue.Head, read.Book, read.Stock, _slot.Targets.All, _settings.MaxDepth, _bench.ItemName);
     }
 
     /// <summary>Topping up waits for the bench to be free: no run, no craft in progress, no result on screen.</summary>
@@ -205,18 +205,18 @@ internal sealed class HubSession
     /// </summary>
     private void TopUp()
     {
-        _topUps.Done();
+        var targets = _slot.Targets.All;
 
-        if (_targets.All.Count == 0 || _bench.Read() is not { } read) return;
+        if (targets.Count == 0 || _bench.Read() is not { } read) return;
 
-        if (_keep.Stock.Count(_targets.All.Select(target => target.ItemId)) is not { } held) return;
+        if (_keep.Stock.Count(targets.Select(target => target.ItemId)) is not { } held) return;
 
-        var plan = TopUpPlanner.Plan(_targets.All, read.Book, read.Stock, held, _queue.Entries, _settings.MaxDepth);
+        var plan = TopUpPlanner.Plan(targets, read.Book, read.Stock, held, _queue.Entries, _settings.MaxDepth);
         var wasEmpty = _queue.Head == null;
 
         if (plan.IsEmpty) return;
 
-        foreach (var order in plan.Orders) _queue.Add(order.Recipe.Key, order.Recipe.Name, order.Crafts);
+        foreach (var order in plan.Orders) _queue.Add(order.Recipe.Key, order.Recipe.Name, order.Crafts, isTopUp: true);
 
         _status = TopUpPlanner.Describe(plan);
         _logFileOnly(_status);
@@ -230,13 +230,6 @@ internal sealed class HubSession
 
         LoadTargets();
 
-        if (_loadedSave is not { } save)
-        {
-            _status = "no save is loaded, so the target was not kept";
-
-            return;
-        }
-
         if (_bench.Read()?.Book.Find(key) is not { } recipe)
         {
             _status = "that recipe is not at this workbench";
@@ -245,11 +238,12 @@ internal sealed class HubSession
         }
 
         var name = _bench.ItemName(recipe.ProductId);
+        var edit = _slot.Set(new KeepTarget(recipe.ProductId, key, name, count));
 
-        _targets.Set(new KeepTarget(recipe.ProductId, key, name, count));
-        _status = (count > 0 ? $"Keeping {count} {name} in stock" : $"No longer keeping {name} in stock") + SaveTargets(save);
+        _status = Describe(edit, count > 0 ? $"Keeping {count} {name} in stock" : $"No longer keeping {name} in stock");
+        RefreshKeeps();
 
-        if (count > 0) _topUps.Request();
+        if (count > 0 && edit is KeepEdit.Saved or KeepEdit.NotSaved) _topUps.Request();
     }
 
     private void Unkeep(int itemId)
@@ -258,39 +252,51 @@ internal sealed class HubSession
 
         LoadTargets();
 
-        if (_loadedSave is not { } save || _targets.All.FirstOrDefault(target => target.ItemId == itemId) is not { Count: > 0 } target) return;
+        if (_slot.Targets.All.FirstOrDefault(target => target.ItemId == itemId) is not { Count: > 0 } target) return;
 
-        _targets.Remove(itemId);
-        _status = $"No longer keeping {target.Name} in stock" + SaveTargets(save);
-    }
-
-    /// <summary>Writes the targets and redraws the keep counts; returns a note for the status line when the write failed.</summary>
-    private string SaveTargets(string save)
-    {
-        var isSaved = _keep.Store.Save(save, _targets);
-
+        _status = Describe(_slot.Remove(itemId), $"No longer keeping {target.Name} in stock");
         RefreshKeeps();
-
-        return isSaved ? "" : " (could not save it to the targets file, see the log)";
     }
 
-    /// <summary>Targets belong to a save, so they are reread whenever the loaded save is not the one they came from.</summary>
+    /// <summary>The status line after a target change: the change itself, or why it was not made or not saved.</summary>
+    private static string Describe(KeepEdit edit, string change) => edit switch
+    {
+        KeepEdit.NoSave => "no save is loaded, so the target was not kept",
+        KeepEdit.Unreadable => "the targets file could not be read, so nothing was changed (see the log)",
+        KeepEdit.NotSaved => change + " (could not save it to the targets file, see the log)",
+        _ => change,
+    };
+
+    /// <summary>
+    /// Targets belong to a save, so they are reread whenever another save is loaded. The queue belongs to its save too:
+    /// left in place, its orders would count toward the next save's targets and keep its top-ups from starting.
+    /// </summary>
     private void LoadTargets()
     {
+        if (_slot.Follow(_keep.SaveKey())) ForgetQueue();
+
         if (!_settings.KeepStocked) return;
 
-        var save = _keep.SaveKey();
+        var load = _slot.Load();
 
-        if (save == _loadedSave) return;
+        if (load == SlotLoad.AlreadyRead) return;
 
-        _loadedSave = save;
-        _targets = save == null ? new KeepTargets() : _keep.Store.Load(save);
         RefreshKeeps();
 
-        if (save != null) _logFileOnly($"keep-stocked targets for {save}: {_targets.All.Count}");
+        if (load == SlotLoad.Read) _logFileOnly($"keep-stocked targets for {_slot.Save}: {_slot.Targets.All.Count}");
+
+        if (load == SlotLoad.Unreadable) _status = "the keep-stocked targets file could not be read (see the log)";
     }
 
-    private void RefreshKeeps() => _keepByKey = _bench.Read() is { } read ? _targets.ByRecipe(read.Book) : NoKeeps;
+    private void ForgetQueue()
+    {
+        if (_runner.IsRunning) Apply(_runner.Stop("another save was loaded"));
+
+        _queue.Clear();
+        _logFileOnly("another save was loaded; the queue was emptied");
+    }
+
+    private void RefreshKeeps() => _keepByKey = _bench.Read() is { } read ? _slot.Targets.ByRecipe(read.Book) : NoKeeps;
 
     private void RefreshMarks()
     {
@@ -314,7 +320,7 @@ internal sealed class HubSession
 
     private void Show()
     {
-        var keep = new KeepView(_settings.KeepStocked, _targets.All, _keepByKey);
+        var keep = new KeepView(_settings.KeepStocked, _slot.Targets.All, _keepByKey);
         var view = HubView.Build(_marks, _queue.Entries, _runner.IsRunning, _status, keep);
 
         if (view == _shownView) return;

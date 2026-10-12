@@ -42,22 +42,24 @@ A run stops with a message in the status line when:
 
 ## Keep stocked
 
-A kept item is topped up about a second and a half after you open a workbench that makes it, and again right after you change its count. It is never checked on a timer or after a run ends, so a craft that keeps failing does not start another round by itself.
+A kept item is topped up about a second and a half after you open a workbench that makes it, and again right after you change its count. It is never checked on a timer or after a run ends, so a craft that keeps failing does not start another round by itself. If the workbench is busy when the check comes due, that check is skipped; close and open the workbench once it is free.
 
 What your home holds is counted the way the game counts what you can craft from: your own inventory plus every storage in your home, hidden ones too. What is already in the queue counts as well, so opening the workbench twice does not queue the same crafts twice.
 
 Crafts are only queued when the workbench is free (no craft running, no result showing, the queue not running) and the materials are in the house. Each order is capped at what the materials allow, after the orders already in the queue have taken theirs; if nothing can be made, the status line says which items are short and nothing is queued. Intermediates are made as for any other order, up to `MaxDepth`.
 
+Topping up one item never uses what you keep of another. Keep 4 planks and 1 crate, and the crate's planks are made fresh rather than taken from the 4 you keep. Only what is above a kept count is used. Orders you queue yourself can still use anything in the house.
+
 A recipe that makes several at once is crafted in whole crafts, so you can end up a little over the count (keep 5 planks with a recipe that makes 2, and you get 6).
 
-Kept counts belong to the save you are playing. They are stored in `BepInEx\config\com.dev.survivallog.craftinghub.targets.txt`, one line per item, next to the name of the game's save file. Other saves' lines are never touched.
+Kept counts belong to the save you are playing. They are stored in `BepInEx\config\com.dev.survivallog.craftinghub.targets.txt`, one line per item, next to the name of the game's save file. Other saves' lines are never touched. If the file is there but cannot be read (another program holds it open, for example), no count can be changed until it reads again, so the save's other counts are never written over; the status line says so and the log has the reason.
 
 ## Known issues and limits
 
 This mod uses materials from every storage in your home and crafts many times on its own. Back up your save before trying it for the first time.
 
 - Intermediates must be made at the same workbench as the recipe that needs them.
-- The queue lives in memory only: closing the workbench stops the run (Start carries on), and quitting the game empties it.
+- The queue lives in memory only: closing the workbench stops the run (Start carries on), and quitting the game or loading another save empties it.
 - A craft that is still going when you press Stop or close the workbench is not counted against its order, so starting the queue again can make that batch a second time. Check the queue chips before you press Start again.
 - A failed craft still counts against its order, because the game spent the materials. It is not retried; the next step is planned from what the house holds.
 - A recipe's yield is read as one item per entry in the game's product list. The log lists the recipes this reads as making more than one; if one of them looks wrong in game, please report it.
