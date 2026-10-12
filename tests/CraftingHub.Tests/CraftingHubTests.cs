@@ -233,13 +233,59 @@ public class CraftQueueTests
 
         queue.Add("crate", "Crate", 3);
         queue.Add("rope", "Rope", 1);
-        queue.Progress(2);
+
+        var crate = queue.Entries[0].Id;
+
+        queue.Progress(crate, 2);
 
         Assert.Equal(1, queue.Head?.Crafts);
 
-        queue.Progress(5);
+        queue.Progress(crate, 5);
 
         Assert.Equal("rope", queue.Head?.Key);
+    }
+
+    [Fact]
+    public void Craft_now_during_a_step_goes_behind_the_order_being_made()
+    {
+        var queue = new CraftQueue();
+
+        queue.Add("plank", "Plank", 10);
+        queue.Add("rope", "Rope", 1);
+        queue.PushFront("crate", "Crate", 1, behindHead: true);
+
+        Assert.Equal(new[] { "plank", "crate", "rope" }, queue.Entries.Select(entry => entry.Key));
+    }
+
+    [Fact]
+    public void Finished_crafts_go_to_the_order_they_were_planned_for_even_when_another_jumped_ahead()
+    {
+        var queue = new CraftQueue();
+
+        queue.Add("plank", "Plank", 10);
+
+        var plank = queue.Entries[0].Id;
+
+        queue.PushFront("crate", "Crate", 1);
+        queue.Progress(plank, 10);
+
+        Assert.Equal(new[] { ("crate", 1) }, queue.Entries.Select(entry => (entry.Key, entry.Crafts)));
+    }
+
+    [Fact]
+    public void Crafts_for_an_order_no_longer_queued_are_credited_to_no_other()
+    {
+        var queue = new CraftQueue();
+
+        queue.Add("plank", "Plank", 2);
+
+        var plank = queue.Entries[0].Id;
+
+        queue.Remove(0);
+        queue.Add("rope", "Rope", 1);
+        queue.Progress(plank, 2);
+
+        Assert.Equal(1, Assert.Single(queue.Entries).Crafts);
     }
 
     [Fact]
@@ -572,16 +618,16 @@ public class QueueRunnerTests
     }
 
     [Fact]
-    public void A_batch_flag_left_by_a_close_with_nothing_crafting_is_crafted_past_after_a_resume()
+    public void A_batch_flag_with_nothing_crafting_is_taken_as_stale_and_crafted_past()
     {
         var runner = ResumedRunner();
-        var leftOver = new BenchView(true, true, false, 3, LogsLaidOut, 2, RunBench, BatchActive: true);
+        var staleBatch = new BenchView(true, true, false, 3, LogsLaidOut, 2, RunBench, BatchActive: true);
 
-        Assert.IsType<RunnerCommand.None>(runner.Tick(leftOver with { Contents = Empty, MaxCrafts = 0 }, 11.25, PlankNext));
-        Assert.IsType<RunnerCommand.Notice>(runner.Tick(leftOver with { Contents = Empty, MaxCrafts = 0 }, 11.25 + QueueRunner.StaleBatchSeconds, PlankNext));
-        Assert.Equal(new RunnerCommand.ClickRecipe("plank"), runner.Tick(leftOver with { Contents = Empty, MaxCrafts = 0 }, 14.5, PlankNext));
-        Assert.IsType<RunnerCommand.None>(runner.Tick(leftOver, 14.75, PlankNext));
-        Assert.Equal(new RunnerCommand.Craft(3), runner.Tick(leftOver, 15, PlankNext));
+        Assert.IsType<RunnerCommand.None>(runner.Tick(staleBatch with { Contents = Empty, MaxCrafts = 0 }, 11.25, PlankNext));
+        Assert.IsType<RunnerCommand.Notice>(runner.Tick(staleBatch with { Contents = Empty, MaxCrafts = 0 }, 11.25 + QueueRunner.StaleBatchSeconds, PlankNext));
+        Assert.Equal(new RunnerCommand.ClickRecipe("plank"), runner.Tick(staleBatch with { Contents = Empty, MaxCrafts = 0 }, 14.5, PlankNext));
+        Assert.IsType<RunnerCommand.None>(runner.Tick(staleBatch, 14.75, PlankNext));
+        Assert.Equal(new RunnerCommand.Craft(3), runner.Tick(staleBatch, 15, PlankNext));
     }
 
     [Fact]
@@ -597,6 +643,51 @@ public class QueueRunnerTests
         Assert.Contains("waiting", notice.Text);
         Assert.IsType<RunnerCommand.None>(runner.Tick(live, 50, PlankNext));
         Assert.True(runner.IsRunning);
+    }
+
+    [Fact]
+    public void Craft_now_goes_first_between_steps_second_during_one_and_nowhere_while_paused()
+    {
+        var runner = new QueueRunner();
+
+        Assert.Equal(CraftNowPlace.Front, runner.CraftNowPlace);
+
+        runner.Start();
+
+        Assert.Equal(CraftNowPlace.Front, runner.CraftNowPlace);
+
+        runner.Tick(Idle(), 0, PlankNext);
+
+        Assert.Equal(CraftNowPlace.BehindHead, runner.CraftNowPlace);
+
+        runner.Tick(Closed, 1, PlankNext);
+
+        Assert.Equal(CraftNowPlace.Refused, runner.CraftNowPlace);
+    }
+
+    [Fact]
+    public void Craft_now_pressed_mid_step_leaves_that_step_to_its_own_order_and_is_made_next()
+    {
+        var queue = new CraftQueue();
+        var runner = new QueueRunner();
+        var stock = Bench.Mats((Bench.Log, 10), (Bench.Plank, 4), (Bench.Rope, 1));
+        NextStep Next() => QueuePlanner.Next(queue.Head, Bench.Book(), stock, Array.Empty<KeepTarget>(), 4, Bench.Name);
+
+        queue.Add("plank", "Plank", 3);
+        runner.Start();
+        runner.Tick(Idle(), 0, Next);
+        runner.Tick(Idle(LogsLaidOut, 3), 0.1, Next);
+        Assert.Equal(new RunnerCommand.Craft(3), runner.Tick(Idle(LogsLaidOut, 3), 0.5, Next));
+
+        queue.PushFront("crate", "Crate", 1, behindHead: runner.CraftNowPlace == CraftNowPlace.BehindHead);
+        Assert.Equal("plank", queue.Head?.Key);
+        Assert.IsType<RunnerCommand.ConfirmResult>(runner.Tick(new BenchView(true, false, true, 0, Empty, 3), 1, Next));
+
+        var done = Assert.IsType<RunnerCommand.StepDone>(runner.Tick(Idle(), 1.1, Next));
+        queue.Progress(done.OrderId, done.Crafts);
+
+        Assert.Equal(new[] { ("crate", 1) }, queue.Entries.Select(entry => (entry.Key, entry.Crafts)));
+        Assert.Equal(new RunnerCommand.ClickRecipe("crate"), runner.Tick(Idle(), 1.2, Next));
     }
 
     [Fact]
@@ -973,7 +1064,7 @@ public class TopUpPlannerTests
             var craft = Assert.IsType<NextStep.Craft>(next);
             Make(house, craft.Step);
 
-            if (craft.IsTarget) queue.Progress(craft.Step.Crafts);
+            if (craft.IsTarget) queue.Progress(craft.OrderId, craft.Step.Crafts);
         }
 
         Assert.Fail("the queue never finished");
