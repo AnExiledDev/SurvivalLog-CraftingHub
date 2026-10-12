@@ -2,3 +2,7 @@ bin/
 obj/
 .vs/
 *.user
+dist/
+*.log
+scratch/
+NOTES.md

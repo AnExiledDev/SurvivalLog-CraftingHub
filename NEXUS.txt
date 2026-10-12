@@ -1,0 +1,55 @@
+Name: Crafting Hub
+Summary: Workbenches use every storage in your home, make intermediate materials for you, and craft a queue of different recipes. Recipes you could make after crafting their intermediates are marked.
+
+Description (BBCode):
+A workbench normally only uses its linked storages and makes one recipe at a time. Crafting Hub lets every workbench use every storage in your home, makes the planks and parts in between for you, and crafts a whole queue of recipes in order.
+
+[size=5]Main features[/size]
+[list]
+[*][b]Every home storage counts[/b]: workbenches count and take materials from every storage in your home.[/*]
+[*][b]Craftable through intermediates[/b]: recipes you could make after crafting their intermediates get a dashed amber edge and a hammer badge. Select one to see what gets made first.[/*]
+[*][b]Craft with intermediates[/b]: one button makes the intermediates and then the recipe, using the quantity box.[/*]
+[*][b]Queue[/b]: "Add to queue" and "Start queue" craft different recipes one after another, intermediates included. Remove an order with its x, or press Clear.[/*]
+[*][b]Stop[/b]: nothing more is started and the queue is kept.[/*]
+[*][b]Game's own clicks[/b]: every craft goes through the workbench's own buttons, so the game's checks and timings apply.[/*]
+[/list]
+
+The mod adds no data of its own to your save, but the crafts it runs are real: they use materials from any storage in your home. You can remove it at any time; workbenches go back to their linked storages.
+
+[size=5]Known issues[/size]
+[list]
+[*]Back up your save before trying it for the first time.[/*]
+[*]Do not use it together with BetterCrafting. Remove BetterCrafting first.[/*]
+[*]Intermediates must be made at the same workbench.[/*]
+[*]Closing the workbench stops the queue (press Start to carry on). Quitting the game empties it.[/*]
+[*]A craft still going when you stop or close the workbench is not counted, so starting again can make that batch twice.[/*]
+[*]Every storage in your home is used, including ones you meant to keep for something else.[/*]
+[/list]
+If you run into anything strange, please tell me (see Feedback below).
+
+[size=5]Requirements[/size]
+[list]
+[*]Survival Log 1.1.18317. A game update can break it until the mod is updated.[/*]
+[*][url=https://www.nexusmods.com/survivallog/mods/12]BepInEx for Survival Log[/url]. Install it first.[/*]
+[*]Not together with BetterCrafting.[/*]
+[/list]
+
+[size=5]Installation[/size]
+[list=1]
+[*]Install [url=https://www.nexusmods.com/survivallog/mods/12]BepInEx[/url] [i](if no other mods were installed before, start the game once so BepInEx finishes setup, then quit)[/i].[/*]
+[*]Put [font=Courier New]CraftingHub.dll[/font] in the BepInEx&#92;plugins folder inside the game folder. Full path example:
+[code]C:&#92;Program Files (x86)&#92;Steam&#92;steamapps&#92;common&#92;Survival Log&#92;BepInEx&#92;plugins&#92;CraftingHub.dll[/code][/*]
+[*]If you use BetterCrafting, delete its DLL from the same folder.[/*]
+[/list]
+
+[size=5]Uninstall[/size]
+Delete [font=Courier New]CraftingHub.dll[/font] from the [font=Courier New]BepInEx&#92;plugins[/font] folder.
+
+[size=5]Configuration[/size]
+To turn off the whole-house storage, change how deep intermediates go, or hide the marks, edit [font=Courier New]BepInEx&#92;config&#92;com.dev.survivallog.craftinghub.cfg[/font] while the game is closed (see [url=https://github.com/AnExiledDev/SurvivalLog-CraftingHub/blob/main/CONFIG.md]CONFIG.md[/url]). Changes apply at the next game start.
+
+[size=5]Feedback[/size]
+Found a bug or have an idea? Come say hi on the [url=https://discord.gg/trTsyxUFqg]Core Directive Discord[/url], or leave a comment here. For bugs, please include [font=Courier New]BepInEx&#92;LogOutput.log[/font] and [font=Courier New]BepInEx&#92;crafting-hub.log[/font].
+
+[size=5]Source and license[/size]
+Open source under MIT: [url=https://github.com/AnExiledDev/SurvivalLog-CraftingHub]github.com/AnExiledDev/SurvivalLog-CraftingHub[/url]
