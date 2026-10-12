@@ -12,7 +12,7 @@ A workbench normally only uses its linked storages and makes one recipe at a tim
 [*][b]Queue[/b]: "Add to queue" and "Start queue" craft different recipes one after another, intermediates included. Remove an order with its x, or press Clear.[/*]
 [*][b]Stop[/b]: nothing more is started and the queue is kept.[/*]
 [*][b]Closing pauses the queue[/b]: close the workbench mid-run and the queue waits. Open any workbench (you walk there yourself) and it carries on by itself. Crafts finished before the close are counted, so they are not made twice.[/*]
-[*][b]Keep stocked[/b]: set how many of an item to keep (say 10 bandages) next to its recipe. Each time you open a workbench that makes it, the crafts that bring your home back up to that count are queued, and started if the queue was empty. Kept items show as chips with an x to stop keeping them.[/*]
+[*][b]Keep stocked[/b]: set how many of an item to keep (say 10 bandages) next to its recipe. Each time you open a workbench, the crafts that bring your home back up to that count are queued, and started if the queue was empty. Kept items show as chips with an x to stop keeping them.[/*]
 [*][b]Game's own clicks[/b]: every craft goes through the workbench's own buttons, so the game's checks and timings apply.[/*]
 [/list]
 
@@ -28,7 +28,7 @@ The mod adds no data of its own to your save (kept counts go in their own file i
 [*]Closing the workbench in the same moment a single craft finishes can make that craft once more.[/*]
 [*]Craft with intermediates is not taken while the queue is paused; press Stop first.[/*]
 [*]Every storage in your home is used, including ones you meant to keep for something else.[/*]
-[*]A kept item is only topped up at a workbench that makes it. Recipes that make several at once can end a little over the count.[/*]
+[*]A kept item is only topped up when you open a workbench. Recipes that make several at once can end a little over the count.[/*]
 [*]Kept counts follow the save file. A save the game starts fresh from an old one (rolling back, restarting from a snapshot) begins with none.[/*]
 [/list]
 If you run into anything strange, please tell me (see Feedback below).

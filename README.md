@@ -2,7 +2,7 @@
 
 Craft from your whole house, make intermediates on the way, queue different recipes, and keep items stocked.
 
-A workbench in Survival Log only takes materials from the storages linked to it, makes one recipe at a time, and won't help when you have the raw materials but not the planks or parts in between. Crafting Hub lets every workbench use every storage in your home, marks recipes you could make once their intermediates are crafted, and crafts a queue of recipes for you, intermediates included. Tell it to keep 10 bandages and it tops them back up whenever you open a workbench that makes them.
+A workbench in Survival Log only takes materials from the storages linked to it, makes one recipe at a time, and won't help when you have the raw materials but not the planks or parts in between. Crafting Hub lets every workbench use every storage in your home, marks recipes you could make once their intermediates are crafted, and crafts a queue of recipes for you, intermediates included. Tell it to keep 10 bandages and it tops them back up whenever you open a workbench.
 
 ## Features
 
@@ -17,7 +17,7 @@ A workbench in Survival Log only takes materials from the storages linked to it,
 - **Clear**: empties the queue (shown when the queue is not running).
 - **Keep in stock**: under the selected recipe, a box with - and + buttons sets how many of its item to keep in your home (10 to start with), and **Keep stocked** saves that count. Once a count is kept the row shows "(keeping N)". Set 0 and press Keep stocked to stop keeping it.
 - **Keep stocked chips**: every item this save keeps shows as "Name N" with a small x to stop keeping it.
-- **Topping up**: each time you open a workbench that makes a kept item, it counts what your home holds and queues the crafts that bring it back up to its count. With `AutoStart` on and nothing else in the queue, the queue starts by itself.
+- **Topping up**: each time you open a workbench, it counts what your home holds of each kept item and queues the crafts that bring it back up to its count. With `AutoStart` on and nothing else in the queue, the queue starts by itself.
 - **Status line**: the panel says what is crafting now, what was topped up, and why a run stopped.
 - **Log file**: every step and every stop is written to `BepInEx\crafting-hub.log`.
 
@@ -42,14 +42,14 @@ As a safety net, if the workbench ever shows a batch in progress with nothing be
 A run stops with a message in the status line when:
 
 - the workbench window closes and `ResumeOnReopen` is off ("the workbench closed; the queue is kept, press Start to carry on");
-- a recipe is not at this workbench or not unlocked yet;
+- a recipe is not in your recipe list yet or not unlocked yet;
 - your house is short of something ("can't make ...: short of ...");
 - the game does not lay out the materials within 3 seconds, a craft does not start within 4 seconds, or the result screen does not close within 4 seconds;
 - 30 intermediate crafts have been made without finishing the recipe they were for.
 
 ## Keep stocked
 
-A kept item is topped up about a second and a half after you open a workbench that makes it, and again right after you change its count. It is never checked on a timer or after a run ends, so a craft that keeps failing does not start another round by itself. If the workbench is busy when the check comes due, that check is skipped; close and open the workbench once it is free.
+A kept item is topped up about a second and a half after you open a workbench, and again right after you change its count. It is never checked on a timer or after a run ends, so a craft that keeps failing does not start another round by itself. If the workbench is busy when the check comes due, that check is skipped; close and open the workbench once it is free.
 
 What your home holds is counted the way the game counts what you can craft from: your own inventory plus every storage in your home, hidden ones too. What is already in the queue counts as well, so opening the workbench twice does not queue the same crafts twice.
 
@@ -73,7 +73,7 @@ This mod uses materials from every storage in your home and crafts many times on
 - A failed craft still counts against its order, because the game spent the materials. It is not retried; the next step is planned from what the house holds.
 - A recipe's yield is read as one item per entry in the game's product list. The log lists the recipes this reads as making more than one; if one of them looks wrong in game, please report it.
 - With `UseAllHomeStorages` on, the game's own way of excluding a storage from crafting still applies, but every other storage in your home is used, including ones you may have meant to keep for something else.
-- A kept item is only topped up at a workbench that makes it, with the recipe you set the count on.
+- A kept item is only topped up with the recipe you set the count on.
 - Spoiled food counts toward a kept count, as the game counts it, but the game does not craft with it.
 - Keep-stocked counts are tied to the save file's name. When the game starts a new file from an old one (rolling back or restarting from a snapshot), the new file starts with no kept counts.
 - BetterCrafting also changes the workbench's storage list. Do not use both (see [Requirements](#requirements)).

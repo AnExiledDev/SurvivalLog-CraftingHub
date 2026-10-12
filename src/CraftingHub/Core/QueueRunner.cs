@@ -62,7 +62,7 @@ public abstract record RunnerCommand
     /// <summary>The run waits for its workbench to open again; the queue is untouched.</summary>
     public sealed record Paused(string Reason) : RunnerCommand;
 
-    public sealed record Resumed : RunnerCommand;
+    public sealed record Resumed(string Reason) : RunnerCommand;
 
     /// <summary>Something the player should know while the run carries on; only the status line changes.</summary>
     public sealed record Notice(string Text) : RunnerCommand;
@@ -110,6 +110,8 @@ public sealed class QueueRunner
     private const string ClosedReason = "the workbench closed; the queue is kept, press Start to carry on";
     private const string PausedReason = "the workbench closed; the queue carries on when you open it again";
     private const string PausedAnyBenchReason = "the workbench closed; the queue carries on when you open any workbench";
+    private const string ResumedReason = "the workbench is open again; carrying on with the queue";
+    private const string ResumedAnyBenchReason = "a workbench is open; carrying on with the queue here";
     private const string ElsewhereReason = "the queue carries on at the workbench it was running on; press Stop, then Start, to run it here";
     private const string StaleBatchNotice = "the workbench shows a batch in progress with nothing being made; carrying on with the next craft";
     private const string BusyNotice = "waiting for the workbench: it has shown a craft in progress for a while with no change";
@@ -436,7 +438,7 @@ public sealed class QueueRunner
 
         _stage = Stage.Ready;
 
-        return new RunnerCommand.Resumed();
+        return new RunnerCommand.Resumed(_resumesAtOtherBenches ? ResumedAnyBenchReason : ResumedReason);
     }
 
     private RunnerCommand WaitElsewhere()

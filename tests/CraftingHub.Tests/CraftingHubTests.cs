@@ -339,11 +339,11 @@ public class QueuePlannerTests
     }
 
     [Fact]
-    public void A_recipe_from_another_workbench_blocks()
+    public void A_recipe_missing_from_the_recipe_list_blocks_without_sending_the_player_to_another_workbench()
     {
         var next = QueuePlanner.Next(new QueueEntry("anvil", "Anvil", 1), Bench.Book(), new Dictionary<int, int>(), NoKeeps, 4, Bench.Name);
 
-        Assert.IsType<NextStep.Blocked>(next);
+        Assert.Equal("Anvil is not in your recipe list yet", Assert.IsType<NextStep.Blocked>(next).Reason);
     }
 
     [Fact]
@@ -580,6 +580,29 @@ public class QueueRunnerTests
         Assert.IsType<RunnerCommand.None>(runner.Tick(Idle(bench: OtherBench), 10, PlankNext));
         Assert.IsType<RunnerCommand.Resumed>(runner.Tick(Idle(bench: OtherBench), 10 + QueueRunner.ResumeSettleSeconds, PlankNext));
         Assert.Equal(new RunnerCommand.ClickRecipe("plank"), runner.Tick(Idle(bench: OtherBench), 11.1, PlankNext));
+    }
+
+    [Fact]
+    public void Carrying_on_at_its_own_workbench_says_that_workbench_is_open_again()
+    {
+        var runner = PausedRunner();
+
+        runner.Tick(Idle(), 10, PlankNext);
+
+        var resumed = Assert.IsType<RunnerCommand.Resumed>(runner.Tick(Idle(), 10 + QueueRunner.ResumeSettleSeconds, PlankNext));
+        Assert.Contains("open again", resumed.Reason);
+    }
+
+    [Fact]
+    public void With_other_workbenches_on_carrying_on_does_not_claim_the_same_workbench_reopened()
+    {
+        var runner = PausedRunner(resumesAtOtherBenches: true);
+
+        runner.Tick(Idle(bench: OtherBench), 10, PlankNext);
+
+        var resumed = Assert.IsType<RunnerCommand.Resumed>(runner.Tick(Idle(bench: OtherBench), 10 + QueueRunner.ResumeSettleSeconds, PlankNext));
+        Assert.DoesNotContain("again", resumed.Reason);
+        Assert.Contains("a workbench is open", resumed.Reason);
     }
 
     [Fact]

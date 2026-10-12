@@ -25,7 +25,7 @@ With `ShowMarks` set to `false`, recipes get no mark and the "Craft with interme
 
 | Setting | Default | What it does |
 | --- | --- | --- |
-| `KeepStocked` | `true` | Show "Keep stocked" under the selected recipe. Opening a workbench that makes a kept item queues the crafts that bring your home back up to its count. |
+| `KeepStocked` | `true` | Show "Keep stocked" under the selected recipe. Opening any workbench queues the crafts that bring your kept items back up to their counts. |
 | `AutoStart` | `true` | Start the queue by itself after topping up, when the queue had nothing else in it. `false` only queues the crafts; press Start queue yourself. |
 
 With `KeepStocked` set to `false`, the keep row and the kept items are hidden and nothing is topped up. The counts you already set stay in `BepInEx\config\com.dev.survivallog.craftinghub.targets.txt` and come back when you turn it on again.

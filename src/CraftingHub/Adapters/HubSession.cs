@@ -203,8 +203,8 @@ internal sealed class HubSession
                 _status = paused.Reason;
                 _logFileOnly("queue paused: " + paused.Reason);
                 break;
-            case RunnerCommand.Resumed:
-                _status = "the workbench is open again; carrying on with the queue";
+            case RunnerCommand.Resumed resumed:
+                _status = resumed.Reason;
                 _logFileOnly("queue resumed");
                 break;
             case RunnerCommand.Notice notice:
@@ -266,7 +266,7 @@ internal sealed class HubSession
 
         if (_bench.Read()?.Book.Find(key) is not { } recipe)
         {
-            _status = "that recipe is not at this workbench";
+            _status = "that recipe is not in your recipe list yet";
 
             return;
         }
