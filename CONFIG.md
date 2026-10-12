@@ -17,7 +17,7 @@ With `false`, workbenches use only their linked storages, as in the unmodded gam
 | `MaxDepth` | `4` | How many layers of intermediates may be made for one recipe (planks for a crate is one layer). `0` turns intermediates off. |
 | `ShowMarks` | `true` | Mark recipes you can make once their intermediates are crafted, and offer "Craft with intermediates" on them. |
 
-`MaxDepth` takes a whole number. A negative number counts as `0`. With `0`, recipes are never marked and the queue only crafts what the house can make directly.
+`MaxDepth` takes a whole number. A negative number counts as `0`. With `0`, recipes are never marked and the queue only crafts what the house can make directly. Intermediates come only from recipes the open workbench lists; one made at another workbench has to be crafted there first.
 
 With `ShowMarks` set to `false`, recipes get no mark and the "Craft with intermediates" button does not show. Queued orders still make their intermediates, up to `MaxDepth`.
 
