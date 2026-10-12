@@ -300,7 +300,7 @@ public class CraftQueueTests
 
         var plank = queue.Entries[0].Id;
 
-        queue.Remove(0);
+        queue.Remove(plank);
         queue.Add("rope", "Rope", 1);
         queue.Progress(plank, 2);
 
@@ -308,15 +308,35 @@ public class CraftQueueTests
     }
 
     [Fact]
-    public void Removing_a_bad_index_changes_nothing()
+    public void Removing_an_order_that_is_not_queued_changes_nothing()
     {
         var queue = new CraftQueue();
 
         queue.Add("crate", "Crate", 1);
-        queue.Remove(4);
-        queue.Remove(-1);
+
+        var crate = queue.Entries[0].Id;
+
+        queue.Remove(crate + 100);
+        queue.Remove(0);
 
         Assert.Single(queue.Entries);
+    }
+
+    [Fact]
+    public void Removing_takes_off_the_order_asked_for_wherever_it_has_moved_to()
+    {
+        var queue = new CraftQueue();
+
+        queue.Add("crate", "Crate", 1);
+        queue.Add("rope", "Rope", 1);
+
+        var crate = queue.Entries[0].Id;
+        var rope = queue.Entries[1].Id;
+
+        queue.Move(rope, 0);
+        queue.Remove(crate);
+
+        Assert.Equal(new[] { "rope" }, queue.Entries.Select(entry => entry.Key));
     }
 
     [Fact]
@@ -365,7 +385,7 @@ public class CraftQueueTests
 
         var crate = queue.Entries[0].Id;
 
-        queue.Remove(0);
+        queue.Remove(crate);
         queue.Add("plank", "Plank", 1);
         queue.Move(crate, 1);
 
@@ -896,6 +916,25 @@ public class QueueRunnerTests
     }
 
     [Fact]
+    public void The_order_a_step_counts_for_is_known_only_while_that_step_is_in_progress()
+    {
+        var runner = new QueueRunner();
+        NextStep ForOrderSeven() => new NextStep.Craft(PlankStep, IsTarget: true, OrderId: 7);
+
+        runner.Start();
+
+        Assert.Null(runner.CraftingFor);
+
+        runner.Tick(Idle(), 0, ForOrderSeven);
+
+        Assert.Equal((long?)7, runner.CraftingFor);
+
+        runner.Tick(Closed, 1, ForOrderSeven);
+
+        Assert.Null(runner.CraftingFor);
+    }
+
+    [Fact]
     public void Craft_now_goes_first_between_steps_second_during_one_and_nowhere_while_paused()
     {
         var runner = new QueueRunner();
@@ -1116,6 +1155,14 @@ public class PageCommandTests
     }
 
     [Fact]
+    public void A_remove_names_the_order_by_its_id()
+    {
+        Assert.Equal(new PageCommand.Remove(9), PageCommand.Parse(PageCommand.Prefix + "remove|9"));
+        Assert.IsType<PageCommand.Unknown>(PageCommand.Parse(PageCommand.Prefix + "remove|0"));
+        Assert.IsType<PageCommand.Unknown>(PageCommand.Parse(PageCommand.Prefix + "remove|-1"));
+    }
+
+    [Fact]
     public void An_amount_sets_an_orders_crafts_and_never_to_zero()
     {
         Assert.Equal(new PageCommand.Amount(7, 3), PageCommand.Parse(PageCommand.Prefix + "amount|7|3"));
@@ -1194,6 +1241,18 @@ public class HubViewTests
         using var runningParsed = System.Text.Json.JsonDocument.Parse(running);
         Assert.False(idleParsed.RootElement.GetProperty("paused").GetBoolean());
         Assert.True(runningParsed.RootElement.GetProperty("paused").GetBoolean());
+    }
+
+    [Fact]
+    public void Only_a_running_queue_names_the_order_being_crafted()
+    {
+        var idle = HubView.Build(new Dictionary<string, string>(), Array.Empty<QueueEntry>(), false, "", NoKeep, activeOrderId: 7);
+        var running = HubView.Build(new Dictionary<string, string>(), Array.Empty<QueueEntry>(), true, "", NoKeep, activeOrderId: 7);
+
+        using var idleParsed = System.Text.Json.JsonDocument.Parse(idle);
+        using var runningParsed = System.Text.Json.JsonDocument.Parse(running);
+        Assert.Equal(0, idleParsed.RootElement.GetProperty("activeId").GetInt64());
+        Assert.Equal(7, runningParsed.RootElement.GetProperty("activeId").GetInt64());
     }
 
     [Fact]

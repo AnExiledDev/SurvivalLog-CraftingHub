@@ -27,7 +27,8 @@ public abstract record PageCommand
 
     public sealed record Stop : PageCommand;
 
-    public sealed record Remove(int Index) : PageCommand;
+    /// <summary>Take the order with this id off the queue.</summary>
+    public sealed record Remove(long Id) : PageCommand;
 
     public sealed record Clear : PageCommand;
 
@@ -72,7 +73,7 @@ public abstract record PageCommand
             ("chain", 3) when TryKey(parts[1], out var key) && TryCount(parts[2], out var crafts) => new CraftNow(key, crafts),
             ("start", 1) => new Start(),
             ("stop", 1) => new Stop(),
-            ("remove", 2) when TryInt(parts[1], out var index) => new Remove(index),
+            ("remove", 2) when TryId(parts[1], out var id) => new Remove(id),
             ("clear", 1) => new Clear(),
             ("move", 3) when TryId(parts[1], out var id) && TryInt(parts[2], out var to) => new Move(id, to),
             ("amount", 3) when TryId(parts[1], out var id) && TryCount(parts[2], out var crafts) => new Amount(id, crafts),

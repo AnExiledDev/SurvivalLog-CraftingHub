@@ -13,7 +13,8 @@ public readonly record struct KeepView(bool IsOn, IReadOnlyList<KeepTarget> Targ
 
 /// <summary>
 /// The JSON the workbench page draws from: chain marks, the queue with where each order stands, the run's state and
-/// status line, what the whole queue uses and makes on the way, how many each recipe makes, and the keep-stocked targets.
+/// status line, the order the craft in progress is for, what the whole queue uses and makes on the way, how many each
+/// recipe makes, and the keep-stocked targets.
 /// </summary>
 public static class HubView
 {
@@ -30,7 +31,8 @@ public static class HubView
         KeepView keep,
         bool isPaused = false,
         QueueOutlook? outlook = null,
-        IReadOnlyDictionary<string, int>? yields = null)
+        IReadOnlyDictionary<string, int>? yields = null,
+        long activeOrderId = 0)
     {
         var forecast = outlook ?? QueueOutlook.Empty;
         var markPairs = marks.OrderBy(pair => pair.Key, System.StringComparer.Ordinal).Select(pair => $"{Str(pair.Key)}:{Str(pair.Value)}");
@@ -44,6 +46,7 @@ public static class HubView
             .Append("},\"queue\":[").AppendJoin(',', entries)
             .Append("],\"running\":").Append(Bool(isRunning))
             .Append(",\"paused\":").Append(Bool(isRunning && isPaused))
+            .Append(",\"activeId\":").Append(isRunning ? activeOrderId.ToString(CultureInfo.InvariantCulture) : "0")
             .Append(",\"status\":").Append(Str(status))
             .Append(",\"headsUp\":").Append(Str(forecast.HeadsUp))
             .Append(",\"totals\":[").AppendJoin(',', totals)

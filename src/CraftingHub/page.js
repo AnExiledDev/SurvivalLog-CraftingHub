@@ -41,7 +41,7 @@
   // The plugin's order states, as the colours the list uses for the same meaning.
   var STATE_LOOK = { ready: 'now', via: 'via', short: 'short', locked: 'short', unlisted: 'short' };
 
-  var view = { marks: {}, queue: [], running: false, paused: false, status: '', headsUp: '', totals: [], made: [], yields: {}, keep: { on: false, targets: [], byKey: {} } };
+  var view = { marks: {}, queue: [], running: false, paused: false, activeId: 0, status: '', headsUp: '', totals: [], made: [], yields: {}, keep: { on: false, targets: [], byKey: {} } };
   var selectedKey = '';
   var reported = {};
   var hasSkippedRender = false;
@@ -859,22 +859,23 @@
     pill.textContent = { idle: 'Idle', running: 'Crafting', paused: 'Paused' }[state];
   }
 
+  // While paused the status is the run's own word on where it carries on, or why a button was refused, so it is shown
+  // as the banner rather than a fixed line that could contradict it.
   function drawNotes(doc) {
     var notes = doc.getElementById('cc-notes');
 
     notes.innerHTML = '';
 
-    if (view.paused) notes.appendChild(el(doc, 'div', 'cc-banner', 'Paused: the workbench closed. The queue carries on by itself when you open any workbench.'));
-
     if (!view.running && view.headsUp) notes.appendChild(el(doc, 'div', 'cc-banner bad', view.headsUp));
 
-    if (view.status && !view.paused) notes.appendChild(el(doc, 'div', 'cc-hint', view.status));
+    if (view.status) notes.appendChild(el(doc, 'div', view.paused ? 'cc-banner' : 'cc-hint', view.status));
   }
 
   function queueRow(win, icons, order, index) {
     var doc = win.document;
     var look = STATE_LOOK[order.state] || '';
-    var isActive = view.running && index === 0;
+    var isActive = view.running && order.id === view.activeId;
+    var crafts = order.crafts;
     var isLast = index === view.queue.length - 1;
     var row = el(doc, 'div', 'cc-qrow' + (order.topUp ? ' topup' : '') + (isActive ? ' active' : '') + (look === 'short' ? ' short' : ''));
     var handle = el(doc, 'span', 'cc-handle', GLYPH.handle);
@@ -899,11 +900,15 @@
     row.appendChild(el(doc, 'span', 'cc-num', String(index + 1)));
     row.appendChild(picture(doc, icons.byKey[order.key], 'cc-qic'));
     row.appendChild(main);
-    row.appendChild(stepper(doc, order.crafts, function (step) {
-      if (order.crafts + step >= 1) post('amount|' + order.id + '|' + (order.crafts + step));
+    // Counts from the last amount asked for, so a second click before the plugin's answer redraws the row still adds.
+    row.appendChild(stepper(doc, crafts, function (step) {
+      if (crafts + step < 1) return;
+
+      crafts += step;
+      post('amount|' + order.id + '|' + crafts);
     }));
     row.appendChild(moves);
-    row.appendChild(button(doc, 'cc-x', GLYPH.cross, 'Remove from the queue', function () { post('remove|' + index); }));
+    row.appendChild(button(doc, 'cc-x', GLYPH.cross, 'Remove from the queue', function () { post('remove|' + order.id); }));
 
     return row;
   }
@@ -1118,11 +1123,35 @@
   function renderWindow(win) {
     install(win);
 
-    if (!win.__ccInstalled || !ensureLayout(win)) return;
+    if (!win.__ccInstalled) return;
 
-    drawList(win, false);
-    drawQueue(win);
-    drawChain(win);
+    try {
+      if (!ensureLayout(win)) return;
+
+      drawList(win, false);
+      drawQueue(win);
+      drawChain(win);
+      refit(win);
+    } catch (e) {
+      removeHub(win);
+      throw e;
+    }
+  }
+
+  // A hub that could not draw is taken off whole, so the game's own list shows again; the poll tries once more later.
+  // The search box is let go of first, so the game is told its keys are its own again.
+  function removeHub(win) {
+    var doc = win.document;
+    var panel = doc.querySelector('.combined-panel');
+    var input = doc.getElementById('cc-search');
+
+    if (input && doc.activeElement === input) input.blur();
+
+    HUB_ROOTS.forEach(function (id) { removeById(doc, id); });
+
+    if (panel) panel.classList.remove('cc-hub');
+    if (panel && panel.parentElement) panel.parentElement.classList.remove('cc-wide');
+
     refit(win);
   }
 

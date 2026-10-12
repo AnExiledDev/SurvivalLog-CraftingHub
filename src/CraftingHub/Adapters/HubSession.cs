@@ -78,8 +78,10 @@ internal sealed class HubSession
 
         if (isOpen && _bench.Refreshes != _seenRefreshes)
         {
-            RefreshMarks();
-            RefreshKeeps();
+            var read = _bench.Read();
+
+            RefreshMarks(read);
+            RefreshKeeps(read);
         }
 
         if (_runner.IsRunning) Apply(_runner.Tick(_bench.View(), now, Next));
@@ -109,7 +111,7 @@ internal sealed class HubSession
                 Apply(_runner.Stop("stopped"));
                 break;
             case PageCommand.Remove remove:
-                RemoveOrder(remove.Index);
+                RemoveOrder(remove.Id);
                 break;
             case PageCommand.Clear:
                 if (_runner.IsRunning) Apply(_runner.Stop("queue cleared"));
@@ -181,12 +183,15 @@ internal sealed class HubSession
         }
     }
 
-    /// <summary>The craft in progress counts against the head order, so removing the head stops the run first.</summary>
-    private void RemoveOrder(int index)
+    /// <summary>
+    /// The craft in progress counts against its own order, so removing that order stops the run first; any other order,
+    /// the head included between steps, just leaves the queue.
+    /// </summary>
+    private void RemoveOrder(long orderId)
     {
-        if (index == 0 && _runner.IsRunning) Apply(_runner.Stop("stopped: the running order was removed"));
+        if (_runner.CraftingFor == orderId) Apply(_runner.Stop("stopped: the running order was removed"));
 
-        _queue.Remove(index);
+        _queue.Remove(orderId);
     }
 
     private void Apply(RunnerCommand command)
@@ -345,11 +350,13 @@ internal sealed class HubSession
         _logFileOnly("another save was loaded; the queue was emptied");
     }
 
-    private void RefreshKeeps()
+    private void RefreshKeeps() => RefreshKeeps(_bench.Read());
+
+    private void RefreshKeeps(BenchRead? read)
     {
         var targets = _slot.Targets.All;
 
-        _keepByKey = _bench.Read() is { } read ? _slot.Targets.ByRecipe(read.Book) : NoKeeps;
+        _keepByKey = read != null ? _slot.Targets.ByRecipe(read.Book) : NoKeeps;
         _keepHave = targets.Count > 0 ? _keep.Stock.Count(targets.Select(target => target.ItemId)) : null;
     }
 
@@ -368,7 +375,7 @@ internal sealed class HubSession
         _yields = read.Book.All.Where(recipe => recipe.Yield > 1).ToDictionary(recipe => recipe.Key, recipe => recipe.Yield);
     }
 
-    private void RefreshMarks()
+    private void RefreshMarks(BenchRead? read)
     {
         _seenRefreshes = _bench.Refreshes;
 
@@ -380,18 +387,20 @@ internal sealed class HubSession
         }
 
         var timer = Stopwatch.StartNew();
-        var read = _bench.Read();
 
         _marks = read == null ? NoMarks : ChainMarks.Find(read.Book, read.Stock, read.CraftableNow, _settings.MaxDepth);
         _logFileOnly($"chain marks: {_marks.Count} recipes in {timer.Elapsed.TotalMilliseconds:0.#} ms");
     }
+
+    /// <summary>The order the progress bar goes on: the one the step in progress counts for, or between steps the head, which is planned next.</summary>
+    private long ActiveOrderId() => _runner.CraftingFor ?? _queue.Head?.Id ?? 0;
 
     private string RecipeName(string key) => _bench.Read()?.Book.Find(key)?.Name ?? key;
 
     private void Show()
     {
         var keep = new KeepView(_settings.KeepStocked, _slot.Targets.All, _keepByKey, _keepHave);
-        var view = HubView.Build(_marks, _queue.Entries, _runner.IsRunning, _status, keep, _runner.IsPaused, _outlook, _yields);
+        var view = HubView.Build(_marks, _queue.Entries, _runner.IsRunning, _status, keep, _runner.IsPaused, _outlook, _yields, ActiveOrderId());
 
         if (view == _shownView) return;
 
