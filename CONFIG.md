@@ -40,4 +40,4 @@ With `KeepStocked` set to `false`, the keep row and the kept items are hidden an
 
 The game cancels a craft when the workbench window closes, so the queue cannot keep crafting with the window shut. With `true`, it waits and carries on about a second after you open the same workbench again, planning from what your house holds then. Opening a different workbench does not start it there; press Stop, then Start queue, to run it at the one you have open.
 
-Either way, crafts the game finished before the close count against their order and are not made again.
+Either way, crafts the game finished before the close count against their order and are not made again. The one exception is a single craft that finishes in the same moment you close the workbench, which can be made once more.

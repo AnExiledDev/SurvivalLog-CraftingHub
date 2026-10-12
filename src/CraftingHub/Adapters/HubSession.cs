@@ -92,9 +92,7 @@ internal sealed class HubSession
                 _status = $"Queued {RecipeName(add.Key)} ×{add.Crafts}";
                 break;
             case PageCommand.CraftNow craftNow:
-                _queue.PushFront(craftNow.Key, RecipeName(craftNow.Key), craftNow.Crafts);
-                _runner.Start();
-                _status = _runner.IsPaused ? $"Queued {RecipeName(craftNow.Key)} x{craftNow.Crafts} first; the queue carries on at the workbench it was running on" : $"Making {RecipeName(craftNow.Key)} ×{craftNow.Crafts} with its intermediates";
+                CraftNow(craftNow.Key, craftNow.Crafts);
                 break;
             case PageCommand.Start:
                 StartQueue();
@@ -145,6 +143,27 @@ internal sealed class HubSession
         _status = "running the queue";
     }
 
+    private void CraftNow(string key, int crafts)
+    {
+        var name = RecipeName(key);
+
+        switch (_runner.CraftNowPlace)
+        {
+            case CraftNowPlace.Refused:
+                _status = "the queue is paused and carries on at the workbench it was running on; press Stop first to craft this now";
+                break;
+            case CraftNowPlace.BehindHead:
+                _queue.PushFront(key, name, crafts, behindHead: true);
+                _status = $"Making {name} x{crafts} next, once the craft in progress is done";
+                break;
+            case CraftNowPlace.Front:
+                _queue.PushFront(key, name, crafts);
+                _runner.Start();
+                _status = $"Making {name} ×{crafts} with its intermediates";
+                break;
+        }
+    }
+
     /// <summary>The craft in progress counts against the head order, so removing the head stops the run first.</summary>
     private void RemoveOrder(int index)
     {
@@ -170,7 +189,7 @@ internal sealed class HubSession
                 _page.ConfirmResult();
                 break;
             case RunnerCommand.StepDone done:
-                if (done.IsTarget) _queue.Progress(done.Crafts);
+                if (done.IsTarget) _queue.Progress(done.OrderId, done.Crafts);
 
                 _logFileOnly($"made {done.Step.Recipe.Name} ×{done.Crafts}{(done.IsTarget ? "" : " (intermediate)")}");
                 break;

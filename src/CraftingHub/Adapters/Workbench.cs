@@ -94,7 +94,7 @@ internal sealed class Workbench
         return new BenchView(
             IsOpen: true,
             IsBusy: state.IsCrafting?.Value == true || state.BatchActive,
-            // The game's own test for a live craft (HandMadeState 1, Making); a batch flag without it is left over.
+            // The game's own test for a live craft (HandMadeState 1, Making), told apart from the batch flag.
             IsCrafting: state.IsCrafting?.Value == true || (int)state.HandMadeState == 1,
             HasResult: state.ResultShow?.Value == true,
             MaxCrafts: state.MaxCraftCount?.Value ?? 0,

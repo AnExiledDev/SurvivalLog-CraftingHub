@@ -23,7 +23,7 @@ public static class QueuePlanner
 
         return CraftPlanner.Plan(book, usable, target, order.Crafts, maxDepth) switch
         {
-            CraftPlan.Ready ready => new NextStep.Craft(ready.Steps[0], IsTarget: ready.Steps.Count == 1),
+            CraftPlan.Ready ready => new NextStep.Craft(ready.Steps[0], IsTarget: ready.Steps.Count == 1, OrderId: order.Id),
             CraftPlan.Short shortOf => new NextStep.Blocked($"can't make {order.Name} ×{order.Crafts}: short of {Missing(shortOf.Missing, itemName)}"),
             _ => new NextStep.Blocked("no plan for " + order.Name),
         };
