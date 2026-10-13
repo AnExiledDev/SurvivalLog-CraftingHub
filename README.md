@@ -109,12 +109,13 @@ Settings live in `BepInEx\config\com.dev.survivallog.craftinghub.cfg`, created t
 
 Tested on Survival Log 1.1.18317 with BepInEx `6.0.0-be.788`.
 
-Check `BepInEx\LogOutput.log` for `===== Crafting Hub 0.5.1 started: all home storages on, intermediates up to 4 deep, keep stocked on, resume on reopen on, other workbenches on` (the words change with your settings). The same line, plus every step of every run and why it stopped, is in `BepInEx\crafting-hub.log`, which survives restarts. When that file passes 1 MB, it is cut down to its newest part at the next game start.
+Check `BepInEx\LogOutput.log` for `===== Crafting Hub 0.5.2 started: all home storages on, intermediates up to 4 deep, keep stocked on, resume on reopen on, other workbenches on` (the words change with your settings). The same line, plus every step of every run and why it stopped, is in `BepInEx\crafting-hub.log`, which survives restarts. When that file passes 1 MB, it is cut down to its newest part at the next game start.
 
 If workbenches still only see their linked storages, look in the logs for "BetterCrafting is also loaded".
 
 ## Changelog
 
+- 0.5.2: Plainer setting descriptions in the config file, each with a Simplified Chinese line under it. No setting or default changed.
 - 0.5.1: A roomier recipe list. Recipe names are no longer cut off, the cards are shorter so more recipes fit on screen, and the group buttons sit in one row that you scroll sideways with the mouse wheel. The recipe list is a little wider and the queue a little narrower. Long names in the queue now get two lines, and the Top-up tag sits under the name, so neither is cut off.
 
 ## Feedback and bug reports
