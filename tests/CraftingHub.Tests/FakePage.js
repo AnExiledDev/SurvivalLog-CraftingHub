@@ -237,9 +237,9 @@ var FakeElement = class {
   }
 };
 
-// Compound selectors of one tag, one id and classes ("div.cc-qrow", "#cc-list", ".a.b"); no combinators.
+// Compound selectors of one tag, one id and classes ("div.cc-qrow", "h2", "#cc-list", ".a.b"); no combinators.
 function parseSelector(selector) {
-  var match = /^([a-zA-Z]+)?((?:[.#][\w-]+)*)$/.exec(selector);
+  var match = /^([a-zA-Z][a-zA-Z0-9]*)?((?:[.#][\w-]+)*)$/.exec(selector);
 
   if (!match) throw new Error('the fake page does not know the selector "' + selector + '"');
 
