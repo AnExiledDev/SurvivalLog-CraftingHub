@@ -676,6 +676,71 @@ public class QueueRunnerTests
     }
 
     [Fact]
+    public void A_recipe_click_the_game_dropped_is_sent_again_and_the_step_then_crafts()
+    {
+        var runner = new QueueRunner();
+        var retry = QueueRunner.RecipeClickRetrySeconds;
+
+        runner.Start();
+
+        Assert.Equal(new RunnerCommand.ClickRecipe("plank"), runner.Tick(Idle(), 0, PlankNext));
+        Assert.IsType<RunnerCommand.None>(runner.Tick(Idle(), retry / 2, PlankNext));
+        Assert.Equal(new RunnerCommand.ClickRecipe("plank"), runner.Tick(Idle(), retry, PlankNext));
+        Assert.IsType<RunnerCommand.None>(runner.Tick(Idle(), retry * 1.5, PlankNext));
+        Assert.Equal(new RunnerCommand.ClickRecipe("plank"), runner.Tick(Idle(), retry * 2, PlankNext));
+
+        // The game can hold off a click for a few seconds after a craft; the run waits that out.
+        Assert.IsType<RunnerCommand.None>(runner.Tick(Idle(LogsLaidOut, 3), 3.5, PlankNext));
+        Assert.Equal(new RunnerCommand.Craft(3), runner.Tick(Idle(LogsLaidOut, 3), 3.75, PlankNext));
+    }
+
+    [Fact]
+    public void A_bench_holding_the_recipes_materials_is_not_clicked_again_while_the_game_recounts()
+    {
+        var runner = new QueueRunner();
+        var retry = QueueRunner.RecipeClickRetrySeconds;
+
+        runner.Start();
+        runner.Tick(Idle(), 0, PlankNext);
+
+        Assert.IsType<RunnerCommand.None>(runner.Tick(Idle(LogsLaidOut, 0), retry, PlankNext));
+        Assert.IsType<RunnerCommand.None>(runner.Tick(Idle(LogsLaidOut, 0), retry * 2, PlankNext));
+        Assert.IsType<RunnerCommand.None>(runner.Tick(Idle(LogsLaidOut, 3), 2, PlankNext));
+        Assert.Equal(new RunnerCommand.Craft(3), runner.Tick(Idle(LogsLaidOut, 3), 2 + QueueRunner.SettleSeconds, PlankNext));
+    }
+
+    [Fact]
+    public void A_busy_bench_is_not_clicked_again()
+    {
+        var runner = new QueueRunner();
+        var retry = QueueRunner.RecipeClickRetrySeconds;
+        var busy = new BenchView(true, true, false, 0, Empty, 0, RunBench);
+
+        runner.Start();
+        runner.Tick(Idle(), 0, PlankNext);
+
+        Assert.IsType<RunnerCommand.None>(runner.Tick(busy, retry, PlankNext));
+        Assert.IsType<RunnerCommand.None>(runner.Tick(busy, retry * 2, PlankNext));
+        Assert.Equal(new RunnerCommand.ClickRecipe("plank"), runner.Tick(Idle(), retry * 3, PlankNext));
+    }
+
+    [Fact]
+    public void A_bench_that_never_fills_is_clicked_again_until_the_run_stops_with_a_reason()
+    {
+        var runner = new QueueRunner();
+        var retry = QueueRunner.RecipeClickRetrySeconds;
+
+        runner.Start();
+        runner.Tick(Idle(), 0, PlankNext);
+
+        for (var now = retry; now <= QueueRunner.FillTimeoutSeconds; now += retry) Assert.Equal(new RunnerCommand.ClickRecipe("plank"), runner.Tick(Idle(), now, PlankNext));
+
+        var stopped = Assert.IsType<RunnerCommand.Stopped>(runner.Tick(Idle(), QueueRunner.FillTimeoutSeconds + 0.1, PlankNext));
+        Assert.Equal("the game did not lay out the materials for Plank", stopped.Reason);
+        Assert.False(runner.IsRunning);
+    }
+
+    [Fact]
     public void Wrong_materials_on_the_bench_do_not_start_a_craft()
     {
         var runner = new QueueRunner();
