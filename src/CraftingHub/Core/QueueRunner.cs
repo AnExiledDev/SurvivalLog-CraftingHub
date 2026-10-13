@@ -94,7 +94,11 @@ public enum CraftNowPlace
 public sealed class QueueRunner
 {
     public const double SettleSeconds = 0.25;
-    public const double FillTimeoutSeconds = 3;
+    public const double FillTimeoutSeconds = 6;
+
+    /// <summary>How long a bench may stay without the recipe's materials before the recipe is clicked again.</summary>
+    public const double RecipeClickRetrySeconds = 0.75;
+
     public const double StartTimeoutSeconds = 4;
     public const double QuietDoneSeconds = 1.5;
     public const double CollectTimeoutSeconds = 4;
@@ -143,6 +147,7 @@ public sealed class QueueRunner
     private bool _hasStarted;
     private double _stageSince;
     private double? _settledSince;
+    private double _clickedAt;
     private double? _quietSince;
     private int _intermediateBatches;
     private long _benchId;
@@ -248,6 +253,7 @@ public sealed class QueueRunner
 
                 _current = craft;
                 _settledSince = null;
+                _clickedAt = now;
                 Enter(Stage.Filling, now);
 
                 return new RunnerCommand.ClickRecipe(craft.Step.Recipe.Key);
@@ -295,12 +301,15 @@ public sealed class QueueRunner
     private RunnerCommand CraftWhenLaidOut(BenchView bench, double now)
     {
         var step = Current.Step;
+        var holdsOneCraft = HoldsOneCraft(bench.Contents, step.Recipe.Materials);
 
-        if (IsBusy(bench) || bench.MaxCrafts < 1 || !HoldsOneCraft(bench.Contents, step.Recipe.Materials))
+        if (IsBusy(bench) || bench.MaxCrafts < 1 || !holdsOneCraft)
         {
             _settledSince = null;
 
-            return now - _stageSince > FillTimeoutSeconds ? Stop($"the game did not lay out the materials for {step.Recipe.Name}") : new RunnerCommand.None();
+            if (now - _stageSince > FillTimeoutSeconds) return Stop($"the game did not lay out the materials for {step.Recipe.Name}");
+
+            return IsBusy(bench) || holdsOneCraft ? new RunnerCommand.None() : ClickAgain(step.Recipe.Key, now);
         }
 
         // The game fills the bench over a frame or two and then recounts what it allows; let that settle.
@@ -317,6 +326,21 @@ public sealed class QueueRunner
         Enter(Stage.Crafting, now);
 
         return new RunnerCommand.Craft(_sentQuantity);
+    }
+
+    /// <summary>
+    /// The game ignores a recipe click while it still counts the last craft as in hand, which it clears only when it
+    /// next refreshes the bag, so a click right after a craft is often lost. A bench without the recipe's materials
+    /// gets the click again. Another click cannot undo one that landed: the game fills from what is already on the
+    /// bench first and moves off only what the recipe does not use.
+    /// </summary>
+    private RunnerCommand ClickAgain(string recipeKey, double now)
+    {
+        if (now - _clickedAt < RecipeClickRetrySeconds) return new RunnerCommand.None();
+
+        _clickedAt = now;
+
+        return new RunnerCommand.ClickRecipe(recipeKey);
     }
 
     private RunnerCommand WaitForResult(BenchView bench, double now)
