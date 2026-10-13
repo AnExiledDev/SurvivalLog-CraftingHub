@@ -7,7 +7,7 @@ A workbench normally only uses its linked storages and makes one recipe at a tim
 [size=5]Main features[/size]
 [list]
 [*][b]Every home storage counts[/b]: workbenches count and take materials from every storage in your home.[/*]
-[*][b]A wider workbench screen[/b]: the recipe list becomes a wider one in two columns, with a craft queue column beside it. Your bag, the bench grid and its Craft button stay as they were.[/*]
+[*][b]A wider workbench screen[/b]: the recipe list becomes a wider one in two columns, with a craft queue column beside it. The bench grid and its Craft button become a Workbench tab in the bag's panel, so the screen has more room, and the tab comes up by itself when you pick a recipe or start a craft.[/*]
 [*][b]Search and filters[/b]: search by recipe name or by a material it uses. Filter to what you can make now, what needs parts first, what you are short of, or what you keep in stock, and pick one recipe group at a time.[/*]
 [*][b]Craftable through intermediates[/b]: recipes you could make after crafting their intermediates show in amber with what gets made first.[/*]
 [*][b]Craft with intermediates[/b]: one button under the bench's Craft button makes the intermediates and then the recipe, using the quantity box.[/*]

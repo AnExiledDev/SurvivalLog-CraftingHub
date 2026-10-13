@@ -65,6 +65,8 @@ var FakeElement = class {
     this.clientWidth = 0;
     this.disabled = false;
     this.value = '';
+    // Where the element is drawn, in the page's client coordinates; nothing is laid out, so tests place what they need.
+    this.rect = { left: 0, top: 0, right: 0, bottom: 0, width: 0, height: 0 };
     this.classList = {
       contains: function (name) { return element.classes.indexOf(name) >= 0; },
       add: function () {
@@ -131,6 +133,8 @@ var FakeElement = class {
   clear() {
     this.children.slice().forEach(function (child) { this.removeChild(child); }, this);
   }
+
+  getBoundingClientRect() { return this.rect; }
 
   hasAttribute(name) { return Object.prototype.hasOwnProperty.call(this.attrs, name); }
 
@@ -313,6 +317,8 @@ function fire(target, type, init) {
     deltaX: (init && init.deltaX) || 0,
     deltaY: (init && init.deltaY) || 0,
     deltaMode: (init && init.deltaMode) || 0,
+    clientX: (init && init.clientX) || 0,
+    clientY: (init && init.clientY) || 0,
     defaultPrevented: false,
     isStopped: false,
     stopPropagation: function () { event.isStopped = true; },
@@ -387,22 +393,35 @@ function node(doc, parent, tagName, className, id) {
 // The workbench page's markup (ToolTable.html:1946-2087), down to what the script reaches for.
 function benchMarkup(doc) {
   var container = node(doc, doc.body, 'div', 'ui-container');
+  var bag;
+  var tabs;
   var panel;
   var bench;
   var controls;
+  var overlay;
   var notes;
 
-  node(doc, container, 'div', 'backpack-panel');
+  bag = node(doc, container, 'div', 'backpack-panel');
+  tabs = node(doc, bag, 'div', 'left-tabs');
+  node(doc, node(doc, tabs, 'div', 'left-tab-pinned'), 'button', 'left-tab active', 'tab-bag');
+  node(doc, node(doc, tabs, 'div', 'left-tabs-scroll', 'leftTabsScroll'), 'button', 'left-tab', 'tab-drawer');
+  node(doc, bag, 'div', 'weight-section');
+  node(doc, bag, 'div', 'grid-container', 'backpack-grid');
+  node(doc, bag, 'div', 'rack-rows', 'rack-rows');
+  node(doc, bag, 'div', 'toolbar', 'bagToolbar');
   panel = node(doc, container, 'div', 'combined-panel no-notes');
   bench = node(doc, panel, 'div', 'workbench-section');
-  node(doc, bench, 'div', '', 'workbench-grid');
+  node(doc, bench, 'h2').textContent = 'Bench';
+  node(doc, bench, 'div', 'grid-container', 'workbench-grid');
   node(doc, bench, 'div', 'qty-row');
   controls = node(doc, bench, 'div', 'craft-controls');
   node(doc, controls, 'button', 'btn', 'btn-clear-workbench');
   node(doc, controls, 'button', 'btn', 'btn-craft');
   node(doc, controls, 'span', 'cost-label');
   node(doc, bench, 'div', '', 'recentBlock');
-  node(doc, node(doc, bench, 'div', '', 'crafting-overlay'), 'div', '', 'craft-progress');
+  overlay = node(doc, bench, 'div', '', 'crafting-overlay');
+  node(doc, node(doc, overlay, 'div', 'crafting-box', 'crafting-progress-box'), 'div', 'crafting-bar-fill', 'craft-progress');
+  node(doc, overlay, 'div', '', 'crafting-result-box');
   notes = node(doc, panel, 'div', 'notes-section');
   node(doc, notes, 'div', 'notes-head');
   node(doc, notes, 'div', '', 'notes-search-bar');
@@ -417,7 +436,10 @@ function benchWindow(doc) {
     NOTE_CAT_META: GROUPS,
     lastRecipeData: null,
     collapsedCats: new Set(),
-    craftQty: 1
+    craftQty: 1,
+    // The page's drag of its grid items (createBagDragCoordinator) and its bench grid (createGridBag).
+    dragCoord: { dragging: false, isDragging: function () { return this.dragging; } },
+    workbench: { ownerId: 0, getOwnerId: function () { return this.ownerId; } }
   };
 
   win.values = values;
@@ -536,6 +558,26 @@ function groupChip(label) {
 
 function queueRow(index) {
   return $('cc-qlist').querySelectorAll('.cc-qrow')[index];
+}
+
+// Puts an element on screen at a spot, as the browser would have laid it out.
+function placeAt(element, left, top, width, height) {
+  element.rect = { left: left, top: top, right: left + width, bottom: top + height, width: width, height: height };
+}
+
+// The page's own drag of an item from one of its grids, begun or ended.
+function gameDrag(isDragging) {
+  bench().values.dragCoord.dragging = isDragging;
+}
+
+// The mouse moving to a point on the workbench page.
+function moveMouse(x, y) {
+  fire(benchDoc().body, 'mousemove', { clientX: x, clientY: y });
+}
+
+// Whether the bag panel shows the bench rather than the game's own tab.
+function isBenchShown() {
+  return benchDoc().querySelector('.backpack-panel').classList.contains('cc-bench-view');
 }
 
 function sentActions(action) {

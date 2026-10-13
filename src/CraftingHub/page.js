@@ -1,8 +1,9 @@
 // Crafting Hub's half in the game's web UI. Runs in Root.html, the document every game page iframe sits in, and
 // reaches into the workbench page (ToolTable.html, a same-origin iframe) to swap its recipe list for a searchable
-// two-column one and to add a craft queue column beside it. The game's own list stays in the page, hidden, and the
-// game keeps rebuilding it as before; the hub's list is redrawn right after each rebuild. Every craft it starts goes
-// through the workbench page's own core.UnitySendEvent, exactly like a click. Talks to the plugin through
+// two-column one and to add a craft queue column beside it. The bench itself becomes a tab of the bag's panel, so the
+// screen has one column fewer. The game's own list stays in the page, hidden, and the game keeps rebuilding it as
+// before; the hub's list is redrawn right after each rebuild. Every craft it starts goes through the workbench page's
+// own core.UnitySendEvent, exactly like a click. Talks to the plugin through
 // vuplex.postMessage("slmod|craftinghub|<verb>|<args>") and is driven by window.__craftinghub.
 (function () {
   if (window.__craftinghub) return;
@@ -17,7 +18,9 @@
   var PRESS_LIMIT_MS = 2000;
   var ALL_GROUPS = -1;
   var WHEEL_LINE_PX = 16;
-  var HUB_ROOTS = ['cc-mid', 'cc-queue', 'cc-panel'];
+  var HOVER_SWITCH_MS = 400;
+  var BENCH_TAB = 'cc-tab-bench';
+  var HUB_ROOTS = ['cc-mid', 'cc-queue', 'cc-panel', BENCH_TAB];
 
   // Built from char codes so the file stays ASCII.
   var GLYPH = {
@@ -46,6 +49,7 @@
   var selectedKey = '';
   var reported = {};
   var hasSkippedRender = false;
+  var isQueueActing = false;
 
   function post(message) {
     try {
@@ -122,10 +126,10 @@
     }
 
     win.__ccInstalled = true;
-    win.__ccUi = { filter: 'all', group: ALL_GROUPS, amounts: {}, drag: null };
+    win.__ccUi = { filter: 'all', group: ALL_GROUPS, amounts: {}, drag: null, view: 'bag', hover: null, isOverlayShown: false, dragCoord: null };
     selectedKey = '';
     wrapRenderer(win);
-    wrapSend(core);
+    wrapSend(win, core);
     addStyle(win.document);
   }
 
@@ -143,18 +147,35 @@
     };
   }
 
-  // Watches which recipe the player (or the queue) lays on the bench, for the "Craft with intermediates" line.
-  function wrapSend(core) {
+  // Watches which recipe the player (or the queue) lays on the bench, for the "Craft with intermediates" line. The
+  // player's own picks, and anything dropped on the bench grid, bring the bench tab up; the queue's picks do not.
+  function wrapSend(win, core) {
     var original = core.UnitySendEvent;
 
     core.UnitySendEvent = function (action, data) {
       if (action === 'RECIPE_CLICK' && data && data.recipeKey) {
         selectedKey = data.recipeKey;
+
+        if (!isQueueActing) showView(win, 'bench');
+
         refresh();
       }
 
+      if (isDropOnBench(win, action, data)) showView(win, 'bench');
+
       return original.apply(this, arguments);
     };
+  }
+
+  // The page sends ITEM_MOVE for a drag from one of its grids and GROUND_PICK_TO for one from the ground row.
+  function isDropOnBench(win, action, data) {
+    if (!data || (action !== 'ITEM_MOVE' && action !== 'GROUND_PICK_TO')) return false;
+
+    var bench = pageValue(win, 'workbench');
+    var owner = bench && typeof bench.getOwnerId === 'function' ? bench.getOwnerId() : 0;
+    var target = action === 'ITEM_MOVE' ? data.toOwnerId : data.ownerId;
+
+    return !!owner && target === owner;
   }
 
   function addStyle(doc) {
@@ -168,6 +189,16 @@
       '.combined-panel.cc-hub:not(.no-notes){min-height:820px}',
       '.combined-panel.cc-hub.no-notes #cc-mid{display:none}',
       '.combined-panel.cc-hub .workbench-section{border-right:1px solid rgba(255,193,7,.10)}',
+      '.backpack-panel.cc-tabbed>.workbench-section{width:auto;align-self:stretch;border-right:none;border-radius:10px}',
+      '.backpack-panel.cc-tabbed:not(.cc-bench-view)>.workbench-section{display:none}',
+      '.backpack-panel.cc-tabbed>.workbench-section>h2{display:none}',
+      '.backpack-panel.cc-tabbed #crafting-overlay{border-radius:10px}',
+      '.backpack-panel.cc-bench-view>.weight-section,.backpack-panel.cc-bench-view>#bagToolbar{display:none!important}',
+      // Out of sight rather than hidden: the page still measures the bag grid, and a drop can never land on it.
+      '.backpack-panel.cc-bench-view>#backpack-grid,.backpack-panel.cc-bench-view>#rack-rows{position:absolute!important;left:-20000px!important;top:0!important;visibility:hidden!important}',
+      '.backpack-panel.cc-bench-view .left-tab.active:not(#cc-tab-bench){color:var(--text-dim);background:rgba(8,8,10,.55);border-color:rgba(255,255,255,.10);box-shadow:none;cursor:pointer}',
+      '.backpack-panel.cc-tabbed+.combined-panel #cc-mid{border-top-left-radius:14px;border-bottom-left-radius:14px}',
+      '.backpack-panel.cc-tabbed+.combined-panel.no-notes #cc-queue{border-radius:14px}',
       '.cc-col{display:flex;flex-direction:column;min-height:0;box-sizing:border-box;padding:14px 16px;font-size:13px;color:#ddd;overflow:hidden}',
       '#cc-mid{width:660px;flex:none;border-right:1px solid rgba(255,193,7,.10);background:rgba(0,0,0,.18)}',
       '#cc-queue{width:400px;flex:none;background:rgba(0,0,0,.12);border-top-right-radius:14px;border-bottom-right-radius:14px}',
@@ -482,13 +513,15 @@
 
   // ---------------------------------------------------------------- layout
 
-  // The hub's two columns go after the game's own list inside the bench panel, so the bag, the bench grid and its
-  // Craft button stay where the game put them and keep working as before.
+  // The hub's two columns go after the game's own list inside the bench panel, and the bench moves into the bag's
+  // panel as a tab, so the bench grid and its Craft button keep working as before.
   function ensureLayout(win) {
     var doc = win.document;
     var panel = doc.querySelector('.combined-panel');
 
     if (!panel || !doc.querySelector('.workbench-section')) return false;
+
+    ensureTabs(win);
 
     if (doc.getElementById('cc-mid') && doc.getElementById('cc-queue')) return true;
 
@@ -506,6 +539,161 @@
     var node = doc.getElementById(id);
 
     if (node) node.remove();
+  }
+
+  // ---------------------------------------------------------------- the bag panel's Workbench tab
+
+  // The Workbench tab sits right after the bag's own tab. It is the hub's view, not one of the game's tabs: the game's
+  // own tab stays as it was, so the bag view goes back to whichever of the bag, the drawer or a cabinet was open.
+  function ensureTabs(win) {
+    var doc = win.document;
+    var bag = doc.querySelector('.backpack-panel');
+    var bagTab = doc.getElementById('tab-bag');
+    var bench = doc.querySelector('.workbench-section');
+
+    if (!bag || !bagTab || !bench) return;
+
+    var tab = doc.getElementById(BENCH_TAB) || addBenchTab(doc, bagTab);
+    var label = benchTitle(bench);
+
+    if (tab.textContent !== label) tab.textContent = label;
+    if (bench.parentElement !== bag) bag.appendChild(bench);
+    if (!bag.__ccWired) wireTabs(win, bag);
+
+    bag.classList.add('cc-tabbed');
+    applyView(win);
+  }
+
+  function addBenchTab(doc, bagTab) {
+    var tab = el(doc, 'button', 'left-tab cc-tab');
+
+    tab.id = BENCH_TAB;
+    tab.type = 'button';
+    bagTab.parentNode.insertBefore(tab, bagTab.nextSibling);
+
+    return tab;
+  }
+
+  // The bench's own heading, in the game's language; the tab names the bench, so the heading itself is hidden.
+  function benchTitle(bench) {
+    var heading = bench.querySelector('h2');
+    var text = heading ? heading.textContent.trim() : '';
+
+    return text || 'Workbench';
+  }
+
+  // Wired once on the panel, which the page never rebuilds; the game's cabinet tabs are rebuilt, so their clicks are
+  // caught as they bubble up.
+  function wireTabs(win, bag) {
+    bag.__ccWired = true;
+    bag.addEventListener('click', function (e) {
+      var tab = e.target && e.target.closest ? e.target.closest('.left-tab') : null;
+
+      if (tab) showView(win, tab.id === BENCH_TAB ? 'bench' : 'bag');
+    });
+    win.document.addEventListener('mousemove', function (e) { hoverSwitch(win, e); }, true);
+  }
+
+  function showView(win, next) {
+    var ui = win.__ccUi;
+
+    if (!ui || ui.view === next) return;
+
+    ui.view = next;
+    applyView(win);
+    refit(win);
+  }
+
+  function applyView(win) {
+    var doc = win.document;
+    var bag = doc.querySelector('.backpack-panel');
+    var tab = doc.getElementById(BENCH_TAB);
+
+    if (!bag || !tab) return;
+
+    var isBench = win.__ccUi.view === 'bench';
+
+    bag.classList.toggle('cc-bench-view', isBench);
+    tab.classList.toggle('active', isBench);
+  }
+
+  // While the game drags an item, resting on the Workbench tab, or on the game's open tab, switches to it, so an item
+  // can be carried between the bag and the bench. The tabs are found by where they are, as the page's own tab drop
+  // does, since the dragged item is under the pointer. A new move starts the wait again only on another tab.
+  function hoverSwitch(win, e) {
+    var ui = win.__ccUi;
+    var target = isGameDragging(win) ? viewUnder(win.document, e.clientX, e.clientY) : null;
+
+    if (ui.hover && ui.hover.view === target) return;
+
+    var hover = target && target !== ui.view ? { view: target } : null;
+    ui.hover = hover;
+
+    if (!hover) return;
+
+    setTimeout(function () {
+      if (ui.hover !== hover) return;
+
+      ui.hover = null;
+
+      if (isGameDragging(win)) showView(win, hover.view);
+    }, HOVER_SWITCH_MS);
+  }
+
+  function isGameDragging(win) {
+    var ui = win.__ccUi;
+
+    if (!ui.dragCoord) ui.dragCoord = pageValue(win, 'dragCoord');
+
+    try {
+      return !!(ui.dragCoord && ui.dragCoord.isDragging());
+    } catch (e) {
+      return false;
+    }
+  }
+
+  // Only the game's open tab leads back to the bag view. Its other tabs are left to the page's own drop-on-a-tab, and
+  // opening one mid-drag would show it before the game has sent its items.
+  function viewUnder(doc, x, y) {
+    if (isUnder(doc.getElementById(BENCH_TAB), x, y)) return 'bench';
+
+    var open = doc.querySelectorAll('.left-tab.active');
+
+    for (var i = 0; i < open.length; i++) {
+      if (open[i].id !== BENCH_TAB && isUnder(open[i], x, y)) return 'bag';
+    }
+
+    return null;
+  }
+
+  function isUnder(node, x, y) {
+    if (!node) return false;
+
+    var rect = node.getBoundingClientRect();
+
+    return rect.width > 0 && x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
+  }
+
+  // The game's craft progress and its result are drawn over the bench, so the bench comes up when they do. Only their
+  // coming up counts: a player who goes back to the bag meanwhile stays there.
+  function followCraftOverlay(win) {
+    var ui = win.__ccUi;
+    var overlay = win.document.getElementById('crafting-overlay');
+    var isShown = !!overlay && overlay.style.display === 'flex';
+
+    if (isShown && !ui.isOverlayShown) showView(win, 'bench');
+
+    ui.isOverlayShown = isShown;
+  }
+
+  // Puts the bench back in the game's panel, ahead of the game's recipe list, where the page has it.
+  function untab(doc, panel) {
+    var bag = doc.querySelector('.backpack-panel');
+    var bench = doc.querySelector('.workbench-section');
+
+    if (bag) bag.classList.remove('cc-tabbed', 'cc-bench-view');
+
+    if (panel && bench && bench.parentElement !== panel) panel.insertBefore(bench, panel.querySelector('.notes-section'));
   }
 
   function buildMid(win) {
@@ -634,11 +822,14 @@
     return box;
   }
 
-  // The page zooms itself to fit the window from the size of its panels. The hub changes that size when it is added
-  // and when the game shows or hides its recipe list, so the page is asked to fit again then, and only then.
+  // The page zooms itself to fit the window from the size of its panels. The hub changes that size when it is added,
+  // when the bag panel switches between the bag and the bench, and when the game shows or hides its recipe list, so
+  // the page is asked to fit again then, and only then.
   function refit(win) {
-    var panel = win.document.querySelector('.combined-panel');
-    var layout = panel ? panel.className : '';
+    var doc = win.document;
+    var panel = doc.querySelector('.combined-panel');
+    var bag = doc.querySelector('.backpack-panel');
+    var layout = (panel ? panel.className : '') + '|' + (bag ? bag.className : '');
 
     if (layout === win.__ccLayout) return;
 
@@ -1175,6 +1366,7 @@
     try {
       if (!ensureLayout(win)) return;
 
+      followCraftOverlay(win);
       drawList(win, false);
       drawQueue(win);
       drawChain(win);
@@ -1195,6 +1387,7 @@
     if (input && doc.activeElement === input) input.blur();
 
     HUB_ROOTS.forEach(function (id) { removeById(doc, id); });
+    untab(doc, panel);
 
     if (panel) panel.classList.remove('cc-hub');
     if (panel && panel.parentElement) panel.parentElement.classList.remove('cc-wide');
@@ -1298,15 +1491,19 @@
       return;
     }
 
+    isQueueActing = true;
+
     try {
       ACTIONS[kind](wins[0], core, arg);
     } catch (e) {
       post('diag|' + kind + ' failed on the workbench page: ' + e);
+    } finally {
+      isQueueActing = false;
     }
   }
 
-  // Installs on a newly opened bench, puts the hub back if the page lost it, keeps the running order's bar in step
-  // with the game's, and refits when the game shows or hides its recipe list.
+  // Installs on a newly opened bench, puts the hub back if the page lost it, shows the bench when a craft comes up on
+  // it, keeps the running order's bar in step with the game's, and refits when the game shows or hides its recipe list.
   setInterval(function () {
     var wins = benchWindows();
 
@@ -1318,6 +1515,7 @@
 
         if (!wins[i].document.getElementById('cc-mid') || !wins[i].document.getElementById('cc-panel')) renderWindow(wins[i]);
 
+        followCraftOverlay(wins[i]);
         mirrorProgress(wins[i]);
         refit(wins[i]);
       } catch (e) {}

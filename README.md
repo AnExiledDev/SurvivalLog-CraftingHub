@@ -7,7 +7,7 @@ A workbench in Survival Log only takes materials from the storages linked to it,
 ## Features
 
 - **Every home storage counts**: a workbench counts and takes materials from every storage in your home, not only the ones linked to it. This applies to the materials list, the craftable check, the most you can craft at once, and laying out the materials.
-- **A wider workbench screen**: the workbench's recipe list is replaced by a wider one in two columns, with a craft queue column beside it. Your bag, the bench grid and its Craft button stay where they were and work as before. The game's own list is still there, only hidden, and every click still goes through the game.
+- **A wider workbench screen**: the workbench's recipe list is replaced by a wider one in two columns, with a craft queue column beside it. The bench grid and its Craft button move into the bag's panel as a Workbench tab next to the bag's own tab, so the screen has room to breathe; they work as before. Picking a recipe, starting a craft, or dropping an item on the bench brings the Workbench tab up, and any of the bag panel's other tabs takes you back. While dragging an item, rest it on the Workbench tab or on the open bag tab for a moment to switch between them. The game's own list is still there, only hidden, and every click still goes through the game.
 - **Search**: type part of a recipe's name, or of a material it uses, in the search box at the top. When a material matches, it is outlined on the card. While you type in it, the workbench treats your keys as it does for its own search box. The x empties it.
 - **Filters**: All, Can make now, Needs parts first, Short, and Kept in stock (when keep stocked is on), each with how many recipes it holds. Below them, a row with one button per recipe group, with how many in that group you can make; press it again to show every group. When the row holds more than fits, scroll it sideways with the mouse wheel. Click a group's header in the list to fold it away; the game remembers that as it always has.
 - **Recipe cards**: each card shows the recipe, how many one craft makes (when it makes more than one), and one line saying "Can make now", what gets made first, or what you are short of. Each material shows what you have and what the amount on the card needs: green when you have enough, amber when a recipe on the list makes it, red when you are short. Locked recipes are greyed out and come last in their group. Click a card to lay that recipe on the bench, as a click on the game's own list does.
@@ -109,12 +109,13 @@ Settings live in `BepInEx\config\com.dev.survivallog.craftinghub.cfg`, created t
 
 Tested on Survival Log 1.1.18317 with BepInEx `6.0.0-be.788`.
 
-Check `BepInEx\LogOutput.log` for `===== Crafting Hub 0.5.2 started: all home storages on, intermediates up to 4 deep, keep stocked on, resume on reopen on, other workbenches on` (the words change with your settings). The same line, plus every step of every run and why it stopped, is in `BepInEx\crafting-hub.log`, which survives restarts. When that file passes 1 MB, it is cut down to its newest part at the next game start.
+Check `BepInEx\LogOutput.log` for `===== Crafting Hub 0.6.0 started: all home storages on, intermediates up to 4 deep, keep stocked on, resume on reopen on, other workbenches on` (the words change with your settings). The same line, plus every step of every run and why it stopped, is in `BepInEx\crafting-hub.log`, which survives restarts. When that file passes 1 MB, it is cut down to its newest part at the next game start.
 
 If workbenches still only see their linked storages, look in the logs for "BetterCrafting is also loaded".
 
 ## Changelog
 
+- 0.6.0: A roomier workbench screen. The bench grid and its Craft button are now a Workbench tab in the bag's panel, next to the bag, the drawer and the cabinets, instead of a column of their own. The bench comes up by itself when you pick a recipe, start a craft or drop an item on it, and resting a dragged item on a tab switches to it. No setting changed.
 - 0.5.2: Plainer setting descriptions in the config file, each with a Simplified Chinese line under it. No setting or default changed.
 - 0.5.1: A roomier recipe list. Recipe names are no longer cut off, the cards are shorter so more recipes fit on screen, and the group buttons sit in one row that you scroll sideways with the mouse wheel. The recipe list is a little wider and the queue a little narrower. Long names in the queue now get two lines, and the Top-up tag sits under the name, so neither is cut off.
 

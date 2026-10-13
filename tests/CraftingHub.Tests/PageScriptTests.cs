@@ -630,6 +630,193 @@ public class PageScriptTests
         Assert.False(page.Truth("queueRow(0).contains($('cc-prog'))"));
     }
 
+    // ---------------------------------------------------------------- the bench as a tab of the bag panel
+
+    [Fact]
+    public void The_bench_moves_into_the_bag_panel_as_a_tab_after_the_bags_own_and_the_screen_opens_on_the_bag()
+    {
+        var page = BenchWithRecipes();
+
+        Assert.True(page.Truth("benchDoc().querySelector('.backpack-panel').contains(benchDoc().querySelector('.workbench-section'))"));
+        Assert.False(page.Truth("benchDoc().querySelector('.combined-panel').contains(benchDoc().querySelector('.workbench-section'))"));
+        Assert.True(page.Truth("$('tab-bag').nextSibling === $('cc-tab-bench')"));
+        Assert.True(page.Truth("$('cc-tab-bench').classList.contains('left-tab')"));
+        Assert.Equal("Bench", page.Text("$('cc-tab-bench').textContent"));
+        Assert.False(page.Truth("isBenchShown()"));
+        Assert.False(page.Truth("$('cc-tab-bench').classList.contains('active')"));
+        Assert.Contains("display:none", page.Text("cssRule('.backpack-panel.cc-tabbed:not(.cc-bench-view)>.workbench-section')"));
+    }
+
+    [Fact]
+    public void The_workbench_tab_shows_the_bench_and_moves_the_bag_grid_out_of_reach_and_the_bag_tab_brings_the_bag_back()
+    {
+        var page = BenchWithRecipes();
+        var fitsBefore = page.Number("bench().fits");
+
+        page.Press("$('cc-tab-bench')");
+
+        Assert.True(page.Truth("isBenchShown()"));
+        Assert.True(page.Truth("$('cc-tab-bench').classList.contains('active')"));
+        Assert.Contains("left:-20000px", page.Text("cssRule('.backpack-panel.cc-bench-view>#backpack-grid,.backpack-panel.cc-bench-view>#rack-rows')"));
+        Assert.True(page.Number("bench().fits") > fitsBefore);
+
+        page.Press("$('tab-bag')");
+
+        Assert.False(page.Truth("isBenchShown()"));
+        Assert.False(page.Truth("$('cc-tab-bench').classList.contains('active')"));
+    }
+
+    [Fact]
+    public void Any_of_the_games_own_tabs_leaves_the_bench()
+    {
+        var page = BenchWithRecipes();
+
+        page.Press("$('cc-tab-bench')");
+        page.Press("$('tab-drawer')");
+
+        Assert.False(page.Truth("isBenchShown()"));
+    }
+
+    [Fact]
+    public void The_bench_stays_up_when_the_game_redraws_its_list_and_the_hub_redraws()
+    {
+        var page = BenchWithRecipes();
+
+        page.Press("$('cc-tab-bench')");
+        page.RecipeMsg(Recipes);
+        page.Show(View(TwoOrders, outlook: TwoOrdersOutlook));
+        page.Poll();
+
+        Assert.True(page.Truth("isBenchShown()"));
+        Assert.True(page.Truth("$('cc-tab-bench').classList.contains('active')"));
+        Assert.Equal(1, page.Number("benchDoc().querySelectorAll('#cc-tab-bench').length"));
+    }
+
+    [Fact]
+    public void Picking_a_recipe_brings_the_bench_up_to_show_what_was_laid_on_it()
+    {
+        var page = BenchWithRecipes();
+
+        page.Press("card('plank')");
+
+        Assert.Equal("plank", page.Text("sentActions('RECIPE_CLICK')[0].data.recipeKey"));
+        Assert.True(page.Truth("isBenchShown()"));
+    }
+
+    [Fact]
+    public void The_queue_laying_a_recipe_leaves_the_player_on_the_bag()
+    {
+        var page = BenchWithRecipes();
+
+        page.Run("window.__craftinghub.act('recipe', 'crate')");
+
+        Assert.False(page.Truth("isBenchShown()"));
+
+        page.Press("card('plank')");
+
+        Assert.True(page.Truth("isBenchShown()"));
+    }
+
+    [Fact]
+    public void Resting_on_a_tab_during_a_drag_switches_to_it_so_an_item_can_be_carried_between_bag_and_bench()
+    {
+        var page = BenchWithRecipes();
+
+        page.Run("placeAt($('tab-bag'), 10, 10, 80, 30); placeAt($('cc-tab-bench'), 100, 10, 80, 30); gameDrag(true)");
+        page.Run("moveMouse(120, 20)");
+        page.Advance(399);
+
+        Assert.False(page.Truth("isBenchShown()"));
+
+        page.Run("moveMouse(130, 25)");
+        page.Advance(1);
+
+        Assert.True(page.Truth("isBenchShown()"));
+
+        page.Run("moveMouse(40, 20)");
+        page.Advance(400);
+
+        Assert.False(page.Truth("isBenchShown()"));
+    }
+
+    [Fact]
+    public void Passing_over_a_tab_or_resting_on_it_without_a_drag_switches_nothing()
+    {
+        var page = BenchWithRecipes();
+
+        page.Run("placeAt($('cc-tab-bench'), 100, 10, 80, 30)");
+        page.Run("moveMouse(120, 20)");
+        page.Advance(1000);
+
+        Assert.False(page.Truth("isBenchShown()"));
+
+        page.Run("gameDrag(true); moveMouse(120, 20)");
+        page.Advance(200);
+        page.Run("moveMouse(500, 500)");
+        page.Advance(1000);
+
+        Assert.False(page.Truth("isBenchShown()"));
+
+        page.Run("moveMouse(120, 20)");
+        page.Advance(200);
+        page.Run("gameDrag(false)");
+        page.Advance(1000);
+
+        Assert.False(page.Truth("isBenchShown()"));
+    }
+
+    [Fact]
+    public void A_drag_resting_on_another_of_the_games_tabs_is_left_to_the_games_own_drop_on_a_tab()
+    {
+        var page = BenchWithRecipes();
+
+        page.Run("placeAt($('tab-drawer'), 200, 10, 80, 30); gameDrag(true)");
+        page.Press("$('cc-tab-bench')");
+        page.Run("moveMouse(220, 20)");
+        page.Advance(1000);
+
+        Assert.True(page.Truth("isBenchShown()"));
+    }
+
+    [Fact]
+    public void The_bench_comes_up_when_a_craft_starts_on_it_but_a_player_who_goes_back_to_the_bag_stays_there()
+    {
+        var page = BenchWithRecipes();
+
+        page.Run("$('crafting-overlay').style.display = 'flex'");
+        page.Poll();
+
+        Assert.True(page.Truth("isBenchShown()"));
+
+        page.Press("$('tab-bag')");
+        page.Poll();
+
+        Assert.False(page.Truth("isBenchShown()"));
+
+        page.Run("$('crafting-overlay').style.display = 'none'");
+        page.Poll();
+        page.Run("$('crafting-overlay').style.display = 'flex'");
+        page.Poll();
+
+        Assert.True(page.Truth("isBenchShown()"));
+    }
+
+    [Fact]
+    public void An_item_dropped_on_the_bench_grid_brings_the_bench_up_and_one_dropped_elsewhere_does_not()
+    {
+        var page = BenchWithRecipes();
+
+        page.Run("bench().values.workbench.ownerId = 77");
+        page.Run("bench().values.core.UnitySendEvent('ITEM_MOVE', { itemId: 5, fromOwnerId: 77, toOwnerId: 12, x: 0, y: 0 })");
+
+        Assert.False(page.Truth("isBenchShown()"));
+
+        page.Run("bench().values.core.UnitySendEvent('ITEM_MOVE', { itemId: 6, fromOwnerId: 12, toOwnerId: 77, x: 1, y: 0 })");
+
+        Assert.True(page.Truth("isBenchShown()"));
+        Assert.Equal(2, page.Number("sentActions('ITEM_MOVE').length"));
+    }
+
     // ---------------------------------------------------------------- when drawing fails
 
     [Fact]
@@ -642,12 +829,17 @@ public class PageScriptTests
 
         Assert.False(page.Truth("benchDoc().querySelector('.combined-panel').classList.contains('cc-hub')"));
         Assert.True(page.Truth("$('cc-mid') === null && $('cc-queue') === null && $('cc-panel') === null"));
+        Assert.True(page.Truth("$('cc-tab-bench') === null"));
+        Assert.True(page.Truth("benchDoc().querySelector('.workbench-section').nextSibling === benchDoc().querySelector('.notes-section')"));
+        Assert.Equal("backpack-panel", page.Text("benchDoc().querySelector('.backpack-panel').className"));
 
         page.Run("delete benchDoc().createElement");
         page.Poll();
 
         Assert.True(page.Truth("benchDoc().querySelector('.combined-panel').classList.contains('cc-hub')"));
         Assert.Equal("plank,rope,crate,shirt,torch", page.Text("cardKeys()"));
+        Assert.True(page.Truth("benchDoc().querySelector('.backpack-panel').contains(benchDoc().querySelector('.workbench-section'))"));
+        Assert.Equal(1, page.Number("benchDoc().querySelectorAll('#cc-tab-bench').length"));
     }
 
     [Fact]
