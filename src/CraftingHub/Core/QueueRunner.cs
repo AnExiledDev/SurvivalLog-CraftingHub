@@ -307,7 +307,7 @@ public sealed class QueueRunner
         {
             _settledSince = null;
 
-            if (now - _stageSince > FillTimeoutSeconds) return Stop($"the game did not lay out the materials for {step.Recipe.Name}");
+            if (now - _stageSince > FillTimeoutSeconds) return Stop(FillFailure(bench, holdsOneCraft, step.Recipe.Name));
 
             return IsBusy(bench) || holdsOneCraft ? new RunnerCommand.None() : ClickAgain(step.Recipe.Key, now);
         }
@@ -327,6 +327,15 @@ public sealed class QueueRunner
 
         return new RunnerCommand.Craft(_sentQuantity);
     }
+
+    /// <summary>
+    /// A free bench that holds a whole craft's materials and still allows no craft is held back by the player, most
+    /// often by too little stamina, not by the materials.
+    /// </summary>
+    private string FillFailure(BenchView bench, bool holdsOneCraft, string recipeName) =>
+        holdsOneCraft && !IsBusy(bench)
+            ? $"the materials for {recipeName} are laid out but the game allows no craft; you may be out of stamina"
+            : $"the game did not lay out the materials for {recipeName}";
 
     /// <summary>
     /// The game ignores a recipe click while it still counts the last craft as in hand, which it clears only when it

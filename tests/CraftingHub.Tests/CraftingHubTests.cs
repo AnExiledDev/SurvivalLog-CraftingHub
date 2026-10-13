@@ -741,6 +741,20 @@ public class QueueRunnerTests
     }
 
     [Fact]
+    public void A_laid_out_bench_the_game_allows_no_craft_from_stops_the_run_saying_so_rather_than_blaming_the_layout()
+    {
+        var runner = new QueueRunner();
+
+        runner.Start();
+        runner.Tick(Idle(), 0, PlankNext);
+        runner.Tick(Idle(LogsLaidOut, 0), 1, PlankNext);
+
+        var stopped = Assert.IsType<RunnerCommand.Stopped>(runner.Tick(Idle(LogsLaidOut, 0), QueueRunner.FillTimeoutSeconds + 0.1, PlankNext));
+        Assert.Equal("the materials for Plank are laid out but the game allows no craft; you may be out of stamina", stopped.Reason);
+        Assert.False(runner.IsRunning);
+    }
+
+    [Fact]
     public void Wrong_materials_on_the_bench_do_not_start_a_craft()
     {
         var runner = new QueueRunner();

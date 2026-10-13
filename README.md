@@ -48,7 +48,8 @@ A run stops with a message in the status line when:
 - the workbench window closes and `ResumeOnReopen` is off ("the workbench closed; the queue is kept, press Craft queue to carry on");
 - a recipe is not in your recipe list yet or not unlocked yet;
 - your house is short of something ("can't make ...: short of ...");
-- the game does not lay out the materials within 3 seconds, a craft does not start within 4 seconds, or the result screen does not close within 4 seconds;
+- the materials are laid out but the game allows no craft ("you may be out of stamina");
+- the game does not lay out the materials within 6 seconds, a craft does not start within 4 seconds, or the result screen does not close within 4 seconds;
 - 30 intermediate crafts have been made without finishing the recipe they were for.
 
 ## Keep stocked
@@ -81,6 +82,7 @@ This mod uses materials from every storage in your home and crafts many times on
 - Spoiled food counts toward a kept count, as the game counts it, but the game does not craft with it.
 - Keep-stocked counts are tied to the save file's name. When the game starts a new file from an old one (rolling back or restarting from a snapshot), the new file starts with no kept counts.
 - The recipe cards do not show the game's hover box for a recipe. Click a card to lay the recipe on the bench and see it there. The queue does not show how long a craft takes; the running order's bar follows the game's own progress bar instead.
+- Right-clicking or shift-clicking an item while the bag tab is showing moves it to the workbench grid, which is hidden behind the Workbench tab; the view does not switch to it. Click the Workbench tab to see it.
 - BetterCrafting also changes the workbench's storage list. Do not use both (see [Requirements](#requirements)).
 
 If a craft uses the wrong materials, makes the wrong amount, or a run stops for no clear reason, please tell me (see [Feedback](#feedback-and-bug-reports)).
@@ -109,12 +111,13 @@ Settings live in `BepInEx\config\com.dev.survivallog.craftinghub.cfg`, created t
 
 Tested on Survival Log 1.1.18317 with BepInEx `6.0.0-be.788`.
 
-Check `BepInEx\LogOutput.log` for `===== Crafting Hub 0.6.0 started: all home storages on, intermediates up to 4 deep, keep stocked on, resume on reopen on, other workbenches on` (the words change with your settings). The same line, plus every step of every run and why it stopped, is in `BepInEx\crafting-hub.log`, which survives restarts. When that file passes 1 MB, it is cut down to its newest part at the next game start.
+Check `BepInEx\LogOutput.log` for `===== Crafting Hub 0.6.1 started: all home storages on, intermediates up to 4 deep, keep stocked on, resume on reopen on, other workbenches on` (the words change with your settings). The same line, plus every step of every run and why it stopped, is in `BepInEx\crafting-hub.log`, which survives restarts. When that file passes 1 MB, it is cut down to its newest part at the next game start.
 
 If workbenches still only see their linked storages, look in the logs for "BetterCrafting is also loaded".
 
 ## Changelog
 
+- 0.6.1: Fixes. When the game misses the queue's click on a recipe, the queue clicks it again, and it waits up to 6 seconds for the materials. A run that stops because the game allows no craft with the materials laid out now says you may be out of stamina. The bench no longer jumps up for crafts the queue starts or while you drag an item; a craft you start during a drag brings it up after the drop. Drop highlights follow you when a drag switches tabs, and the screen is no longer resized in the middle of a drag. If the Workbench tab cannot be drawn, the bench stays where the game puts it. No setting changed.
 - 0.6.0: A roomier workbench screen. The bench grid and its Craft button are now a Workbench tab in the bag's panel, next to the bag, the drawer and the cabinets, instead of a column of their own. The bench comes up by itself when you pick a recipe, start a craft or drop an item on it, and resting a dragged item on a tab switches to it. No setting changed.
 - 0.5.2: Plainer setting descriptions in the config file, each with a Simplified Chinese line under it. No setting or default changed.
 - 0.5.1: A roomier recipe list. Recipe names are no longer cut off, the cards are shorter so more recipes fit on screen, and the group buttons sit in one row that you scroll sideways with the mouse wheel. The recipe list is a little wider and the queue a little narrower. Long names in the queue now get two lines, and the Top-up tag sits under the name, so neither is cut off.

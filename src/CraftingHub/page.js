@@ -126,10 +126,11 @@
     }
 
     win.__ccInstalled = true;
-    win.__ccUi = { filter: 'all', group: ALL_GROUPS, amounts: {}, drag: null, view: 'bag', hover: null, isOverlayShown: false, dragCoord: null };
+    win.__ccUi = { filter: 'all', group: ALL_GROUPS, amounts: {}, drag: null, view: 'bag', hover: null, isOverlayShown: false, isOverlayPending: false, isOwnCraft: true, isTabOff: false, dragCoord: null };
     selectedKey = '';
     wrapRenderer(win);
     wrapSend(win, core);
+    wrapGridHitTests(win);
     addStyle(win.document);
   }
 
@@ -147,24 +148,36 @@
     };
   }
 
-  // Watches which recipe the player (or the queue) lays on the bench, for the "Craft with intermediates" line. The
-  // player's own picks, and anything dropped on the bench grid, bring the bench tab up; the queue's picks do not.
+  // Watches what the page sends on its way to the game, which always gets it, whatever the hub makes of it.
   function wrapSend(win, core) {
     var original = core.UnitySendEvent;
 
     core.UnitySendEvent = function (action, data) {
-      if (action === 'RECIPE_CLICK' && data && data.recipeKey) {
-        selectedKey = data.recipeKey;
-
-        if (!isQueueActing) showView(win, 'bench');
-
-        refresh();
+      try {
+        noteSend(win, action, data);
+      } catch (e) {
+        diag('send', 'could not follow what the workbench page sent: ' + e);
       }
-
-      if (isDropOnBench(win, action, data)) showView(win, 'bench');
 
       return original.apply(this, arguments);
     };
+  }
+
+  // Which recipe the player (or the queue) lays on the bench, for the "Craft with intermediates" line, and whose craft
+  // starts next. The player's own picks, and anything dropped on the bench grid, bring the bench tab up; the queue's
+  // picks do not.
+  function noteSend(win, action, data) {
+    if (action === 'CRAFT') win.__ccUi.isOwnCraft = !isQueueActing;
+
+    if (action === 'RECIPE_CLICK' && data && data.recipeKey) {
+      selectedKey = data.recipeKey;
+
+      if (!isQueueActing) showView(win, 'bench');
+
+      refresh();
+    }
+
+    if (isDropOnBench(win, action, data)) showView(win, 'bench');
   }
 
   // The page sends ITEM_MOVE for a drag from one of its grids and GROUND_PICK_TO for one from the ground row.
@@ -176,6 +189,31 @@
     var target = action === 'ITEM_MOVE' ? data.toOwnerId : data.ownerId;
 
     return !!owner && target === owner;
+  }
+
+  // The page's drag keeps where each grid was, and the zoom, from the moment it starts. Switching the bag panel's view
+  // mid-drag moves the grids, so their hit tests drop what was kept and look where the grids are now; the page looks
+  // these up on the grid at every call.
+  function wrapGridHitTests(win) {
+    ['backpack', 'workbench'].forEach(function (name) {
+      var grid = pageValue(win, name);
+
+      if (!grid || typeof grid.isMouseOver !== 'function' || typeof grid.getGridCoordinates !== 'function') {
+        diag('grid-' + name, 'the workbench page\'s ' + name + ' grid changed shape; a drop may land where it was before a tab switch');
+
+        return;
+      }
+
+      var isMouseOver = grid.isMouseOver;
+      var getGridCoordinates = grid.getGridCoordinates;
+
+      grid.isMouseOver = function (clientX, clientY) {
+        return isMouseOver.call(this, clientX, clientY, null);
+      };
+      grid.getGridCoordinates = function (clientX, clientY, itemW, itemH) {
+        return getGridCoordinates.call(this, clientX, clientY, itemW, itemH, null, null);
+      };
+    });
   }
 
   function addStyle(doc) {
@@ -544,14 +582,16 @@
   // ---------------------------------------------------------------- the bag panel's Workbench tab
 
   // The Workbench tab sits right after the bag's own tab. It is the hub's view, not one of the game's tabs: the game's
-  // own tab stays as it was, so the bag view goes back to whichever of the bag, the drawer or a cabinet was open.
+  // own tab stays as it was, so the bag view goes back to whichever of the bag, the drawer or a cabinet was open. Once
+  // the hub has failed to draw on a page, the bench stays where the game put it there, so a hub that keeps failing
+  // cannot move it back and forth at every try.
   function ensureTabs(win) {
     var doc = win.document;
     var bag = doc.querySelector('.backpack-panel');
     var bagTab = doc.getElementById('tab-bag');
     var bench = doc.querySelector('.workbench-section');
 
-    if (!bag || !bagTab || !bench) return;
+    if (!bag || !bagTab || !bench || win.__ccUi.isTabOff) return;
 
     var tab = doc.getElementById(BENCH_TAB) || addBenchTab(doc, bagTab);
     var label = benchTitle(bench);
@@ -667,23 +707,49 @@
   }
 
   function isUnder(node, x, y) {
-    if (!node) return false;
+    var rect = node ? visibleRect(node) : null;
 
-    var rect = node.getBoundingClientRect();
-
-    return rect.width > 0 && x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
+    return !!rect && x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
   }
 
-  // The game's craft progress and its result are drawn over the bench, so the bench comes up when they do. Only their
-  // coming up counts: a player who goes back to the bag meanwhile stays there.
+  // The game's tab strip scrolls sideways; the part of a tab scrolled out of it does not count, as for the page's own
+  // drop on a tab. null when nothing of the tab shows.
+  function visibleRect(node) {
+    var rect = node.getBoundingClientRect();
+    var strip = node.closest ? node.closest('.left-tabs-scroll') : null;
+
+    if (rect.width <= 0) return null;
+
+    if (!strip) return rect;
+
+    var box = strip.getBoundingClientRect();
+    var left = Math.max(rect.left, box.left);
+    var right = Math.min(rect.right, box.right);
+    var top = Math.max(rect.top, box.top);
+    var bottom = Math.min(rect.bottom, box.bottom);
+
+    if (right <= left || bottom <= top) return null;
+
+    return { left: left, right: right, top: top, bottom: bottom };
+  }
+
+  // The game's craft progress and its result are drawn over the bench, so the bench comes up when they do, for a craft
+  // the player started; the queue's crafts leave the view alone. Only their coming up counts: a player who goes back to
+  // the bag meanwhile stays there. During a drag the switch waits for the drop, and is dropped if the overlay has gone.
   function followCraftOverlay(win) {
     var ui = win.__ccUi;
     var overlay = win.document.getElementById('crafting-overlay');
     var isShown = !!overlay && overlay.style.display === 'flex';
 
-    if (isShown && !ui.isOverlayShown) showView(win, 'bench');
+    if (isShown && !ui.isOverlayShown) ui.isOverlayPending = ui.isOwnCraft;
+    if (!isShown) ui.isOverlayPending = false;
 
     ui.isOverlayShown = isShown;
+
+    if (!ui.isOverlayPending || isGameDragging(win)) return;
+
+    ui.isOverlayPending = false;
+    showView(win, 'bench');
   }
 
   // Puts the bench back in the game's panel, ahead of the game's recipe list, where the page has it.
@@ -824,14 +890,15 @@
 
   // The page zooms itself to fit the window from the size of its panels. The hub changes that size when it is added,
   // when the bag panel switches between the bag and the bench, and when the game shows or hides its recipe list, so
-  // the page is asked to fit again then, and only then.
+  // the page is asked to fit again then, and only then. Never during a drag, which works out where it is from the zoom
+  // it started with; the poll fits the page once the item is dropped.
   function refit(win) {
     var doc = win.document;
     var panel = doc.querySelector('.combined-panel');
     var bag = doc.querySelector('.backpack-panel');
     var layout = (panel ? panel.className : '') + '|' + (bag ? bag.className : '');
 
-    if (layout === win.__ccLayout) return;
+    if (layout === win.__ccLayout || isGameDragging(win)) return;
 
     win.__ccLayout = layout;
 
@@ -1372,13 +1439,15 @@
       drawChain(win);
       refit(win);
     } catch (e) {
+      win.__ccUi.isTabOff = true;
       removeHub(win);
       throw e;
     }
   }
 
-  // A hub that could not draw is taken off whole, so the game's own list shows again; the poll tries once more later.
-  // The search box is let go of first, so the game is told its keys are its own again.
+  // A hub that could not draw is taken off whole, so the game's own list shows again; the poll tries once more later,
+  // with the bench left in the game's panel from then on. The search box is let go of first, so the game is told its
+  // keys are its own again.
   function removeHub(win) {
     var doc = win.document;
     var panel = doc.querySelector('.combined-panel');

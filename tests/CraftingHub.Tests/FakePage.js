@@ -428,6 +428,32 @@ function benchMarkup(doc) {
   node(doc, notes, 'div', 'recipe-list', 'recipe-list');
 }
 
+// One of the page's grids (createGridBag, webui-bag.js:237-264). The page's drag passes the place and zoom it kept
+// when the drag started; without them the grid looks where its container is now, at the page's zoom of 1.
+function gridBag(doc, containerId) {
+  var SLOT_PX = 40;
+
+  function where(cachedRect) {
+    return cachedRect || doc.getElementById(containerId).getBoundingClientRect();
+  }
+
+  return {
+    ownerId: 0,
+    getOwnerId: function () { return this.ownerId; },
+    isMouseOver: function (clientX, clientY, cachedRect) {
+      var rect = where(cachedRect);
+
+      return clientX >= rect.left && clientX <= rect.right && clientY >= rect.top && clientY <= rect.bottom;
+    },
+    getGridCoordinates: function (clientX, clientY, itemW, itemH, cachedRect, zoomOpt) {
+      var rect = where(cachedRect);
+      var zoom = zoomOpt || 1;
+
+      return { row: Math.floor((clientY - rect.top) / zoom / SLOT_PX), col: Math.floor((clientX - rect.left) / zoom / SLOT_PX) };
+    }
+  };
+}
+
 // The page's top-level const and let values, which the script can only read through the page's eval.
 function benchWindow(doc) {
   var win = { document: doc, sent: [], renders: 0, fits: 0, closes: 0 };
@@ -439,7 +465,8 @@ function benchWindow(doc) {
     craftQty: 1,
     // The page's drag of its grid items (createBagDragCoordinator) and its bench grid (createGridBag).
     dragCoord: { dragging: false, isDragging: function () { return this.dragging; } },
-    workbench: { ownerId: 0, getOwnerId: function () { return this.ownerId; } }
+    backpack: gridBag(doc, 'backpack-grid'),
+    workbench: gridBag(doc, 'workbench-grid')
   };
 
   win.values = values;
