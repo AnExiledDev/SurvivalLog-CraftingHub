@@ -7,10 +7,13 @@ namespace CraftingHub.Core;
 /// <summary>Queue <see cref="Crafts"/> of <see cref="Recipe"/> to bring the target's item back up.</summary>
 public readonly record struct TopUpOrder(Recipe Recipe, int Crafts);
 
-/// <summary>The orders to queue, and the names of targets that are low but whose materials are not in the house.</summary>
-public sealed record TopUpPlan(IReadOnlyList<TopUpOrder> Orders, IReadOnlyList<string> Short)
+/// <summary>
+/// The orders to queue, and the names of targets that are low but whose materials are not in the house. <see cref="Waiting"/>
+/// says why nothing was planned at all, or is "" when the targets were checked.
+/// </summary>
+public sealed record TopUpPlan(IReadOnlyList<TopUpOrder> Orders, IReadOnlyList<string> Short, string Waiting = "")
 {
-    public bool IsEmpty => Orders.Count == 0 && Short.Count == 0;
+    public bool IsEmpty => Orders.Count == 0 && Short.Count == 0 && Waiting.Length == 0;
 }
 
 /// <summary>
@@ -38,7 +41,9 @@ public static class TopUpPlanner
         {
             // The run stops at an order this bench cannot make, so nothing queued behind it would run from here, and
             // what that order makes and uses cannot be known; topping up now would only guess.
-            if (book.Find(entry.Key) is not { IsLocked: false } recipe) return new TopUpPlan(Array.Empty<TopUpOrder>(), Array.Empty<string>());
+            if (book.Find(entry.Key) is not { } recipe) return Waits($"the queue holds {entry.Name}, which this workbench cannot make");
+
+            if (recipe.IsLocked) return Waits($"the queue holds {entry.Name}, which is not unlocked yet");
 
             left = new Dictionary<int, int>(CraftPlanner.Walk(book, left, recipe, entry.Crafts, maxDepth, entry.IsTopUp ? floor : null).Left);
         }
@@ -72,6 +77,8 @@ public static class TopUpPlanner
     /// <summary>The status line for a plan, or "" when there is nothing to say.</summary>
     public static string Describe(TopUpPlan plan)
     {
+        if (plan.Waiting.Length > 0) return WaitsPrefix + plan.Waiting;
+
         var queued = string.Join(", ", plan.Orders.Select(order => $"{order.Recipe.Name} \u00d7{order.Crafts}"));
         var shortOf = string.Join(", ", plan.Short);
 
@@ -86,15 +93,20 @@ public static class TopUpPlanner
 
     /// <summary>
     /// The log line for a plan: each target it acts on, with what the home held against the target and what was done,
-    /// so a count that reads wrong shows up in the log. "" when there is nothing to say.
+    /// so a count that reads wrong shows up in the log; while the plan waits, why, with every target's count. "" when
+    /// there is nothing to say.
     /// </summary>
     public static string LogLine(TopUpPlan plan, IReadOnlyList<KeepTarget> targets, IReadOnlyDictionary<int, int> held)
     {
+        string Counted(KeepTarget target) => $"{target.Name} {held.GetValueOrDefault(target.ItemId)}/{target.Count}";
+
+        if (plan.Waiting.Length > 0) return $"{WaitsPrefix}{plan.Waiting} ({string.Join(", ", targets.Select(Counted))})";
+
         var lines = new List<string>();
 
         foreach (var target in targets)
         {
-            var counted = $"{target.Name} {held.GetValueOrDefault(target.ItemId)}/{target.Count}";
+            var counted = Counted(target);
 
             if (plan.Orders.FirstOrDefault(candidate => candidate.Recipe.Key == target.RecipeKey) is { Crafts: > 0 } order) lines.Add($"{counted} -> x{order.Crafts}");
             else if (plan.Short.Contains(target.Name)) lines.Add($"{counted} -> not enough materials");
@@ -102,6 +114,11 @@ public static class TopUpPlanner
 
         return lines.Count == 0 ? "" : "Keep stocked: " + string.Join(", ", lines);
     }
+
+    private const string WaitsPrefix = "Keep stocked waits: ";
+
+    /// <summary>Nothing planned, and why.</summary>
+    private static TopUpPlan Waits(string why) => new(Array.Empty<TopUpOrder>(), Array.Empty<string>(), why);
 
     /// <summary>The recipe the target was set on, while this bench lists it, it is unlocked, and it still makes the item.</summary>
     private static Recipe? Maker(RecipeBook book, KeepTarget target) =>

@@ -3,16 +3,16 @@ using System.Collections.Generic;
 using CraftingHub.Core;
 using GameCore.HotUpdate;
 using GameCore.HotUpdate.Battle.Logic;
-using GameCore.HotUpdate.ReduxUI;
-using Il2CppInterop.Runtime;
-using Il2CppItems = Il2CppSystem.Collections.Generic.Dictionary<long, Il2CppSystem.Collections.Generic.Dictionary<long, GameCore.HotUpdate.ReduxUI.Data_Item>>;
+using Il2CppItems = Il2CppSystem.Collections.Generic.Dictionary<long, Il2CppSystem.Collections.Generic.Dictionary<long, GameCore.HotUpdate.Battle.Logic.ItemData>>;
 
 namespace CraftingHub.Adapters;
 
 /// <summary>
-/// How many of an item the home holds, over the owners ItemManager.GetAvailableItemCount scans (the player, every home
-/// storage visible or not, and the workbench drawer, its one synthetic owner). That method sums raw counts, so an
-/// unstackable item, which carries a count of 0, read as none; this counts units the way the crafting pool does.
+/// How many of an item the home holds, over the owners and the item cache ItemManager.GetAvailableItemCount reads (the
+/// player, every home storage visible or not, and the workbench drawer, its one synthetic owner, all looked up in the
+/// logic side's OwnerCache, which holds every storage whether or not its page was ever opened). That method sums raw
+/// counts, so an unstackable item, which carries a count of 0, read as none; this counts units the way the crafting
+/// pool does. It only looks the stacks up, so reading changes nothing in the game.
 /// </summary>
 internal sealed class HomeStock
 {
@@ -27,8 +27,9 @@ internal sealed class HomeStock
     /// <summary>Item id to count, or null when the game's items cannot be read, so nothing is topped up on a guess.</summary>
     public IReadOnlyDictionary<int, int>? Count(IEnumerable<int> itemIds)
     {
-        var agents = GameSingleton.Existing<BattleLogicWorld>()?._AgentManager;
-        var cache = GameSingleton.Existing<ReduxUISystem>()?.GetData<State_Data_Item>(Il2CppType.Of<State_Data_Item>())?.OwnerCache;
+        var world = GameSingleton.Existing<BattleLogicWorld>();
+        var agents = world?._AgentManager;
+        var cache = world?._ItemManager?.OwnerCache;
 
         if (agents == null || cache == null) return null;
 

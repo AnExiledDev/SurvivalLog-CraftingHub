@@ -84,9 +84,10 @@ public class KeptPartPlanningTests
     }
 
     [Fact]
-    public void Nothing_is_topped_up_while_the_queue_holds_an_order_this_bench_cannot_make()
+    public void Nothing_is_topped_up_while_the_queue_holds_an_order_this_bench_cannot_make_and_the_player_is_told_why()
     {
         // The run stops at such an order, so a top-up behind it would never run here, and what it makes is unknown.
+        // Going quiet would read as keep stocked being broken, so the plan carries the reason.
         var targets = new[] { Keep(Bench.Rope, "rope", 5) };
         var stock = Bench.Mats((Bench.Fibre, 30));
         var held = Bench.Mats((Bench.Rope, 0));
@@ -95,8 +96,12 @@ public class KeptPartPlanningTests
         var unlisted = TopUpPlanner.Plan(targets, Book, stock, held, new[] { new QueueEntry("saw", "Saw", 1, Id: 1) }, MaxDepth);
         var locked = TopUpPlanner.Plan(targets, lockedBook, stock, held, new[] { new QueueEntry("rope-locked", "Rope", 1, Id: 1) }, MaxDepth);
 
-        Assert.True(unlisted.IsEmpty);
-        Assert.True(locked.IsEmpty);
+        Assert.Empty(unlisted.Orders);
+        Assert.Empty(locked.Orders);
+        Assert.False(unlisted.IsEmpty);
+        Assert.Equal("Keep stocked waits: the queue holds Saw, which this workbench cannot make", TopUpPlanner.Describe(unlisted));
+        Assert.Equal("Keep stocked waits: the queue holds Rope, which is not unlocked yet", TopUpPlanner.Describe(locked));
+        Assert.Equal("Keep stocked waits: the queue holds Saw, which this workbench cannot make (Rope 0/5)", TopUpPlanner.LogLine(unlisted, targets, held));
     }
 
     private static KeepTarget Keep(int itemId, string key, int count) => new(itemId, key, itemId == Bench.Crate ? "Crate" : Bench.Name(itemId), count);
