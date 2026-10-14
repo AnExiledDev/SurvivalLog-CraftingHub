@@ -7,7 +7,7 @@ namespace CraftingHub.Core;
 /// <summary>
 /// Turns the head of the queue into the next craft to run, from the bench's recipes and the stock right now. A
 /// keep-stocked order only uses what is spare above the kept counts, so it makes its intermediates rather than eat
-/// another kept item; the player's own orders may use anything in the house.
+/// another kept item, and refills a kept item it has to make; the player's own orders may use anything in the house.
 /// </summary>
 public static class QueuePlanner
 {
@@ -19,9 +19,9 @@ public static class QueuePlanner
 
         if (target.IsLocked) return new NextStep.Blocked($"{order.Name} is not unlocked yet");
 
-        var usable = order.IsTopUp ? KeptStock.Spare(stock, kept) : stock;
+        var floor = order.IsTopUp ? KeptStock.Floor(kept) : null;
 
-        return CraftPlanner.Plan(book, usable, target, order.Crafts, maxDepth) switch
+        return CraftPlanner.Plan(book, stock, target, order.Crafts, maxDepth, floor) switch
         {
             CraftPlan.Ready ready => new NextStep.Craft(ready.Steps[0], IsTarget: ready.Steps.Count == 1, OrderId: order.Id),
             CraftPlan.Short shortOf => new NextStep.Blocked($"can't make {order.Name} ×{order.Crafts}: short of {Missing(shortOf.Missing, itemName)}"),

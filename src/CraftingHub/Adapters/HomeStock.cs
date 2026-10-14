@@ -1,12 +1,18 @@
 using System;
 using System.Collections.Generic;
+using CraftingHub.Core;
+using GameCore.HotUpdate;
 using GameCore.HotUpdate.Battle.Logic;
+using GameCore.HotUpdate.ReduxUI;
+using Il2CppInterop.Runtime;
+using Il2CppItems = Il2CppSystem.Collections.Generic.Dictionary<long, Il2CppSystem.Collections.Generic.Dictionary<long, GameCore.HotUpdate.ReduxUI.Data_Item>>;
 
 namespace CraftingHub.Adapters;
 
 /// <summary>
-/// How many of an item the home holds, counted the way the game counts its crafting pool: ItemManager's
-/// GetAvailableItemCount sums the player, every home storage (visible or not) and the home's synthetic owners.
+/// How many of an item the home holds, over the owners ItemManager.GetAvailableItemCount scans (the player, every home
+/// storage visible or not, and the workbench drawer, its one synthetic owner). That method sums raw counts, so an
+/// unstackable item, which carries a count of 0, read as none; this counts units the way the crafting pool does.
 /// </summary>
 internal sealed class HomeStock
 {
@@ -18,20 +24,17 @@ internal sealed class HomeStock
         _log = log;
     }
 
-    /// <summary>Item id to count, or null when the game's item manager cannot be read, so nothing is topped up on a guess.</summary>
+    /// <summary>Item id to count, or null when the game's items cannot be read, so nothing is topped up on a guess.</summary>
     public IReadOnlyDictionary<int, int>? Count(IEnumerable<int> itemIds)
     {
-        var items = GameSingleton.Existing<BattleLogicWorld>()?._ItemManager;
+        var agents = GameSingleton.Existing<BattleLogicWorld>()?._AgentManager;
+        var cache = GameSingleton.Existing<ReduxUISystem>()?.GetData<State_Data_Item>(Il2CppType.Of<State_Data_Item>())?.OwnerCache;
 
-        if (items == null) return null;
+        if (agents == null || cache == null) return null;
 
         try
         {
-            var counts = new Dictionary<int, int>();
-
-            foreach (var itemId in itemIds) counts[itemId] = items.GetAvailableItemCount(itemId);
-
-            return counts;
+            return HeldCount.Tally(itemIds, Owners(agents), owner => StacksIn(cache, owner));
         }
         catch (Exception ex)
         {
@@ -40,6 +43,32 @@ internal sealed class HomeStock
             _hasLoggedFailure = true;
 
             return null;
+        }
+    }
+
+    /// <summary>The same owners, and the same storage query, as GetAvailableItemCount (rva 0x2581980).</summary>
+    private static List<long> Owners(AgentManager agents)
+    {
+        var owners = new List<long> { agents.LeadingRoleId, WorkbenchDrawerConfig.DrawerOwnerId };
+        var storages = agents.GetFurnituresWithBag(agents.GetHomeMapId(), false, true, false);
+
+        for (var i = 0; storages != null && i < storages.Count; i++)
+        {
+            var furniture = storages[i];
+
+            if (furniture != null) owners.Add(furniture.InstanceId);
+        }
+
+        return owners;
+    }
+
+    private static IEnumerable<HeldStack> StacksIn(Il2CppItems cache, long owner)
+    {
+        if (!cache.TryGetValue(owner, out var held) || held == null) yield break;
+
+        foreach (var item in held.Values)
+        {
+            if (item != null) yield return new HeldStack(item.OwnerId, item.ItemConfigId, item.ItemCount);
         }
     }
 }

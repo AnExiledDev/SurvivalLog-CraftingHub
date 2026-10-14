@@ -83,11 +83,11 @@ public static class QueueForecast
             if (target.IsLocked) return new OrderOutlook(order.Id, OrderState.Locked, "Not unlocked yet");
 
             // A top-up only plans from what is spare above the kept counts, as the run does.
-            var usable = order.IsTopUp ? KeptStock.Spare(_left, _kept) : _left.ToDictionary(pair => pair.Key, pair => pair.Value);
-            var walk = CraftPlanner.Walk(_book, usable, target, order.Crafts, _maxDepth);
+            var floor = order.IsTopUp ? KeptStock.Floor(_kept) : null;
+            var walk = CraftPlanner.Walk(_book, _left, target, order.Crafts, _maxDepth, floor);
             var intermediates = Merged(walk.Steps.Take(walk.Steps.Count - 1));
 
-            TakeFromStock(usable, walk);
+            TakeFromStock(walk);
             Count(walk.Missing);
             foreach (var step in intermediates) AddTo(_made, step);
 
@@ -120,15 +120,10 @@ public static class QueueForecast
             return new MaterialTotal(itemId, _itemName(itemId), used + missing, have, missing);
         }
 
-        /// <summary>Applies the change the order made to what it could use back onto everything left.</summary>
-        private void TakeFromStock(IReadOnlyDictionary<int, int> usable, CraftWalk walk)
+        /// <summary>The walk planned from everything left, so what it leaves is what the next order starts from.</summary>
+        private void TakeFromStock(CraftWalk walk)
         {
-            foreach (var (itemId, after) in walk.Left)
-            {
-                var change = after - usable.GetValueOrDefault(itemId);
-
-                _left[itemId] = Math.Max(0, _left.GetValueOrDefault(itemId) + change);
-            }
+            foreach (var (itemId, after) in walk.Left) _left[itemId] = after;
         }
 
         private void Count(IReadOnlyDictionary<int, int> missing)

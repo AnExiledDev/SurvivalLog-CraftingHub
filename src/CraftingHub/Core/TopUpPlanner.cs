@@ -14,12 +14,13 @@ public sealed record TopUpPlan(IReadOnlyList<TopUpOrder> Orders, IReadOnlyList<s
 }
 
 /// <summary>
-/// Works out what to queue so each keep-stocked target is back at its count. What the house holds and what the queue
-/// will already make both count against the target, so checking twice never queues twice. Orders are capped by the
-/// materials on hand, including what the queue will already use up, so nothing is queued that would stop the run for
-/// want of materials; a target with no materials at all is only reported. Orders plan from the spare stock only, the
-/// same way <see cref="QueuePlanner"/> runs them, so no order eats an item another target keeps. Crafts are whole,
-/// so a recipe that makes several per craft can end a little over the target, by less than one craft's worth.
+/// Works out what to queue so each keep-stocked target is back at its count. What the house holds, plus what the queue
+/// will make and less what it will use up, counts against the target, so checking twice never queues twice. Orders are
+/// capped by the materials on hand, including what the queue will already use up, so nothing is queued that would stop
+/// the run for want of materials; a target with no materials at all is only reported. Orders plan with the kept counts
+/// as their floor, the same way <see cref="QueuePlanner"/> runs them, so no order eats an item another target keeps,
+/// and a kept part an order has to make is refilled by it. Crafts are whole, so a recipe that makes several per craft
+/// can end a little over the target, by less than one craft's worth.
 /// </summary>
 public static class TopUpPlanner
 {
@@ -28,25 +29,31 @@ public static class TopUpPlanner
     public static TopUpPlan Plan(IReadOnlyList<KeepTarget> targets, RecipeBook book, IReadOnlyDictionary<int, int> stock,
         IReadOnlyDictionary<int, int> held, IReadOnlyList<QueueEntry> queue, int maxDepth)
     {
+        var floor = KeptStock.Floor(targets);
         var left = stock.ToDictionary(pair => pair.Key, pair => pair.Value);
         var orders = new List<TopUpOrder>();
         var shortOf = new List<string>();
 
         foreach (var entry in queue)
         {
-            if (book.Find(entry.Key) is { IsLocked: false } recipe) left = Reserve(book, left, targets, recipe, entry.Crafts, maxDepth, entry.IsTopUp).Left;
+            // The run stops at an order this bench cannot make, so nothing queued behind it would run from here, and
+            // what that order makes and uses cannot be known; topping up now would only guess.
+            if (book.Find(entry.Key) is not { IsLocked: false } recipe) return new TopUpPlan(Array.Empty<TopUpOrder>(), Array.Empty<string>());
+
+            left = new Dictionary<int, int>(CraftPlanner.Walk(book, left, recipe, entry.Crafts, maxDepth, entry.IsTopUp ? floor : null).Left);
         }
 
         foreach (var target in targets)
         {
             if (!held.TryGetValue(target.ItemId, out var have) || Maker(book, target) is not { } recipe) continue;
 
-            var deficit = target.Count - have - Queued(book, queue, target.ItemId);
+            // The queue and the orders planned so far change the count by what they leave against what is there now.
+            var deficit = target.Count - have - (left.GetValueOrDefault(target.ItemId) - stock.GetValueOrDefault(target.ItemId));
 
             if (deficit <= 0) continue;
 
             var wanted = (deficit + recipe.Yield - 1) / recipe.Yield;
-            var (crafts, after) = Reserve(book, left, targets, recipe, wanted, maxDepth, isTopUp: true);
+            var (crafts, after) = Reserve(book, left, floor, recipe, wanted, maxDepth);
 
             if (crafts == 0)
             {
@@ -77,21 +84,36 @@ public static class TopUpPlanner
         };
     }
 
+    /// <summary>
+    /// The log line for a plan: each target it acts on, with what the home held against the target and what was done,
+    /// so a count that reads wrong shows up in the log. "" when there is nothing to say.
+    /// </summary>
+    public static string LogLine(TopUpPlan plan, IReadOnlyList<KeepTarget> targets, IReadOnlyDictionary<int, int> held)
+    {
+        var lines = new List<string>();
+
+        foreach (var target in targets)
+        {
+            var counted = $"{target.Name} {held.GetValueOrDefault(target.ItemId)}/{target.Count}";
+
+            if (plan.Orders.FirstOrDefault(candidate => candidate.Recipe.Key == target.RecipeKey) is { Crafts: > 0 } order) lines.Add($"{counted} -> x{order.Crafts}");
+            else if (plan.Short.Contains(target.Name)) lines.Add($"{counted} -> not enough materials");
+        }
+
+        return lines.Count == 0 ? "" : "Keep stocked: " + string.Join(", ", lines);
+    }
+
     /// <summary>The recipe the target was set on, while this bench lists it, it is unlocked, and it still makes the item.</summary>
     private static Recipe? Maker(RecipeBook book, KeepTarget target) =>
         book.Find(target.RecipeKey) is { IsLocked: false, Yield: > 0 } recipe && recipe.ProductId == target.ItemId ? recipe : null;
 
-    private static int Queued(RecipeBook book, IReadOnlyList<QueueEntry> queue, int itemId) =>
-        queue.Sum(entry => book.Find(entry.Key) is { } recipe && recipe.ProductId == itemId ? entry.Crafts * recipe.Yield : 0);
-
     /// <summary>
     /// The most crafts, up to <paramref name="wanted"/>, that the stock can make, and the whole stock once they ran. A
-    /// top-up plans from the spare stock only, so the kept counts, including what this order just made, stay untouched.
+    /// top-up plans above the kept counts only, so they stay untouched, or are refilled when the order makes that item.
     /// </summary>
-    private static (int Crafts, Dictionary<int, int> Left) Reserve(RecipeBook book, Dictionary<int, int> stock, IReadOnlyList<KeepTarget> kept,
-        Recipe recipe, int wanted, int maxDepth, bool isTopUp)
+    private static (int Crafts, Dictionary<int, int> Left) Reserve(RecipeBook book, Dictionary<int, int> stock, IReadOnlyDictionary<int, int> floor,
+        Recipe recipe, int wanted, int maxDepth)
     {
-        var usable = isTopUp ? KeptStock.Spare(stock, kept) : stock;
         var best = 0;
         IReadOnlyList<CraftStep> bestSteps = Array.Empty<CraftStep>();
         var low = 1;
@@ -102,7 +124,7 @@ public static class TopUpPlanner
         {
             var mid = low + (high - low) / 2;
 
-            if (CraftPlanner.Plan(book, usable, recipe, mid, maxDepth) is CraftPlan.Ready ready)
+            if (CraftPlanner.Plan(book, stock, recipe, mid, maxDepth, floor) is CraftPlan.Ready ready)
             {
                 best = mid;
                 bestSteps = ready.Steps;
