@@ -306,7 +306,7 @@ internal sealed class HubSession
         foreach (var order in plan.Orders) _queue.Add(order.Recipe.Key, order.Recipe.Name, order.Crafts, isTopUp: true);
 
         _status = TopUpPlanner.Describe(plan);
-        _logFileOnly(_status);
+        _logFileOnly(TopUpPlanner.LogLine(plan, targets, held));
 
         if (_settings.AutoStartTopUps && wasEmpty && plan.Orders.Count > 0) StartRun("keep stocked");
     }
