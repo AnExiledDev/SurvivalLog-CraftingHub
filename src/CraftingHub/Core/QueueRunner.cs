@@ -22,7 +22,49 @@ namespace CraftingHub.Core;
 /// </param>
 /// <param name="BatchSuccess">The crafts in <see cref="BatchDone"/> that succeeded; reset with it.</param>
 /// <param name="IsCrafting">A craft is being made right now, as opposed to a batch flag left set.</param>
-public readonly record struct BenchView(bool IsOpen, bool IsBusy, bool HasResult, int MaxCrafts, IReadOnlyDictionary<int, int> Contents, int BatchDone, long BenchId = 0, bool BatchActive = false, int BatchSuccess = 0, bool IsCrafting = false);
+/// <param name="IsHandHeld">
+/// The game still holds the last craft's product in hand (HandMadeState 2 or 3). It ignores recipe clicks and crafts
+/// until that clears, which it does when the bag next refreshes, or when the workbench is opened again.
+/// </param>
+/// <param name="PreviewReady">The game has recounted what is laid out and matched it to a recipe.</param>
+/// <param name="MaxByStamina">Stamina, not materials, sets <see cref="MaxCrafts"/>.</param>
+/// <param name="CraftLocked">The laid-out recipe is locked; <see cref="LockText"/> is the game's reason.</param>
+/// <param name="Stamina">The player's stamina and a craft's cost; null when it could not be read.</param>
+/// <param name="Results">Crafts the game has finished since the plugin loaded; null when they are not being counted.</param>
+/// <param name="Refreshes">Goes up every time the game rebuilds the recipe list, which it does after items move.</param>
+public readonly record struct BenchView(
+    bool IsOpen,
+    bool IsBusy,
+    bool HasResult,
+    int MaxCrafts,
+    IReadOnlyDictionary<int, int> Contents,
+    int BatchDone,
+    long BenchId = 0,
+    bool BatchActive = false,
+    int BatchSuccess = 0,
+    bool IsCrafting = false,
+    bool IsHandHeld = false,
+    bool PreviewReady = false,
+    bool MaxByStamina = false,
+    bool CraftLocked = false,
+    string LockText = "",
+    StaminaRead? Stamina = null,
+    ResultCount? Results = null,
+    int Refreshes = 0);
+
+/// <summary>The player's stamina and what one craft costs, as the game works them out for the workbench.</summary>
+public readonly record struct StaminaRead(float Current, float PerCraft)
+{
+    public int Have => (int)Math.Floor(Current);
+
+    /// <summary>Rounded the game's way, to the figure the workbench shows.</summary>
+    public int Cost => (int)Math.Round(PerCraft);
+
+    public bool IsShort => PerCraft > 0 && Current < PerCraft;
+}
+
+/// <summary>Crafts the game has finished, every one and the successful ones; both only go up.</summary>
+public readonly record struct ResultCount(int All, int Successes);
 
 /// <summary>What to craft next, worked out fresh from the queue and the stock each time it is asked.</summary>
 public abstract record NextStep
@@ -37,6 +79,9 @@ public abstract record NextStep
     public sealed record Finished : NextStep;
 
     public sealed record Blocked(string Reason) : NextStep;
+
+    /// <summary>Nothing can be planned this moment (the workbench could not be read); ask again shortly.</summary>
+    public sealed record Wait(string Reason) : NextStep;
 }
 
 /// <summary>What the runner wants done this frame. Every action is one the player could take by clicking.</summary>
@@ -111,6 +156,18 @@ public sealed class QueueRunner
     /// <summary>A workbench that stays busy and unchanged this long gets a status line, so a stall is not silent.</summary>
     public const double BusyNoticeSeconds = 30;
 
+    /// <summary>A hand held this long, with nothing crafting, is taken as stuck until the workbench is opened again.</summary>
+    public const double HeldHandSeconds = 10;
+
+    /// <summary>How long the plan may say "wait" in a row before the run stops with its reason.</summary>
+    public const double WaitLimitSeconds = 3;
+
+    /// <summary>A shortage this soon after a step may come from a stock count taken before the game moved the product.</summary>
+    public const double RecheckWindowSeconds = 1;
+
+    /// <summary>How long a recheck waits for the game to rebuild its recipe list before planning again anyway.</summary>
+    public const double RefreshWaitSeconds = 2;
+
     private const string ClosedReason = "the workbench closed; the queue is kept, press Craft queue to carry on";
     private const string PausedReason = "the workbench closed; the queue carries on when you open it again";
     private const string PausedAnyBenchReason = "the workbench closed; the queue carries on when you open any workbench";
@@ -119,6 +176,8 @@ public sealed class QueueRunner
     private const string ElsewhereReason = "the queue carries on at the workbench it was running on; press Stop, then Craft queue, to run it here";
     private const string StaleBatchNotice = "the workbench shows a batch in progress with nothing being made; carrying on with the next craft";
     private const string BusyNotice = "waiting for the workbench: it has shown a craft in progress for a while with no change";
+    private const string StuckPausedReason = "the workbench is stuck after the last craft; close it and open it again to carry on with the queue";
+    private const string StuckStoppedReason = "the workbench is stuck after the last craft; close it and open it again, then press Craft queue";
 
     private enum Stage
     {
@@ -152,6 +211,16 @@ public sealed class QueueRunner
     private int _intermediateBatches;
     private long _benchId;
     private bool _hasToldElsewhere;
+    private double? _heldSince;
+    private bool _needsReopen;
+    private double? _waitingSince;
+    private double _stepDoneAt = double.NegativeInfinity;
+    private bool _hasRechecked;
+    private double? _recheckSince;
+    private int _recheckRefreshes;
+    private ResultCount? _resultsAtSend;
+    private int _made;
+    private int _madeOk;
 
     /// <param name="resumesOnReopen">Off, a closed workbench stops the run, as it did before runs could pause.</param>
     /// <param name="resumesAtOtherBenches">
@@ -167,6 +236,9 @@ public sealed class QueueRunner
     public bool IsRunning => _stage != Stage.Idle;
 
     public bool IsPaused => _stage is Stage.Paused or Stage.Resuming;
+
+    /// <summary>The last run stopped because the player is out of stamina; cleared when a run starts.</summary>
+    public bool StoppedForStamina { get; private set; }
 
     public CraftNowPlace CraftNowPlace => IsPaused ? CraftNowPlace.Refused : _current != null ? CraftNowPlace.BehindHead : CraftNowPlace.Front;
 
@@ -185,6 +257,13 @@ public sealed class QueueRunner
         _benchId = 0;
         _intermediateBatches = 0;
         _isBatchStale = false;
+        _heldSince = null;
+        _needsReopen = false;
+        _waitingSince = null;
+        _stepDoneAt = double.NegativeInfinity;
+        _hasRechecked = false;
+        _recheckSince = null;
+        StoppedForStamina = false;
     }
 
     public RunnerCommand Stop(string reason, bool isDone = false)
@@ -204,7 +283,7 @@ public sealed class QueueRunner
 
         if (IsPaused) return WaitForBench(bench, now);
 
-        if (!bench.IsOpen) return Interrupted(bench);
+        if (!bench.IsOpen) return Interrupted(bench, now);
 
         if (bench.BenchId != 0) _benchId = bench.BenchId;
 
@@ -221,14 +300,24 @@ public sealed class QueueRunner
         };
     }
 
-    /// <summary>The bench holds exactly the recipe's kinds of material, with enough of each for one craft.</summary>
-    public static bool HoldsOneCraft(IReadOnlyDictionary<int, int> contents, IReadOnlyDictionary<int, int> materials)
+    /// <summary>
+    /// The bench holds exactly one craft's materials, unit for unit. The game matches what is laid out to a recipe by
+    /// exact units, so a bench with extra on it is matched to no craft.
+    /// </summary>
+    public static bool HoldsOneCraft(IReadOnlyDictionary<int, int> contents, IReadOnlyDictionary<int, int> materials) =>
+        HoldsCraft(contents, materials, (count, perCraft) => count == perCraft);
+
+    /// <summary>The bench holds the recipe's kinds of material and no other, with at least one craft's worth of each.</summary>
+    public static bool HoldsAtLeastOneCraft(IReadOnlyDictionary<int, int> contents, IReadOnlyDictionary<int, int> materials) =>
+        HoldsCraft(contents, materials, (count, perCraft) => count >= perCraft);
+
+    private static bool HoldsCraft(IReadOnlyDictionary<int, int> contents, IReadOnlyDictionary<int, int> materials, Func<int, int, bool> isEnough)
     {
         if (contents.Count != materials.Count) return false;
 
         foreach (var (itemId, perCraft) in materials)
         {
-            if (!contents.TryGetValue(itemId, out var count) || count < perCraft) return false;
+            if (!contents.TryGetValue(itemId, out var count) || !isEnough(count, perCraft)) return false;
         }
 
         return true;
@@ -240,12 +329,25 @@ public sealed class QueueRunner
 
         _busyWith = null;
 
-        switch (next())
+        // The game drops recipe clicks while it still holds the last craft in hand, so the next step waits for it.
+        if (bench.IsHandHeld) return WaitForHand(now);
+
+        _heldSince = null;
+
+        if (IsAwaitingRefresh(bench, now)) return new RunnerCommand.None();
+
+        var step = next();
+
+        if (step is not NextStep.Wait) _waitingSince = null;
+
+        switch (step)
         {
             case NextStep.Finished:
                 return Stop("queue finished", isDone: true);
+            case NextStep.Wait wait:
+                return WaitForPlan(wait.Reason, now);
             case NextStep.Blocked blocked:
-                return Stop(blocked.Reason);
+                return IsTooSoonToTrust(now) ? Recheck(bench, now) : Stop(blocked.Reason);
             case NextStep.Craft craft:
                 // Intermediates that never lead to a finished target mean the plan and the game disagree; better to
                 // stop than to turn every log in the house into planks.
@@ -260,6 +362,68 @@ public sealed class QueueRunner
             default:
                 return Stop("nothing to craft");
         }
+    }
+
+    /// <summary>
+    /// A hand held with nothing crafting clears when the game next refreshes the bag. One that stays held (at once,
+    /// when the batch flag beside it is stale) is stuck until the workbench opens again, so the run asks for that.
+    /// </summary>
+    private RunnerCommand WaitForHand(double now)
+    {
+        _heldSince ??= now;
+
+        var limit = _isBatchStale ? 0 : HeldHandSeconds;
+
+        return now - _heldSince >= limit ? StuckHand() : new RunnerCommand.None();
+    }
+
+    private RunnerCommand StuckHand()
+    {
+        _heldSince = null;
+        _current = null;
+
+        if (!_resumesOnReopen) return Stop(StuckStoppedReason);
+
+        _stage = Stage.Paused;
+        _needsReopen = true;
+        _hasToldElsewhere = false;
+
+        return new RunnerCommand.Paused(StuckPausedReason);
+    }
+
+    /// <summary>A moment the plan could not be worked out is waited out; one that lasts stops the run with its reason.</summary>
+    private RunnerCommand WaitForPlan(string reason, double now)
+    {
+        _waitingSince ??= now;
+
+        return now - _waitingSince >= WaitLimitSeconds ? Stop(reason) : new RunnerCommand.None();
+    }
+
+    /// <summary>
+    /// A shortage found right after a step may come from stock counted before the game put the product away, so it is
+    /// planned again once, after the game rebuilds its recipe list.
+    /// </summary>
+    private bool IsTooSoonToTrust(double now) => !_hasRechecked && now - _stepDoneAt < RecheckWindowSeconds;
+
+    private RunnerCommand Recheck(BenchView bench, double now)
+    {
+        _hasRechecked = true;
+        _recheckSince = now;
+        _recheckRefreshes = bench.Refreshes;
+
+        return new RunnerCommand.None();
+    }
+
+    /// <summary>A recheck holds the plan until the game rebuilds its recipe list, or a short while has passed.</summary>
+    private bool IsAwaitingRefresh(BenchView bench, double now)
+    {
+        if (_recheckSince is not { } since) return false;
+
+        if (bench.Refreshes == _recheckRefreshes && now - since < RefreshWaitSeconds) return true;
+
+        _recheckSince = null;
+
+        return false;
     }
 
     /// <summary>
@@ -301,13 +465,20 @@ public sealed class QueueRunner
     private RunnerCommand CraftWhenLaidOut(BenchView bench, double now)
     {
         var step = Current.Step;
+
+        if (bench.IsHandHeld) return HoldFillClock(now);
+
+        _heldSince = null;
+
         var holdsOneCraft = HoldsOneCraft(bench.Contents, step.Recipe.Materials);
+
+        if (holdsOneCraft && !IsBusy(bench) && bench.MaxCrafts < 1 && bench.PreviewReady) return HeldBackByGame(bench, now, step.Recipe);
 
         if (IsBusy(bench) || bench.MaxCrafts < 1 || !holdsOneCraft)
         {
             _settledSince = null;
 
-            if (now - _stageSince > FillTimeoutSeconds) return Stop(FillFailure(bench, holdsOneCraft, step.Recipe.Name));
+            if (now - _stageSince > FillTimeoutSeconds) return Stop(FillFailure(bench, step.Recipe));
 
             return IsBusy(bench) || holdsOneCraft ? new RunnerCommand.None() : ClickAgain(step.Recipe.Key, now);
         }
@@ -323,19 +494,66 @@ public sealed class QueueRunner
         _hasSeenBatch = false;
         _hasStarted = false;
         _quietSince = null;
+        _resultsAtSend = bench.Results;
+        _made = 0;
+        _madeOk = 0;
         Enter(Stage.Crafting, now);
 
         return new RunnerCommand.Craft(_sentQuantity);
     }
 
     /// <summary>
-    /// A free bench that holds a whole craft's materials and still allows no craft is held back by the player, most
-    /// often by too little stamina, not by the materials.
+    /// The game ignores clicks while it holds the last craft in hand, so the fill clock starts once the hand clears,
+    /// and the click goes again then.
     /// </summary>
-    private string FillFailure(BenchView bench, bool holdsOneCraft, string recipeName) =>
-        holdsOneCraft && !IsBusy(bench)
-            ? $"the materials for {recipeName} are laid out but the game allows no craft; you may be out of stamina"
-            : $"the game did not lay out the materials for {recipeName}";
+    private RunnerCommand HoldFillClock(double now)
+    {
+        _stageSince = now;
+        _clickedAt = now - RecipeClickRetrySeconds;
+        _settledSince = null;
+
+        return WaitForHand(now);
+    }
+
+    /// <summary>
+    /// The game matched the layout to the recipe and still allows no craft. Its own flags say why: the recipe is
+    /// locked, or the player is out of stamina; read once the count has settled. With neither, the click goes again.
+    /// </summary>
+    private RunnerCommand HeldBackByGame(BenchView bench, double now, Recipe recipe)
+    {
+        if (!bench.CraftLocked && !bench.MaxByStamina)
+        {
+            _settledSince = null;
+
+            return now - _stageSince > FillTimeoutSeconds ? Stop(FillFailure(bench, recipe)) : ClickAgain(recipe.Key, now);
+        }
+
+        _settledSince ??= now;
+
+        if (now - _settledSince < SettleSeconds) return new RunnerCommand.None();
+
+        if (bench.CraftLocked) return Stop(bench.LockText.Length > 0 ? $"{recipe.Name} is locked: {bench.LockText}" : $"{recipe.Name} is locked");
+
+        StoppedForStamina = true;
+
+        return Stop(OutOfStamina(bench.Stamina, recipe.Name));
+    }
+
+    private static string OutOfStamina(StaminaRead? stamina, string recipeName) =>
+        stamina is { Cost: > 0 } read
+            ? $"Out of stamina: {recipeName} needs {read.Cost} per craft, you have {read.Have}"
+            : $"Out of stamina: there is not enough stamina for a craft of {recipeName}";
+
+    private string FillFailure(BenchView bench, Recipe recipe)
+    {
+        if (IsBusy(bench)) return $"the game did not lay out the materials for {recipe.Name}";
+
+        if (HoldsOneCraft(bench.Contents, recipe.Materials)) return $"the materials for {recipe.Name} are laid out but the game allows no craft of it";
+
+        return HoldsAtLeastOneCraft(bench.Contents, recipe.Materials)
+            ? $"the workbench holds more than one craft's worth of materials for {recipe.Name}; the game crafts only from exactly one craft's worth, so take the extra off the workbench"
+            : $"the game did not lay out the materials for {recipe.Name}";
+    }
 
     /// <summary>
     /// The game ignores a recipe click while it still counts the last craft as in hand, which it clears only when it
@@ -357,6 +575,7 @@ public sealed class QueueRunner
         var isActive = IsBusy(bench) || bench.HasResult;
 
         CountBatch(bench);
+        CountResults(bench);
 
         if (isActive) _hasStarted = true;
 
@@ -379,14 +598,15 @@ public sealed class QueueRunner
         // Started, and now neither crafting nor showing a result: the game finished without a result screen.
         _quietSince ??= now;
 
-        return now - _quietSince >= QuietDoneSeconds ? FinishStep() : new RunnerCommand.None();
+        return now - _quietSince >= QuietDoneSeconds ? FinishStep(now) : new RunnerCommand.None();
     }
 
     private RunnerCommand WaitForCollect(BenchView bench, double now)
     {
         CountBatch(bench);
+        CountResults(bench);
 
-        if (!bench.HasResult) return FinishStep();
+        if (!bench.HasResult) return FinishStep(now);
 
         return now - _stageSince > CollectTimeoutSeconds ? Stop("the result screen did not close") : new RunnerCommand.None();
     }
@@ -408,12 +628,31 @@ public sealed class QueueRunner
     }
 
     /// <summary>
+    /// The game's own count of finished crafts, taken from the moment the step was sent. Unlike the batch count it
+    /// also sees crafts the game makes one at a time, so a step is credited with what was really made.
+    /// </summary>
+    private void CountResults(BenchView bench)
+    {
+        if (_resultsAtSend is not { } atSend || bench.Results is not { } seen) return;
+
+        _made = Math.Max(_made, seen.All - atSend.All);
+        _madeOk = Math.Max(_madeOk, seen.Successes - atSend.Successes);
+    }
+
+    /// <summary>
     /// Read from the window just closed. The close may post its cancelled craft as a failed one, so only successes
     /// since the last look add to the count; a real failure in that moment is made again rather than risk counting
     /// the cancelled craft.
     /// </summary>
     private void CountLateSuccesses(BenchView closed)
     {
+        if (_resultsAtSend is { } atSend && closed.Results is { } seen)
+        {
+            var lateSuccesses = Math.Max(0, seen.Successes - atSend.Successes - _madeOk);
+            _made += lateSuccesses;
+            _madeOk += lateSuccesses;
+        }
+
         if (!_hasSeenBatch) return;
 
         _batchDone += Math.Max(0, closed.BatchSuccess - _batchSuccess);
@@ -421,20 +660,26 @@ public sealed class QueueRunner
     }
 
     /// <summary>
+    /// Crafts this step is known to have made: the game's result count where it is kept, the batch count otherwise,
+    /// never more than were sent.
+    /// </summary>
+    private int Counted() => Math.Min(_resultsAtSend == null ? _batchDone : Math.Max(_made, _batchDone), _sentQuantity);
+
+    /// <summary>
     /// The workbench closed under the run. Closing ends the craft in progress before it uses anything, so only crafts
     /// the game already finished count: a result on screen or a quiet finish means the whole step was made, otherwise
     /// the batch's finished crafts, plus any that succeeded in the moment before the close.
     /// Those are reported first; the next tick, still closed, pauses or stops the run.
     /// </summary>
-    private RunnerCommand Interrupted(BenchView bench)
+    private RunnerCommand Interrupted(BenchView bench, double now)
     {
         if (_stage is Stage.Crafting or Stage.Collecting) CountLateSuccesses(bench);
 
-        var batchCrafts = Math.Min(_batchDone, _sentQuantity);
+        var madeCrafts = Counted();
 
-        if (_stage == Stage.Collecting || (_stage == Stage.Crafting && _quietSince != null)) return FinishStep();
+        if (_stage == Stage.Collecting || (_stage == Stage.Crafting && _quietSince != null)) return FinishStep(now);
 
-        if (_stage == Stage.Crafting && batchCrafts > 0) return FinishStep(batchCrafts);
+        if (_stage == Stage.Crafting && madeCrafts > 0) return FinishStep(madeCrafts, now);
 
         _current = null;
 
@@ -457,9 +702,13 @@ public sealed class QueueRunner
         {
             _stage = Stage.Paused;
             _hasToldElsewhere = false;
+            _needsReopen = false;
 
             return new RunnerCommand.None();
         }
+
+        // Paused on a stuck hand: only opening the workbench again clears it.
+        if (_needsReopen) return new RunnerCommand.None();
 
         if (!_resumesAtOtherBenches && _benchId != 0 && bench.BenchId != _benchId) return WaitElsewhere();
 
@@ -488,9 +737,20 @@ public sealed class QueueRunner
         return new RunnerCommand.Paused(ElsewhereReason);
     }
 
-    private RunnerCommand FinishStep() => FinishStep(_batchDone > 0 ? Math.Min(_batchDone, _sentQuantity) : _sentQuantity);
+    /// <summary>
+    /// A step that finished whole. With nothing counted, the batch count alone means the step went as sent; the game's
+    /// result count means one craft at least was made, and the rest is planned again from the stock.
+    /// </summary>
+    private RunnerCommand FinishStep(double now)
+    {
+        var counted = Counted();
 
-    private RunnerCommand FinishStep(int crafts)
+        if (counted > 0) return FinishStep(counted, now);
+
+        return FinishStep(_resultsAtSend == null ? _sentQuantity : 1, now);
+    }
+
+    private RunnerCommand FinishStep(int crafts, double now)
     {
         var finished = Current;
 
@@ -498,6 +758,8 @@ public sealed class QueueRunner
 
         _current = null;
         _stage = Stage.Ready;
+        _stepDoneAt = now;
+        _hasRechecked = false;
 
         return new RunnerCommand.StepDone(finished.Step, crafts, finished.IsTarget, finished.OrderId);
     }
@@ -508,5 +770,6 @@ public sealed class QueueRunner
     {
         _stage = stage;
         _stageSince = now;
+        _heldSince = null;
     }
 }

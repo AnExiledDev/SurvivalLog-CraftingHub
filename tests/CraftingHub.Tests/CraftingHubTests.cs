@@ -568,7 +568,7 @@ public class QueueRunnerTests
 {
     private static readonly CraftStep PlankStep = new(Bench.PlankRecipe, 3);
     private static readonly IReadOnlyDictionary<int, int> Empty = new Dictionary<int, int>();
-    private static readonly IReadOnlyDictionary<int, int> LogsLaidOut = Bench.Mats((Bench.Log, 3));
+    private static readonly IReadOnlyDictionary<int, int> LogsLaidOut = Bench.Mats((Bench.Log, 1));
 
     private const long RunBench = 1;
     private const long OtherBench = 2;
@@ -750,7 +750,7 @@ public class QueueRunnerTests
         runner.Tick(Idle(LogsLaidOut, 0), 1, PlankNext);
 
         var stopped = Assert.IsType<RunnerCommand.Stopped>(runner.Tick(Idle(LogsLaidOut, 0), QueueRunner.FillTimeoutSeconds + 0.1, PlankNext));
-        Assert.Equal("the materials for Plank are laid out but the game allows no craft; you may be out of stamina", stopped.Reason);
+        Assert.Equal("the materials for Plank are laid out but the game allows no craft of it", stopped.Reason);
         Assert.False(runner.IsRunning);
     }
 

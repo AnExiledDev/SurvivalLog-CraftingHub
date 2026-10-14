@@ -20,13 +20,26 @@ internal sealed record BenchRead(RecipeBook Book, IReadOnlyDictionary<int, int> 
 /// </summary>
 internal sealed class Workbench
 {
+    /// <summary>The game's HandMadeState values for a finished craft: 2 succeeded, 3 failed.</summary>
+    private const int Succeeded = 2;
+    private const int Failed = 3;
+
+    /// <summary>Stamina is worked out through a game event, so it is read at most this often.</summary>
+    private const long StaminaReadMs = 500;
+
     private static State_Web_ToolTable? _state;
     private static int _refreshes;
+    private static bool _countsResults;
+    private static int _results;
+    private static int _successes;
 
     private readonly Action<string> _log;
     private readonly Dictionary<string, Recipe?> _recipes = new();
     private readonly Dictionary<int, string> _itemNames = new();
     private bool _hasLoggedYield;
+    private StaminaRead? _stamina;
+    private long _staminaReadAt = long.MinValue;
+    private bool _hasLoggedStaminaFailure;
 
     public Workbench(Action<string> log)
     {
@@ -47,6 +60,18 @@ internal sealed class Workbench
         catch (Exception ex)
         {
             log("could not watch the workbench recipe list, chain marks and the queue will not work: " + ex.Message);
+        }
+
+        try
+        {
+            harmony.Patch(AccessTools.Method(typeof(Reducer_Web_ToolTable), nameof(Reducer_Web_ToolTable.RA_Result)),
+                postfix: new HarmonyMethod(typeof(Workbench), nameof(CountResult)));
+            _countsResults = true;
+            log("counting finished crafts");
+        }
+        catch (Exception ex)
+        {
+            log("could not count finished crafts, a step is credited from the batch count alone: " + ex.Message);
         }
     }
 
@@ -86,24 +111,74 @@ internal sealed class Workbench
     {
         var state = _state;
 
-        if (state == null) return new BenchView(false, false, false, 0, new Dictionary<int, int>(), 0);
+        if (state == null) return new BenchView(false, false, false, 0, new Dictionary<int, int>(), 0, Results: Results());
 
         // A craft can finish in the moment before the window closes; the kept state still holds its count.
-        if (!IsOpen) return new BenchView(false, false, false, 0, new Dictionary<int, int>(), state.BatchDone, BatchActive: state.BatchActive, BatchSuccess: state.BatchSuccess);
+        if (!IsOpen) return new BenchView(false, false, false, 0, new Dictionary<int, int>(), state.BatchDone, BatchActive: state.BatchActive, BatchSuccess: state.BatchSuccess, Results: Results());
+
+        var handState = (int)state.HandMadeState;
 
         return new BenchView(
             IsOpen: true,
             IsBusy: state.IsCrafting?.Value == true || state.BatchActive,
             // The game's own test for a live craft (HandMadeState 1, Making), told apart from the batch flag.
-            IsCrafting: state.IsCrafting?.Value == true || (int)state.HandMadeState == 1,
+            IsCrafting: state.IsCrafting?.Value == true || handState == 1,
             HasResult: state.ResultShow?.Value == true,
             MaxCrafts: state.MaxCraftCount?.Value ?? 0,
             Contents: Contents(state.WorkbenchOwnerId?.Value ?? 0),
             BatchDone: state.BatchDone,
             BenchId: state.CurrentFurnitureId,
             BatchActive: state.BatchActive,
-            BatchSuccess: state.BatchSuccess);
+            BatchSuccess: state.BatchSuccess,
+            IsHandHeld: handState is Succeeded or Failed,
+            PreviewReady: state.PreviewShow?.Value == true && state.PreviewUnknown?.Value != true,
+            MaxByStamina: state.MaxByStamina?.Value == true,
+            CraftLocked: state.CraftBtnLocked?.Value == true,
+            LockText: state.CraftBtnLockText?.Value ?? "",
+            Stamina: Stamina(),
+            Results: Results(),
+            Refreshes: _refreshes);
     }
+
+    /// <summary>
+    /// The player's stamina and one craft's cost, asked of the game the way the workbench asks for its own count;
+    /// null when the workbench is closed or the game does not answer.
+    /// </summary>
+    public StaminaRead? Stamina()
+    {
+        var state = _state;
+
+        if (state == null || !IsOpen) return null;
+
+        var now = Environment.TickCount64;
+
+        if (now - _staminaReadAt < StaminaReadMs) return _stamina;
+
+        _staminaReadAt = now;
+        _stamina = ReadStamina(state);
+
+        return _stamina;
+    }
+
+    private StaminaRead? ReadStamina(State_Web_ToolTable state)
+    {
+        try
+        {
+            Reducer_Web_ToolTable.QueryCraftStamina(state, out var current, out var required);
+
+            return new StaminaRead(current, required);
+        }
+        catch (Exception ex)
+        {
+            if (!_hasLoggedStaminaFailure) _log("could not read stamina, it is left off the page: " + ex.Message);
+
+            _hasLoggedStaminaFailure = true;
+
+            return null;
+        }
+    }
+
+    private static ResultCount? Results() => _countsResults ? new ResultCount(_results, _successes) : null;
 
     public string ItemName(int configId)
     {
@@ -121,6 +196,30 @@ internal sealed class Workbench
     {
         _state = state;
         _refreshes++;
+    }
+
+    /// <summary>
+    /// Counts each craft the game finishes, past the same checks the game makes before it records one. Batch or not,
+    /// every craft posts its own result, so this sees crafts the batch count misses.
+    /// </summary>
+    private static void CountResult(Ac_ToolTable_Result ac, State_Web_ToolTable state)
+    {
+        try
+        {
+            if (ac == null || state?.BagOwnerId == null || state.WorkbenchOwnerId == null) return;
+
+            var outcome = (int)ac.State;
+
+            if (outcome is not (Succeeded or Failed)) return;
+
+            _results++;
+
+            if (outcome == Succeeded) _successes++;
+        }
+        catch
+        {
+            // A count missed here only means a step is credited from the batch count; never break the game's result.
+        }
     }
 
     private static State_Data_Item? ItemState() => GameSingleton.Existing<ReduxUISystem>()?.GetData<State_Data_Item>(Il2CppType.Of<State_Data_Item>());

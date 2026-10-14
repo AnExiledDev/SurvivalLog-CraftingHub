@@ -22,6 +22,12 @@ internal sealed class HubSession
     private static readonly IReadOnlyDictionary<string, string> NoMarks = new Dictionary<string, string>();
     private static readonly IReadOnlyDictionary<string, int> NoKeeps = new Dictionary<string, int>();
     private static readonly IReadOnlyDictionary<string, int> NoYields = new Dictionary<string, int>();
+    private static readonly IReadOnlyList<string> NoRecipeKeys = Array.Empty<string>();
+
+    /// <summary>A chain-marks pass slower than this is logged even when the count did not change.</summary>
+    private const double SlowMarksMs = 5;
+
+    private const string RepeatedErrorsReason = "the craft queue stopped after repeated errors; details are in BepInEx/crafting-hub.log";
 
     private readonly Workbench _bench;
     private readonly WorkbenchPage _page;
@@ -45,6 +51,10 @@ internal sealed class HubSession
     private string _pickedName = "";
     private int _seenRefreshes = -1;
     private bool _wasOpen;
+    private BenchRead? _read;
+    private bool _hasRead;
+    private int _loggedMarkCount = -1;
+    private IReadOnlyList<string> _recipeKeys = NoRecipeKeys;
 
     public HubSession(Workbench bench, WorkbenchPage page, KeepPorts keep, HubSettings settings, Action<string> log, Action<string> logFileOnly)
     {
@@ -62,6 +72,9 @@ internal sealed class HubSession
     {
         var isOpen = _bench.IsOpen;
 
+        // One read of the bench serves the whole tick: marks, keeps, the plan, top-ups, the outlook and names.
+        _hasRead = false;
+        _read = null;
         _page.KeepInstalled(now);
 
         while (PageMessages.TryTake(out var command)) Handle(command);
@@ -78,9 +91,11 @@ internal sealed class HubSession
 
         if (isOpen && _bench.Refreshes != _seenRefreshes)
         {
-            var read = _bench.Read();
+            var timer = Stopwatch.StartNew();
+            var read = ReadBench();
 
-            RefreshMarks(read);
+            _recipeKeys = read?.Book.All.Select(recipe => recipe.Key).ToList() ?? NoRecipeKeys;
+            RefreshMarks(read, timer);
             RefreshKeeps(read);
         }
 
@@ -156,8 +171,26 @@ internal sealed class HubSession
             return;
         }
 
-        _runner.Start();
+        StartRun("Craft queue");
         _status = "running the queue";
+    }
+
+    /// <summary>Logged, so two stops close together can be told apart from one stop logged twice.</summary>
+    private void StartRun(string source)
+    {
+        if (_runner.IsRunning) return;
+
+        _runner.Start();
+        _logFileOnly("queue started: " + source);
+    }
+
+    /// <summary>The ticker gave up on the session after repeated errors; a run in progress stops and says where to look.</summary>
+    public void StopForErrors()
+    {
+        if (!_runner.IsRunning) return;
+
+        Apply(_runner.Stop(RepeatedErrorsReason));
+        Show();
     }
 
     private void CraftNow(string key, int crafts)
@@ -177,7 +210,7 @@ internal sealed class HubSession
                 break;
             case CraftNowPlace.Front:
                 _queue.PushFront(key, name, crafts);
-                _runner.Start();
+                StartRun("craft now");
                 _status = $"Making {name} ×{crafts} with its intermediates";
                 break;
         }
@@ -238,7 +271,7 @@ internal sealed class HubSession
 
     private NextStep Next()
     {
-        if (_bench.Read() is not { } read) return new NextStep.Blocked("could not read the workbench");
+        if (ReadBench() is not { } read) return new NextStep.Wait("could not read the workbench");
 
         return QueuePlanner.Next(_queue.Head, read.Book, read.Stock, _slot.Targets.All, _settings.MaxDepth, _bench.ItemName);
     }
@@ -261,7 +294,7 @@ internal sealed class HubSession
     {
         var targets = _slot.Targets.All;
 
-        if (targets.Count == 0 || _bench.Read() is not { } read) return;
+        if (targets.Count == 0 || ReadBench() is not { } read) return;
 
         if (_keep.Stock.Count(targets.Select(target => target.ItemId)) is not { } held) return;
 
@@ -275,7 +308,7 @@ internal sealed class HubSession
         _status = TopUpPlanner.Describe(plan);
         _logFileOnly(_status);
 
-        if (_settings.AutoStartTopUps && wasEmpty && plan.Orders.Count > 0) _runner.Start();
+        if (_settings.AutoStartTopUps && wasEmpty && plan.Orders.Count > 0) StartRun("keep stocked");
     }
 
     private void SetKeep(string key, int count)
@@ -284,7 +317,7 @@ internal sealed class HubSession
 
         LoadTargets();
 
-        if (_bench.Read()?.Book.Find(key) is not { } recipe)
+        if (ReadBench()?.Book.Find(key) is not { } recipe)
         {
             _status = "that recipe is not in your recipe list yet";
 
@@ -350,7 +383,7 @@ internal sealed class HubSession
         _logFileOnly("another save was loaded; the queue was emptied");
     }
 
-    private void RefreshKeeps() => RefreshKeeps(_bench.Read());
+    private void RefreshKeeps() => RefreshKeeps(ReadBench());
 
     private void RefreshKeeps(BenchRead? read)
     {
@@ -368,14 +401,15 @@ internal sealed class HubSession
     {
         var costedFor = $"{_bench.Refreshes}|{string.Join(",", _queue.Entries.Select(entry => $"{entry.Id}:{entry.Crafts}"))}|{string.Join(",", _slot.Targets.All.Select(target => $"{target.ItemId}:{target.Count}"))}";
 
-        if (costedFor == _outlookFor || _bench.Read() is not { } read) return;
+        if (costedFor == _outlookFor || ReadBench() is not { } read) return;
 
         _outlookFor = costedFor;
         _outlook = QueueForecast.Plan(_queue.Entries, read.Book, read.Stock, _slot.Targets.All, _settings.MaxDepth, _bench.ItemName);
         _yields = read.Book.All.Where(recipe => recipe.Yield > 1).ToDictionary(recipe => recipe.Key, recipe => recipe.Yield);
     }
 
-    private void RefreshMarks(BenchRead? read)
+    /// <summary>The timer started before the bench was read, so a slow read shows in the logged time too.</summary>
+    private void RefreshMarks(BenchRead? read, Stopwatch timer)
     {
         _seenRefreshes = _bench.Refreshes;
 
@@ -386,21 +420,37 @@ internal sealed class HubSession
             return;
         }
 
-        var timer = Stopwatch.StartNew();
-
         _marks = read == null ? NoMarks : ChainMarks.Find(read.Book, read.Stock, read.CraftableNow, _settings.MaxDepth);
-        _logFileOnly($"chain marks: {_marks.Count} recipes in {timer.Elapsed.TotalMilliseconds:0.#} ms");
+
+        var elapsedMs = timer.Elapsed.TotalMilliseconds;
+
+        if (_marks.Count == _loggedMarkCount && elapsedMs <= SlowMarksMs) return;
+
+        _loggedMarkCount = _marks.Count;
+        _logFileOnly($"chain marks: {_marks.Count} recipes in {elapsedMs:0.#} ms");
     }
 
     /// <summary>The order the progress bar goes on: the one the step in progress counts for, or between steps the head, which is planned next.</summary>
     private long ActiveOrderId() => _runner.CraftingFor ?? _queue.Head?.Id ?? 0;
 
-    private string RecipeName(string key) => _bench.Read()?.Book.Find(key)?.Name ?? key;
+    private string RecipeName(string key) => ReadBench()?.Book.Find(key)?.Name ?? key;
+
+    /// <summary>The bench read once per tick and shared; null when it cannot be read.</summary>
+    private BenchRead? ReadBench()
+    {
+        if (_hasRead) return _read;
+
+        _read = _bench.Read();
+        _hasRead = true;
+
+        return _read;
+    }
 
     private void Show()
     {
         var keep = new KeepView(_settings.KeepStocked, _slot.Targets.All, _keepByKey, _keepHave);
-        var view = HubView.Build(_marks, _queue.Entries, _runner.IsRunning, _status, keep, _runner.IsPaused, _outlook, _yields, ActiveOrderId());
+        var stamina = StaminaView.From(_bench.Stamina(), _recipeKeys, _queue.Head != null, _runner.StoppedForStamina);
+        var view = HubView.Build(_marks, _queue.Entries, _runner.IsRunning, _status, keep, _runner.IsPaused, _outlook, _yields, ActiveOrderId(), stamina);
 
         if (view == _shownView) return;
 

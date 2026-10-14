@@ -1,0 +1,421 @@
+using CraftingHub.Core;
+using Xunit;
+
+namespace CraftingHub.Tests;
+
+/// <summary>The run loop against what the workbench really reports: stamina, a held hand, unreadable moments, late stock and real result counts.</summary>
+public class RunLoopTests
+{
+    private const long RunBench = 1;
+
+    private static readonly CraftStep PlankStep = new(Bench.PlankRecipe, 3);
+    private static readonly IReadOnlyDictionary<int, int> Empty = new Dictionary<int, int>();
+    private static readonly IReadOnlyDictionary<int, int> OneCraft = Bench.Mats((Bench.Log, 1));
+    private static readonly BenchView Closed = new(false, false, false, 0, Empty, 0);
+
+    private static BenchView Idle(IReadOnlyDictionary<int, int>? contents = null, int max = 0) => new(true, false, false, max, contents ?? Empty, 0, RunBench);
+
+    private static NextStep PlankNext() => new NextStep.Craft(PlankStep, IsTarget: true);
+
+    [Fact]
+    public void Out_of_stamina_on_a_laid_out_bench_stops_at_once_saying_what_a_craft_needs_and_what_you_have()
+    {
+        var runner = new QueueRunner();
+        var tired = Idle(OneCraft, 0) with { PreviewReady = true, MaxByStamina = true, Stamina = new StaminaRead(3, 8) };
+
+        runner.Start();
+        runner.Tick(Idle(), 0, PlankNext);
+
+        Assert.IsType<RunnerCommand.None>(runner.Tick(tired, 0.1, PlankNext));
+
+        var stopped = Assert.IsType<RunnerCommand.Stopped>(runner.Tick(tired, 0.5, PlankNext));
+        Assert.Equal("Out of stamina: Plank needs 8 per craft, you have 3", stopped.Reason);
+        Assert.True(runner.StoppedForStamina);
+    }
+
+    [Fact]
+    public void Starting_again_clears_the_stamina_stop()
+    {
+        var runner = new QueueRunner();
+        var tired = Idle(OneCraft, 0) with { PreviewReady = true, MaxByStamina = true, Stamina = new StaminaRead(3, 8) };
+
+        runner.Start();
+        runner.Tick(Idle(), 0, PlankNext);
+        runner.Tick(tired, 0.1, PlankNext);
+        runner.Tick(tired, 0.5, PlankNext);
+        runner.Start();
+
+        Assert.False(runner.StoppedForStamina);
+    }
+
+    [Fact]
+    public void Twice_a_crafts_materials_on_the_bench_is_clicked_again_and_never_blamed_on_stamina()
+    {
+        var runner = new QueueRunner();
+        var doubled = Idle(Bench.Mats((Bench.Log, 2)), 0) with { PreviewReady = true, MaxByStamina = true, Stamina = new StaminaRead(3, 8) };
+
+        runner.Start();
+        runner.Tick(Idle(), 0, PlankNext);
+
+        Assert.Equal(new RunnerCommand.ClickRecipe("plank"), runner.Tick(doubled, QueueRunner.RecipeClickRetrySeconds, PlankNext));
+
+        var stopped = Assert.IsType<RunnerCommand.Stopped>(runner.Tick(doubled, QueueRunner.FillTimeoutSeconds + 0.1, PlankNext));
+        Assert.Equal("the workbench holds more than one craft's worth of materials for Plank; the game crafts only from exactly one craft's worth, so take the extra off the workbench", stopped.Reason);
+        Assert.False(runner.StoppedForStamina);
+    }
+
+    [Fact]
+    public void A_locked_recipe_on_a_laid_out_bench_stops_with_the_games_reason()
+    {
+        var runner = new QueueRunner();
+        var locked = Idle(OneCraft, 0) with { PreviewReady = true, CraftLocked = true, LockText = "Needs production level 3" };
+
+        runner.Start();
+        runner.Tick(Idle(), 0, PlankNext);
+
+        Assert.IsType<RunnerCommand.None>(runner.Tick(locked, 0.1, PlankNext));
+
+        var stopped = Assert.IsType<RunnerCommand.Stopped>(runner.Tick(locked, 0.5, PlankNext));
+        Assert.Equal("Plank is locked: Needs production level 3", stopped.Reason);
+    }
+
+    [Fact]
+    public void A_laid_out_bench_the_game_matched_to_no_craft_is_clicked_again()
+    {
+        var runner = new QueueRunner();
+        var unmatched = Idle(OneCraft, 0) with { PreviewReady = true };
+
+        runner.Start();
+        runner.Tick(Idle(), 0, PlankNext);
+
+        Assert.Equal(new RunnerCommand.ClickRecipe("plank"), runner.Tick(unmatched, QueueRunner.RecipeClickRetrySeconds, PlankNext));
+    }
+
+    [Fact]
+    public void A_held_hand_delays_the_first_click_until_it_clears_and_does_not_stop_the_run()
+    {
+        var runner = new QueueRunner();
+        var held = Idle() with { IsHandHeld = true };
+
+        runner.Start();
+
+        Assert.IsType<RunnerCommand.None>(runner.Tick(held, 0, PlankNext));
+        Assert.IsType<RunnerCommand.None>(runner.Tick(held, QueueRunner.FillTimeoutSeconds + 1, PlankNext));
+        Assert.Equal(new RunnerCommand.ClickRecipe("plank"), runner.Tick(Idle(), QueueRunner.FillTimeoutSeconds + 2, PlankNext));
+        Assert.IsType<RunnerCommand.None>(runner.Tick(Idle(OneCraft, 3), QueueRunner.FillTimeoutSeconds + 2.1, PlankNext));
+        Assert.Equal(new RunnerCommand.Craft(3), runner.Tick(Idle(OneCraft, 3), QueueRunner.FillTimeoutSeconds + 2.5, PlankNext));
+        Assert.True(runner.IsRunning);
+    }
+
+    [Fact]
+    public void A_hand_held_after_the_click_holds_the_fill_clock_and_the_click_goes_again_once_it_clears()
+    {
+        var runner = new QueueRunner();
+        var held = Idle() with { IsHandHeld = true };
+
+        runner.Start();
+        runner.Tick(Idle(), 0, PlankNext);
+
+        for (var now = 0.5; now < QueueRunner.FillTimeoutSeconds + 2; now += 0.5) Assert.IsType<RunnerCommand.None>(runner.Tick(held, now, PlankNext));
+
+        Assert.Equal(new RunnerCommand.ClickRecipe("plank"), runner.Tick(Idle(), QueueRunner.FillTimeoutSeconds + 2, PlankNext));
+    }
+
+    [Fact]
+    public void A_hand_that_stays_held_pauses_the_run_until_the_workbench_is_closed_and_opened_again()
+    {
+        var runner = new QueueRunner();
+        var held = Idle() with { IsHandHeld = true };
+        var reopenedAt = QueueRunner.HeldHandSeconds + 5;
+
+        runner.Start();
+        runner.Tick(held, 0, PlankNext);
+
+        var paused = Assert.IsType<RunnerCommand.Paused>(runner.Tick(held, QueueRunner.HeldHandSeconds + 0.1, PlankNext));
+        Assert.Contains("close it and open it again", paused.Reason);
+        Assert.IsType<RunnerCommand.None>(runner.Tick(Idle(), QueueRunner.HeldHandSeconds + 1, PlankNext));
+        Assert.IsType<RunnerCommand.None>(runner.Tick(Idle(), QueueRunner.HeldHandSeconds + 2 + QueueRunner.ResumeSettleSeconds, PlankNext));
+
+        runner.Tick(Closed, reopenedAt - 1, PlankNext);
+        runner.Tick(Idle(), reopenedAt, PlankNext);
+
+        Assert.IsType<RunnerCommand.Resumed>(runner.Tick(Idle(), reopenedAt + QueueRunner.ResumeSettleSeconds, PlankNext));
+    }
+
+    [Fact]
+    public void With_resuming_off_a_hand_that_stays_held_stops_the_run_asking_for_the_workbench_to_be_reopened()
+    {
+        var runner = new QueueRunner(resumesOnReopen: false);
+        var held = Idle() with { IsHandHeld = true };
+
+        runner.Start();
+        runner.Tick(held, 0, PlankNext);
+
+        var stopped = Assert.IsType<RunnerCommand.Stopped>(runner.Tick(held, QueueRunner.HeldHandSeconds + 0.1, PlankNext));
+        Assert.Contains("close it and open it again", stopped.Reason);
+    }
+
+    [Fact]
+    public void A_stale_batch_with_a_held_hand_pauses_for_a_reopen_instead_of_clicking()
+    {
+        var runner = new QueueRunner();
+        var stuck = new BenchView(true, true, false, 0, Empty, 2, RunBench, BatchActive: true, IsHandHeld: true);
+
+        runner.Start();
+
+        Assert.IsType<RunnerCommand.None>(runner.Tick(stuck, 0, PlankNext));
+        Assert.IsType<RunnerCommand.Notice>(runner.Tick(stuck, QueueRunner.StaleBatchSeconds, PlankNext));
+        Assert.IsType<RunnerCommand.Paused>(runner.Tick(stuck, QueueRunner.StaleBatchSeconds + 0.1, PlankNext));
+    }
+
+    [Fact]
+    public void Waiting_for_a_workbench_read_twice_then_crafting_does_not_stop_the_run()
+    {
+        var runner = new QueueRunner();
+        var plans = new Queue<NextStep>(new[] { new NextStep.Wait("could not read the workbench"), new NextStep.Wait("could not read the workbench"), PlankNext() });
+
+        runner.Start();
+
+        Assert.IsType<RunnerCommand.None>(runner.Tick(Idle(), 0, plans.Dequeue));
+        Assert.IsType<RunnerCommand.None>(runner.Tick(Idle(), 0.1, plans.Dequeue));
+        Assert.Equal(new RunnerCommand.ClickRecipe("plank"), runner.Tick(Idle(), 0.2, plans.Dequeue));
+        Assert.True(runner.IsRunning);
+    }
+
+    [Fact]
+    public void A_workbench_that_stays_unreadable_stops_the_run_with_the_reason()
+    {
+        var runner = new QueueRunner();
+        NextStep Unreadable() => new NextStep.Wait("could not read the workbench");
+
+        runner.Start();
+
+        Assert.IsType<RunnerCommand.None>(runner.Tick(Idle(), 0, Unreadable));
+        Assert.IsType<RunnerCommand.None>(runner.Tick(Idle(), QueueRunner.WaitLimitSeconds - 0.1, Unreadable));
+
+        var stopped = Assert.IsType<RunnerCommand.Stopped>(runner.Tick(Idle(), QueueRunner.WaitLimitSeconds + 0.1, Unreadable));
+        Assert.Equal("could not read the workbench", stopped.Reason);
+    }
+
+    [Fact]
+    public void A_shortage_right_after_a_step_is_planned_again_once_the_game_rebuilds_its_list()
+    {
+        var runner = new QueueRunner();
+        var plans = new Queue<NextStep>(new[] { PlankNext(), new NextStep.Blocked("can't make Plank: short of Log x1"), PlankNext() });
+
+        FinishOneStep(runner, plans.Dequeue);
+
+        Assert.IsType<RunnerCommand.None>(runner.Tick(Idle(), 1.2, plans.Dequeue));
+        Assert.IsType<RunnerCommand.None>(runner.Tick(Idle(), 1.5, plans.Dequeue));
+        Assert.Equal(new RunnerCommand.ClickRecipe("plank"), runner.Tick(Idle() with { Refreshes = 1 }, 1.6, plans.Dequeue));
+    }
+
+    [Fact]
+    public void A_shortage_still_there_when_planned_again_stops_the_run()
+    {
+        var runner = new QueueRunner();
+        var plans = new Queue<NextStep>(new[] { PlankNext(), new NextStep.Blocked("short"), new NextStep.Blocked("short of Log x1") });
+
+        FinishOneStep(runner, plans.Dequeue);
+        runner.Tick(Idle(), 1.2, plans.Dequeue);
+
+        var stopped = Assert.IsType<RunnerCommand.Stopped>(runner.Tick(Idle(), 1.2 + QueueRunner.RefreshWaitSeconds, plans.Dequeue));
+        Assert.Equal("short of Log x1", stopped.Reason);
+    }
+
+    [Fact]
+    public void A_shortage_at_the_start_of_a_run_stops_it_at_once()
+    {
+        var runner = new QueueRunner();
+
+        runner.Start();
+
+        Assert.IsType<RunnerCommand.Stopped>(runner.Tick(Idle(), 0, () => new NextStep.Blocked("short of Log x1")));
+    }
+
+    [Fact]
+    public void A_bench_that_makes_one_per_craft_still_makes_every_craft_queued()
+    {
+        var queue = new CraftQueue();
+        var runner = new QueueRunner();
+        var game = new OnePerCraftBench();
+        var crafts = 0;
+        var made = 0;
+        NextStep Next() => queue.Head is { } head ? new NextStep.Craft(new CraftStep(Bench.PlankRecipe, head.Crafts), IsTarget: true, OrderId: head.Id) : new NextStep.Finished();
+
+        queue.Add("plank", "Plank", 4);
+        runner.Start();
+
+        for (var now = 0.0; runner.IsRunning && now < 120; now += 0.1)
+        {
+            switch (runner.Tick(game.View, now, Next))
+            {
+                case RunnerCommand.ClickRecipe:
+                    game.LayOut();
+                    break;
+                case RunnerCommand.Craft:
+                    crafts++;
+                    game.Craft();
+                    break;
+                case RunnerCommand.ConfirmResult:
+                    game.Confirm();
+                    break;
+                case RunnerCommand.StepDone done:
+                    made += done.Crafts;
+                    queue.Progress(done.OrderId, done.Crafts);
+                    break;
+            }
+
+            game.Advance();
+        }
+
+        Assert.Equal(4, crafts);
+        Assert.Equal(4, made);
+        Assert.Empty(queue.Entries);
+    }
+
+    [Fact]
+    public void A_finished_craft_with_no_result_counted_credits_one_so_the_rest_is_planned_again()
+    {
+        var runner = new QueueRunner();
+        var counted = new ResultCount(5, 5);
+
+        runner.Start();
+        runner.Tick(Idle() with { Results = counted }, 0, PlankNext);
+        runner.Tick(Idle(OneCraft, 3) with { Results = counted }, 0.1, PlankNext);
+        runner.Tick(Idle(OneCraft, 3) with { Results = counted }, 0.4, PlankNext);
+        runner.Tick(new BenchView(true, false, true, 0, Empty, 0, RunBench, Results: counted), 1, PlankNext);
+
+        Assert.Equal(1, Assert.IsType<RunnerCommand.StepDone>(runner.Tick(Idle() with { Results = counted }, 1.1, PlankNext)).Crafts);
+    }
+
+    [Fact]
+    public void Crafts_counted_before_the_workbench_closed_count_and_a_failure_posted_by_the_close_does_not()
+    {
+        var runner = new QueueRunner();
+
+        runner.Start();
+        runner.Tick(Idle() with { Results = new ResultCount(0, 0) }, 0, PlankNext);
+        runner.Tick(Idle(OneCraft, 3) with { Results = new ResultCount(0, 0) }, 0.1, PlankNext);
+        runner.Tick(Idle(OneCraft, 3) with { Results = new ResultCount(0, 0) }, 0.4, PlankNext);
+        runner.Tick(new BenchView(true, true, false, 0, Empty, 0, RunBench, BatchActive: true, IsCrafting: true, Results: new ResultCount(2, 2)), 1, PlankNext);
+
+        var closed = Closed with { Results = new ResultCount(3, 2) };
+        Assert.Equal(2, Assert.IsType<RunnerCommand.StepDone>(runner.Tick(closed, 1.1, PlankNext)).Crafts);
+    }
+
+    private static void FinishOneStep(QueueRunner runner, Func<NextStep> next)
+    {
+        runner.Start();
+        runner.Tick(Idle(), 0, next);
+        runner.Tick(Idle(OneCraft, 3), 0.1, next);
+        Assert.IsType<RunnerCommand.Craft>(runner.Tick(Idle(OneCraft, 3), 0.4, next));
+        Assert.IsType<RunnerCommand.ConfirmResult>(runner.Tick(new BenchView(true, false, true, 0, Empty, 3), 1, next));
+        Assert.IsType<RunnerCommand.StepDone>(runner.Tick(Idle(), 1.1, next));
+    }
+
+    /// <summary>
+    /// A workbench whose materials allow several crafts but that makes one per craft order, as the game does when it
+    /// cannot refill the bench between the crafts of a batch.
+    /// </summary>
+    private sealed class OnePerCraftBench
+    {
+        private bool _isLaidOut;
+        private bool _isCrafting;
+        private bool _hasResult;
+        private int _results;
+
+        public BenchView View => new(
+            IsOpen: true,
+            IsBusy: _isCrafting,
+            HasResult: _hasResult,
+            MaxCrafts: _isLaidOut ? 4 : 0,
+            Contents: _isLaidOut ? OneCraft : Empty,
+            BatchDone: 0,
+            BenchId: RunBench,
+            IsCrafting: _isCrafting,
+            PreviewReady: _isLaidOut,
+            Results: new ResultCount(_results, _results));
+
+        public void LayOut() => _isLaidOut = true;
+
+        public void Craft()
+        {
+            _isLaidOut = false;
+            _isCrafting = true;
+        }
+
+        public void Confirm() => _hasResult = false;
+
+        /// <summary>A frame passes: a craft in progress finishes and shows its result.</summary>
+        public void Advance()
+        {
+            if (!_isCrafting) return;
+
+            _isCrafting = false;
+            _hasResult = true;
+            _results++;
+        }
+    }
+}
+
+public class StaminaViewTests
+{
+    private static readonly string[] Keys = { "plank", "rope" };
+
+    [Fact]
+    public void Every_listed_recipe_shows_what_a_craft_costs()
+    {
+        var shown = StaminaView.From(new StaminaRead(20.6f, 8), Keys, hasQueue: false, stoppedForStamina: false);
+
+        Assert.Equal(20, shown?.Have);
+        Assert.Equal(8, shown?.Cost["plank"]);
+        Assert.Equal(8, shown?.Cost["rope"]);
+    }
+
+    [Fact]
+    public void Stamina_is_out_only_when_a_queued_craft_cannot_be_afforded_or_the_run_stopped_for_it()
+    {
+        var low = new StaminaRead(3, 8);
+        var plenty = new StaminaRead(30, 8);
+
+        Assert.True(StaminaView.From(low, Keys, hasQueue: true, stoppedForStamina: false)?.IsOut);
+        Assert.False(StaminaView.From(low, Keys, hasQueue: false, stoppedForStamina: false)?.IsOut);
+        Assert.False(StaminaView.From(plenty, Keys, hasQueue: true, stoppedForStamina: false)?.IsOut);
+        Assert.True(StaminaView.From(plenty, Keys, hasQueue: true, stoppedForStamina: true)?.IsOut);
+    }
+
+    [Fact]
+    public void Crafts_that_cost_no_stamina_are_never_out_and_list_no_cost()
+    {
+        var shown = StaminaView.From(new StaminaRead(0, 0), Keys, hasQueue: true, stoppedForStamina: false);
+
+        Assert.False(shown?.IsOut);
+        Assert.Empty(shown?.Cost ?? new Dictionary<string, int> { ["x"] = 1 });
+    }
+
+    [Fact]
+    public void Unreadable_stamina_shows_as_nothing()
+    {
+        Assert.Null(StaminaView.From(null, Keys, hasQueue: true, stoppedForStamina: false));
+    }
+
+    [Fact]
+    public void The_page_gets_stamina_as_have_out_and_the_cost_per_recipe_or_null()
+    {
+        var keep = new KeepView(false, Array.Empty<KeepTarget>(), new Dictionary<string, int>());
+        var stamina = new StaminaView(3, true, new Dictionary<string, int> { ["plank"] = 8, ["rope"] = 0 });
+
+        var json = HubView.Build(new Dictionary<string, string>(), Array.Empty<QueueEntry>(), false, "", keep, stamina: stamina);
+        var unread = HubView.Build(new Dictionary<string, string>(), Array.Empty<QueueEntry>(), false, "", keep);
+
+        using var parsed = System.Text.Json.JsonDocument.Parse(json);
+        using var unreadParsed = System.Text.Json.JsonDocument.Parse(unread);
+        var shown = parsed.RootElement.GetProperty("stamina");
+        Assert.Equal(3, shown.GetProperty("have").GetInt32());
+        Assert.True(shown.GetProperty("out").GetBoolean());
+        Assert.Equal(8, shown.GetProperty("cost").GetProperty("plank").GetInt32());
+        Assert.False(shown.GetProperty("cost").TryGetProperty("rope", out _));
+        Assert.Equal(System.Text.Json.JsonValueKind.Null, unreadParsed.RootElement.GetProperty("stamina").ValueKind);
+    }
+}
