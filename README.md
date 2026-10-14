@@ -49,7 +49,10 @@ A run stops with a message in the status line when:
 - the workbench window closes and `ResumeOnReopen` is off ("the workbench closed; the queue is kept, press Craft queue to carry on");
 - a recipe is not in your recipe list yet or not unlocked yet;
 - your house is short of something ("can't make ...: short of ...");
-- the materials are laid out but the game allows no craft ("you may be out of stamina");
+- you are out of stamina ("Out of stamina: Repair Parts needs 8 per craft, you have 3"); the Workbench tab also shows your stamina, the stamina each craft takes, and an "Out of stamina" bar while you cannot afford the next craft;
+- the game locks the recipe (the game's own lock reason is shown), or the workbench holds more than one craft's worth of materials;
+- the workbench is stuck after a craft and stays stuck (close it and open it again; the queue carries on);
+- the workbench cannot be read for 3 seconds, the game makes nothing from a craft twice in a row, or 20 errors happen in a row (details in `BepInEx\crafting-hub.log`);
 - the game does not lay out the materials within 6 seconds, a craft does not start within 4 seconds, or the result screen does not close within 4 seconds;
 - 30 intermediate crafts have been made without finishing the recipe they were for.
 
