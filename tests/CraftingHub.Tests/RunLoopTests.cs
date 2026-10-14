@@ -336,19 +336,48 @@ public class RunLoopTests
         runner.Tick(Idle(OneCraft, 3) with { Results = new ResultCount(0, 0) }, 0.4, PlankNext);
         runner.Tick(new BenchView(true, true, false, 0, Empty, 0, RunBench, BatchActive: true, IsCrafting: true, Results: new ResultCount(2, 2)), 1, PlankNext);
 
-        var closed = Closed with { Results = new ResultCount(3, 3) };
+        var closed = Closed with { Results = new ResultCount(3, 3), ResultsProven = true };
         Assert.Equal(3, Assert.IsType<RunnerCommand.StepDone>(runner.Tick(closed, 1.1, PlankNext)).Crafts);
     }
 
-    /// <summary>A ready run sends a step, and the game finishes it with its result count moved from one to the other.</summary>
-    private static RunnerCommand SendAndFinish(QueueRunner runner, double at, ResultCount before, ResultCount after)
+    [Fact]
+    public void While_the_result_counter_has_never_fired_a_step_with_nothing_counted_is_credited_as_sent_and_the_run_goes_on()
     {
-        runner.Tick(Idle() with { Results = before }, at, PlankNext);
-        runner.Tick(Idle(OneCraft, 3) with { Results = before }, at + 0.1, PlankNext);
-        Assert.IsType<RunnerCommand.Craft>(runner.Tick(Idle(OneCraft, 3) with { Results = before }, at + 0.4, PlankNext));
-        Assert.IsType<RunnerCommand.ConfirmResult>(runner.Tick(new BenchView(true, false, true, 0, Empty, 0, RunBench, Results: after), at + 1, PlankNext));
+        var runner = new QueueRunner();
+        var unmoved = new ResultCount(0, 0);
 
-        return runner.Tick(Idle() with { Results = after }, at + 1.1, PlankNext);
+        runner.Start();
+
+        Assert.Equal(4, Assert.IsType<RunnerCommand.StepDone>(SendAndFinish(runner, 0, unmoved, unmoved, isProven: false, crafts: 4)).Crafts);
+        Assert.Equal(4, Assert.IsType<RunnerCommand.StepDone>(SendAndFinish(runner, 2, unmoved, unmoved, isProven: false, crafts: 4)).Crafts);
+        Assert.True(runner.IsRunning);
+    }
+
+    [Fact]
+    public void A_step_during_which_the_result_counter_first_fires_is_credited_by_its_count()
+    {
+        var runner = new QueueRunner();
+
+        runner.Start();
+
+        var done = Assert.IsType<RunnerCommand.StepDone>(SendAndFinish(runner, 0, new ResultCount(0, 0), new ResultCount(1, 1), isProven: true, crafts: 4));
+        Assert.Equal(1, done.Crafts);
+    }
+
+    /// <summary>
+    /// A ready run sends a step of Plank, and the game finishes it with its result count moved from one to the other.
+    /// The counter is unproven when the step is sent and as proven as told when it ends.
+    /// </summary>
+    private static RunnerCommand SendAndFinish(QueueRunner runner, double at, ResultCount before, ResultCount after, bool isProven = true, int crafts = 3)
+    {
+        NextStep Next() => new NextStep.Craft(new CraftStep(Bench.PlankRecipe, crafts), IsTarget: true);
+
+        runner.Tick(Idle() with { Results = before }, at, Next);
+        runner.Tick(Idle(OneCraft, crafts) with { Results = before }, at + 0.1, Next);
+        Assert.Equal(new RunnerCommand.Craft(crafts), runner.Tick(Idle(OneCraft, crafts) with { Results = before }, at + 0.4, Next));
+        Assert.IsType<RunnerCommand.ConfirmResult>(runner.Tick(new BenchView(true, false, true, 0, Empty, 0, RunBench, Results: after, ResultsProven: isProven), at + 1, Next));
+
+        return runner.Tick(Idle() with { Results = after, ResultsProven = isProven }, at + 1.1, Next);
     }
 
     private static void FinishOneStep(QueueRunner runner, Func<NextStep> next)
@@ -382,7 +411,8 @@ public class RunLoopTests
             BenchId: RunBench,
             IsCrafting: _isCrafting,
             PreviewReady: _isLaidOut,
-            Results: new ResultCount(_results, _results));
+            Results: new ResultCount(_results, _results),
+            ResultsProven: _results > 0);
 
         public void LayOut() => _isLaidOut = true;
 

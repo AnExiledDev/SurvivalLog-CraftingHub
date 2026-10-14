@@ -251,6 +251,7 @@ internal sealed class HubSession
             case RunnerCommand.StepDone done:
                 if (done.IsTarget) _queue.Progress(done.OrderId, done.Crafts);
 
+                _bench.NoteStepDone();
                 _logFileOnly($"made {done.Step.Recipe.Name} ×{done.Crafts}{(done.IsTarget ? "" : " (intermediate)")}");
                 break;
             case RunnerCommand.Stopped stopped:

@@ -30,6 +30,8 @@ internal sealed class Workbench
     private static State_Web_ToolTable? _state;
     private static int _refreshes;
     private static bool _countsResults;
+    private static bool _resultsProven;
+    private static Action<string> _hookLog = _ => { };
     private static readonly Dictionary<long, ResultCount> ResultsByBench = new();
 
     private readonly Action<string> _log;
@@ -39,6 +41,7 @@ internal sealed class Workbench
     private StaminaRead? _stamina;
     private long _staminaReadAt = long.MinValue;
     private bool _hasLoggedStaminaFailure;
+    private bool _hasLoggedUnproven;
 
     public Workbench(Action<string> log)
     {
@@ -66,7 +69,8 @@ internal sealed class Workbench
             harmony.Patch(AccessTools.Method(typeof(LogicAdapter), "OnHandMadeResult"),
                 postfix: new HarmonyMethod(typeof(Workbench), nameof(CountResult)));
             _countsResults = true;
-            log("counting finished crafts");
+            _hookLog = log;
+            log("watching for finished crafts");
         }
         catch (Exception ex)
         {
@@ -113,7 +117,7 @@ internal sealed class Workbench
         if (state == null) return new BenchView(false, false, false, 0, new Dictionary<int, int>(), 0);
 
         // A craft can finish in the moment before the window closes; the kept state still holds its count.
-        if (!IsOpen) return new BenchView(false, false, false, 0, new Dictionary<int, int>(), state.BatchDone, BatchActive: state.BatchActive, BatchSuccess: state.BatchSuccess, Results: Results(state.CurrentFurnitureId));
+        if (!IsOpen) return new BenchView(false, false, false, 0, new Dictionary<int, int>(), state.BatchDone, BatchActive: state.BatchActive, BatchSuccess: state.BatchSuccess, Results: Results(state.CurrentFurnitureId), ResultsProven: _resultsProven);
 
         var handState = (int)state.HandMadeState;
 
@@ -136,7 +140,8 @@ internal sealed class Workbench
             LockText: state.CraftBtnLockText?.Value ?? "",
             Stamina: Stamina(),
             Results: Results(state.CurrentFurnitureId),
-            Refreshes: _refreshes);
+            Refreshes: _refreshes,
+            ResultsProven: _resultsProven);
     }
 
     /// <summary>
@@ -177,6 +182,19 @@ internal sealed class Workbench
         }
     }
 
+    /// <summary>
+    /// Called as a step ends. Before the game first hands over a finished craft the result count is not trusted, and
+    /// that is said once.
+    /// </summary>
+    public void NoteStepDone()
+    {
+        if (!_countsResults || _resultsProven || _hasLoggedUnproven) return;
+
+        _hasLoggedUnproven = true;
+
+        _log("a step finished before the finished-crafts counter first fired; until it does, steps are credited from the batch count or as sent");
+    }
+
     private static ResultCount? Results(long benchId) =>
         !_countsResults ? null : ResultsByBench.TryGetValue(benchId, out var count) ? count : new ResultCount(0, 0);
 
@@ -208,6 +226,8 @@ internal sealed class Workbench
     {
         try
         {
+            ProveResults();
+
             var outcome = (int)__1;
 
             if (outcome is not (Succeeded or Failed)) return;
@@ -220,6 +240,15 @@ internal sealed class Workbench
         {
             // A count missed here only means a step is credited from the batch count; never break the game's result.
         }
+    }
+
+    private static void ProveResults()
+    {
+        if (_resultsProven) return;
+
+        _resultsProven = true;
+
+        _hookLog("finished crafts are counted");
     }
 
     private static State_Data_Item? ItemState() => GameSingleton.Existing<ReduxUISystem>()?.GetData<State_Data_Item>(Il2CppType.Of<State_Data_Item>());

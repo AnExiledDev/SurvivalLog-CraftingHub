@@ -35,6 +35,10 @@ namespace CraftingHub.Core;
 /// being counted.
 /// </param>
 /// <param name="Refreshes">Goes up every time the game rebuilds the recipe list, which it does after items move.</param>
+/// <param name="ResultsProven">
+/// The game has been seen handing over a finished craft since the plugin loaded, so <see cref="Results"/> really moves.
+/// Until then a count that stays put may only mean nothing is counting.
+/// </param>
 public readonly record struct BenchView(
     bool IsOpen,
     bool IsBusy,
@@ -53,7 +57,8 @@ public readonly record struct BenchView(
     string LockText = "",
     StaminaRead? Stamina = null,
     ResultCount? Results = null,
-    int Refreshes = 0);
+    int Refreshes = 0,
+    bool ResultsProven = false);
 
 /// <summary>The player's stamina and what one craft costs, as the game works them out for the workbench.</summary>
 public readonly record struct StaminaRead(float Current, float PerCraft)
@@ -602,7 +607,7 @@ public sealed class QueueRunner
         // Started, and now neither crafting nor showing a result: the game finished without a result screen.
         _quietSince ??= now;
 
-        return now - _quietSince >= QuietDoneSeconds ? FinishStep(now) : new RunnerCommand.None();
+        return now - _quietSince >= QuietDoneSeconds ? FinishStep(bench, now) : new RunnerCommand.None();
     }
 
     private RunnerCommand WaitForCollect(BenchView bench, double now)
@@ -610,7 +615,7 @@ public sealed class QueueRunner
         CountBatch(bench);
         CountResults(bench);
 
-        if (!bench.HasResult) return FinishStep(now);
+        if (!bench.HasResult) return FinishStep(bench, now);
 
         return now - _stageSince > CollectTimeoutSeconds ? Stop("the result screen did not close") : new RunnerCommand.None();
     }
@@ -658,10 +663,16 @@ public sealed class QueueRunner
     }
 
     /// <summary>
-    /// Crafts this step is known to have made: the game's result count where it is kept, the batch count otherwise,
+    /// Crafts this step is known to have made: the game's result count where it is trusted, the batch count otherwise,
     /// never more than were sent.
     /// </summary>
-    private int Counted() => Math.Min(_resultsAtSend == null ? _batchDone : Math.Max(_made, _batchDone), _sentQuantity);
+    private int Counted(BenchView bench) => Math.Min(IsCountTrusted(bench) ? Math.Max(_made, _batchDone) : _batchDone, _sentQuantity);
+
+    /// <summary>
+    /// Kept since the step was sent, and seen working by now. Read as the step ends, so the step during which the
+    /// game first hands over a craft is already credited by its count.
+    /// </summary>
+    private bool IsCountTrusted(BenchView bench) => _resultsAtSend != null && bench.ResultsProven;
 
     /// <summary>
     /// The workbench closed under the run. Closing ends the craft in progress before it uses anything, so only crafts
@@ -673,9 +684,9 @@ public sealed class QueueRunner
     {
         if (_stage is Stage.Crafting or Stage.Collecting) CountLateCrafts(bench);
 
-        var madeCrafts = Counted();
+        var madeCrafts = Counted(bench);
 
-        if (_stage == Stage.Collecting || (_stage == Stage.Crafting && _quietSince != null)) return FinishStep(now);
+        if (_stage == Stage.Collecting || (_stage == Stage.Crafting && _quietSince != null)) return FinishStep(bench, now);
 
         if (_stage == Stage.Crafting && madeCrafts > 0) return FinishStep(madeCrafts, now);
 
@@ -738,16 +749,16 @@ public sealed class QueueRunner
     }
 
     /// <summary>
-    /// A step that finished whole. Without the game's result count, nothing counted by the batch means the step went
-    /// as sent. With it, nothing counted means nothing was made, since the game posts a result for every craft.
+    /// A step that finished whole. Without a trusted result count, nothing counted by the batch means the step went
+    /// as sent. With one, nothing counted means nothing was made, since the game posts a result for every craft.
     /// </summary>
-    private RunnerCommand FinishStep(double now)
+    private RunnerCommand FinishStep(BenchView bench, double now)
     {
-        var counted = Counted();
+        var counted = Counted(bench);
 
         if (counted > 0) return FinishStep(counted, now);
 
-        return _resultsAtSend == null ? FinishStep(_sentQuantity, now) : NothingMade(now);
+        return IsCountTrusted(bench) ? NothingMade(now) : FinishStep(_sentQuantity, now);
     }
 
     private RunnerCommand FinishStep(int crafts, double now)
