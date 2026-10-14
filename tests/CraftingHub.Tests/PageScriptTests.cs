@@ -116,6 +116,46 @@ public class PageScriptTests
     }
 
     [Fact]
+    public void A_card_shows_the_materials_the_game_sends_next_even_for_the_same_recipes()
+    {
+        var page = new PageScript();
+
+        page.OpenBench();
+        page.RecipeMsg("""[{ recipeKey: 'plank', name: 'Plank', canCraft: true, noteCategory: 1, materialsJson: '[{"name":"Log","need":1,"have":5,"hasEnough":true}]' }]""");
+        page.Show(View());
+
+        Assert.Equal("5/1", page.Text("cardPart('plank', '.cc-mat').textContent"));
+
+        page.RecipeMsg("""[{ recipeKey: 'plank', name: 'Plank', canCraft: false, noteCategory: 1, materialsJson: '[{"name":"Log","need":1,"have":0,"hasEnough":false}]' }]""");
+
+        Assert.Equal("0/1", page.Text("cardPart('plank', '.cc-mat').textContent"));
+        Assert.Equal("cc-mat no", page.Text("cardPart('plank', '.cc-mat').className"));
+        Assert.Equal("Short: Log 1", page.Text("cardPart('plank', '.cc-card-st').textContent"));
+    }
+
+    [Fact]
+    public void A_recipe_unlocked_under_the_same_key_can_be_laid_on_the_bench_and_queued()
+    {
+        var page = new PageScript();
+        const string shirt = """recipeKey: 'shirt', name: 'Shirt', canCraft: true, noteCategory: 3, materialsJson: '[{"name":"Fibre","need":6,"have":9,"hasEnough":true}]'""";
+
+        page.OpenBench();
+        page.RecipeMsg("[{ " + shirt + ", craftLocked: true, craftLockText: 'Needs a loom' }]");
+        page.Show(View());
+
+        Assert.True(page.Truth("cardPart('shirt', '.cc-add').disabled"));
+
+        page.RecipeMsg("[{ " + shirt + " }]");
+
+        Assert.Equal("Can make now", page.Text("cardPart('shirt', '.cc-card-st').textContent"));
+        Assert.False(page.Truth("cardPart('shirt', '.cc-add').disabled"));
+
+        page.Press("cardPart('shirt', '.cc-card-name')");
+
+        Assert.Equal("shirt", page.Text("sentActions('RECIPE_CLICK')[0].data.recipeKey"));
+    }
+
+    [Fact]
     public void The_search_box_tells_the_game_when_it_has_focus_so_typing_does_not_move_the_player()
     {
         var page = BenchWithRecipes();
