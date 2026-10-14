@@ -30,8 +30,7 @@ internal sealed class Workbench
     private static State_Web_ToolTable? _state;
     private static int _refreshes;
     private static bool _countsResults;
-    private static int _results;
-    private static int _successes;
+    private static readonly Dictionary<long, ResultCount> ResultsByBench = new();
 
     private readonly Action<string> _log;
     private readonly Dictionary<string, Recipe?> _recipes = new();
@@ -64,7 +63,7 @@ internal sealed class Workbench
 
         try
         {
-            harmony.Patch(AccessTools.Method(typeof(Reducer_Web_ToolTable), nameof(Reducer_Web_ToolTable.RA_Result)),
+            harmony.Patch(AccessTools.Method(typeof(LogicAdapter), "OnHandMadeResult"),
                 postfix: new HarmonyMethod(typeof(Workbench), nameof(CountResult)));
             _countsResults = true;
             log("counting finished crafts");
@@ -111,10 +110,10 @@ internal sealed class Workbench
     {
         var state = _state;
 
-        if (state == null) return new BenchView(false, false, false, 0, new Dictionary<int, int>(), 0, Results: Results());
+        if (state == null) return new BenchView(false, false, false, 0, new Dictionary<int, int>(), 0);
 
         // A craft can finish in the moment before the window closes; the kept state still holds its count.
-        if (!IsOpen) return new BenchView(false, false, false, 0, new Dictionary<int, int>(), state.BatchDone, BatchActive: state.BatchActive, BatchSuccess: state.BatchSuccess, Results: Results());
+        if (!IsOpen) return new BenchView(false, false, false, 0, new Dictionary<int, int>(), state.BatchDone, BatchActive: state.BatchActive, BatchSuccess: state.BatchSuccess, Results: Results(state.CurrentFurnitureId));
 
         var handState = (int)state.HandMadeState;
 
@@ -136,7 +135,7 @@ internal sealed class Workbench
             CraftLocked: state.CraftBtnLocked?.Value == true,
             LockText: state.CraftBtnLockText?.Value ?? "",
             Stamina: Stamina(),
-            Results: Results(),
+            Results: Results(state.CurrentFurnitureId),
             Refreshes: _refreshes);
     }
 
@@ -178,7 +177,8 @@ internal sealed class Workbench
         }
     }
 
-    private static ResultCount? Results() => _countsResults ? new ResultCount(_results, _successes) : null;
+    private static ResultCount? Results(long benchId) =>
+        !_countsResults ? null : ResultsByBench.TryGetValue(benchId, out var count) ? count : new ResultCount(0, 0);
 
     public string ItemName(int configId)
     {
@@ -199,22 +199,22 @@ internal sealed class Workbench
     }
 
     /// <summary>
-    /// Counts each craft the game finishes, past the same checks the game makes before it records one. Batch or not,
-    /// every craft posts its own result, so this sees crafts the batch count misses.
+    /// Counts each craft the game finishes, per workbench. The game's crafting loop hands every finished craft to this
+    /// one handler, window open or not, before it picks the window's result action, so a craft that finishes after
+    /// the window closes is counted too. Batch or not, every craft posts its own result, so this sees crafts the batch
+    /// count misses. Arguments are taken by position: the bench's id, then the outcome.
     /// </summary>
-    private static void CountResult(Ac_ToolTable_Result ac, State_Web_ToolTable state)
+    private static void CountResult(long __0, HandMadeState __1)
     {
         try
         {
-            if (ac == null || state?.BagOwnerId == null || state.WorkbenchOwnerId == null) return;
-
-            var outcome = (int)ac.State;
+            var outcome = (int)__1;
 
             if (outcome is not (Succeeded or Failed)) return;
 
-            _results++;
+            var count = ResultsByBench.TryGetValue(__0, out var seen) ? seen : new ResultCount(0, 0);
 
-            if (outcome == Succeeded) _successes++;
+            ResultsByBench[__0] = new ResultCount(count.All + 1, count.Successes + (outcome == Succeeded ? 1 : 0));
         }
         catch
         {

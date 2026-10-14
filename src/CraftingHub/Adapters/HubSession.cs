@@ -184,13 +184,18 @@ internal sealed class HubSession
         _logFileOnly("queue started: " + source);
     }
 
-    /// <summary>The ticker gave up on the session after repeated errors; a run in progress stops and says where to look.</summary>
-    public void StopForErrors()
+    /// <summary>
+    /// The ticker gave up on the session after repeated errors; a run in progress stops and says where to look. True
+    /// only when a run was stopped, so errors while idle leave the ticker ready to stop the next run.
+    /// </summary>
+    public bool StopForErrors()
     {
-        if (!_runner.IsRunning) return;
+        if (!_runner.IsRunning) return false;
 
         Apply(_runner.Stop(RepeatedErrorsReason));
         Show();
+
+        return true;
     }
 
     private void CraftNow(string key, int crafts)
@@ -449,7 +454,7 @@ internal sealed class HubSession
     private void Show()
     {
         var keep = new KeepView(_settings.KeepStocked, _slot.Targets.All, _keepByKey, _keepHave);
-        var stamina = StaminaView.From(_bench.Stamina(), _recipeKeys, _queue.Head != null, _runner.StoppedForStamina);
+        var stamina = StaminaView.From(_bench.Stamina(), _recipeKeys, _queue.Head != null);
         var view = HubView.Build(_marks, _queue.Entries, _runner.IsRunning, _status, keep, _runner.IsPaused, _outlook, _yields, ActiveOrderId(), stamina);
 
         if (view == _shownView) return;

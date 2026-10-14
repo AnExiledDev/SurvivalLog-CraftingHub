@@ -19,16 +19,16 @@ public readonly record struct StaminaView(int Have, bool IsOut, IReadOnlyDiction
 {
     /// <summary>
     /// The game works a craft's stamina cost out from the player, not the recipe, so every listed recipe gets the same
-    /// cost. Out while the queue waits on a craft the player cannot afford, or once the run stopped for stamina; null
-    /// when stamina could not be read.
+    /// cost. Out only while the queue waits on a craft the player cannot afford now, so it clears as stamina comes
+    /// back; a run that stopped for stamina says so in its status line. Null when stamina could not be read.
     /// </summary>
-    public static StaminaView? From(StaminaRead? read, IEnumerable<string> recipeKeys, bool hasQueue, bool stoppedForStamina)
+    public static StaminaView? From(StaminaRead? read, IEnumerable<string> recipeKeys, bool hasQueue)
     {
-        if (read is not { } stamina) return null;
+        if (read is not { } stamina || stamina.IsUnanswered) return null;
 
         var cost = stamina.Cost > 0 ? recipeKeys.Distinct().ToDictionary(key => key, _ => stamina.Cost) : new Dictionary<string, int>();
 
-        return new StaminaView(stamina.Have, stoppedForStamina || (hasQueue && stamina.IsShort), cost);
+        return new StaminaView(stamina.Have, hasQueue && stamina.IsShort, cost);
     }
 }
 
