@@ -341,14 +341,52 @@ public class PageScriptTests
     }
 
     [Fact]
-    public void Clicking_a_card_lays_its_recipe_on_the_bench_the_way_the_games_own_row_does()
+    public void Clicking_a_cards_picture_or_name_lays_its_recipe_on_the_bench_the_way_the_games_own_row_does()
     {
         var page = BenchWithRecipes();
 
-        page.Press("card('plank')");
+        page.Press("cardPart('plank', '.cc-card-name')");
 
         Assert.Equal("plank", page.Text("sentActions('RECIPE_CLICK')[0].data.recipeKey"));
         Assert.True(page.Truth("card('plank').classList.contains('cc-sel')"));
+
+        page.Press("cardPart('crate', '.cc-card-ic')");
+
+        Assert.Equal("crate", page.Text("sentActions('RECIPE_CLICK')[1].data.recipeKey"));
+        Assert.True(page.Truth("card('crate').classList.contains('cc-sel')"));
+        Assert.False(page.Truth("card('plank').classList.contains('cc-sel')"));
+    }
+
+    [Fact]
+    public void Clicking_the_rest_of_a_card_leaves_the_bench_alone()
+    {
+        var page = BenchWithRecipes();
+
+        page.Press("cardPart('plank', '.cc-val')");
+        page.Press("cardPart('plank', '.cc-mat')");
+        page.Press("cardPart('plank', '.cc-card-foot')");
+        page.Press("cardPart('plank', '.cc-card-st')");
+        page.Press("card('plank')");
+
+        Assert.Equal(0, page.Number("sentActions('RECIPE_CLICK').length"));
+    }
+
+    [Fact]
+    public void A_recipe_is_not_laid_on_the_bench_by_hand_while_the_queue_holds_it()
+    {
+        var page = BenchWithRecipes();
+
+        page.Show(View(TwoOrders, isRunning: true, outlook: TwoOrdersOutlook, activeOrderId: 4));
+        page.Press("cardPart('plank', '.cc-card-name')");
+        page.Show(View(TwoOrders, isRunning: true, isPaused: true, outlook: TwoOrdersOutlook, activeOrderId: 4));
+        page.Press("cardPart('plank', '.cc-card-ic')");
+
+        Assert.Equal(0, page.Number("sentActions('RECIPE_CLICK').length"));
+
+        page.Show(View(TwoOrders, outlook: TwoOrdersOutlook));
+        page.Press("cardPart('plank', '.cc-card-name')");
+
+        Assert.Equal(1, page.Number("sentActions('RECIPE_CLICK').length"));
     }
 
     [Fact]
@@ -356,7 +394,8 @@ public class PageScriptTests
     {
         var page = BenchWithRecipes();
 
-        page.Press("card('shirt')");
+        page.Press("cardPart('shirt', '.cc-card-name')");
+        page.Press("cardPart('shirt', '.cc-card-ic')");
         page.Press("cardPart('shirt', '.cc-add')");
 
         Assert.Equal(0, page.Number("sentActions('RECIPE_CLICK').length"));
@@ -365,15 +404,19 @@ public class PageScriptTests
     }
 
     [Fact]
-    public void A_recipe_on_the_bench_that_needs_parts_offers_to_make_them_with_the_quantity_set()
+    public void A_recipe_on_the_bench_that_needs_parts_offers_to_make_them_with_the_amount_set_on_its_card()
     {
         var page = BenchWithRecipes();
 
-        page.Press("card('crate')");
+        // The bag cannot make a crate yet, so the page holds its own quantity box at 1.
+        page.Run("bench().values.maxCraftCount = 0");
+        page.Press("cardPart('crate', '.cc-more')");
+        page.Press("cardPart('crate', '.cc-more')");
+        page.Press("cardPart('crate', '.cc-more')");
+        page.Press("cardPart('crate', '.cc-card-name')");
 
         Assert.Equal("Makes first: Plank x2", page.Text("$('cc-panel').querySelector('.cc-plan').textContent"));
 
-        page.Run("bench().values.craftQty = 4");
         page.Press("$('cc-panel').querySelector('.btn')");
 
         Assert.Equal(new PageCommand[] { new PageCommand.CraftNow("crate", 4) }, Sent(page));
@@ -510,6 +553,36 @@ public class PageScriptTests
         page.Run("fire(queueRow(1).querySelector('.cc-handle'), 'mousedown'); fire(queueRow(1), 'mousemove'); fire(queueRow(1), 'mouseup'); advance(1)");
 
         Assert.Empty(Sent(page));
+    }
+
+    [Fact]
+    public void A_drag_let_go_of_while_the_page_has_lost_focus_moves_nothing_on_the_next_release()
+    {
+        var page = BenchWithRecipes();
+
+        page.Show(View(TwoOrders, outlook: TwoOrdersOutlook));
+        page.Run("fire(queueRow(0).querySelector('.cc-handle'), 'mousedown'); fire(queueRow(1), 'mousemove'); blurBench()");
+
+        Assert.False(page.Truth("queueRow(0).classList.contains('drag') || queueRow(1).classList.contains('drop')"));
+
+        page.Run("fire(queueRow(1), 'mousemove'); fire(queueRow(1), 'mouseup'); advance(1)");
+
+        Assert.Empty(Sent(page));
+    }
+
+    [Fact]
+    public void A_drag_that_leaves_the_page_moves_nothing_but_one_crossing_between_rows_still_does()
+    {
+        var page = BenchWithRecipes();
+
+        page.Show(View(TwoOrders, outlook: TwoOrdersOutlook));
+        page.Run("fire(queueRow(0).querySelector('.cc-handle'), 'mousedown'); fire(queueRow(1), 'mousemove'); fire(queueRow(0), 'mouseout', { relatedTarget: queueRow(1) }); fire(queueRow(1), 'mouseup'); advance(1)");
+
+        Assert.Equal(new PageCommand[] { new PageCommand.Move(4, 1) }, Sent(page));
+
+        page.Run("fire(queueRow(0).querySelector('.cc-handle'), 'mousedown'); fire(queueRow(1), 'mousemove'); leavePage(); fire(queueRow(1), 'mouseup'); advance(1)");
+
+        Assert.Single(Sent(page));
     }
 
     [Fact]
@@ -697,7 +770,7 @@ public class PageScriptTests
     {
         var page = BenchWithRecipes();
 
-        page.Press("card('plank')");
+        page.Press("cardPart('plank', '.cc-card-name')");
 
         Assert.Equal("plank", page.Text("sentActions('RECIPE_CLICK')[0].data.recipeKey"));
         Assert.True(page.Truth("isBenchShown()"));
@@ -712,7 +785,7 @@ public class PageScriptTests
 
         Assert.False(page.Truth("isBenchShown()"));
 
-        page.Press("card('plank')");
+        page.Press("cardPart('plank', '.cc-card-name')");
 
         Assert.True(page.Truth("isBenchShown()"));
     }
@@ -962,6 +1035,90 @@ public class PageScriptTests
     }
 
     [Fact]
+    public void A_hub_that_fails_to_draw_every_time_stops_trying_and_says_so_once_until_something_new_arrives()
+    {
+        var page = BenchWithRecipes();
+
+        page.Run("var draws = 0; benchDoc().createElement = function () { draws += 1; throw new Error('cannot draw'); }");
+        page.Show(View(TwoOrders, outlook: TwoOrdersOutlook));
+
+        for (var i = 0; i < 10; i++) page.Poll();
+
+        Assert.Equal(2, page.Number("draws"));
+        Assert.Single(Diagnostics(page));
+        Assert.Contains("could not draw on the workbench page", Diagnostics(page)[0].Text);
+
+        page.Run("delete benchDoc().createElement");
+        page.Poll();
+
+        Assert.True(page.Truth("$('cc-mid') === null"));
+
+        page.Show(View());
+
+        Assert.False(page.Truth("$('cc-mid') === null"));
+        Assert.Equal("plank,rope,crate,shirt,torch", page.Text("cardKeys()"));
+    }
+
+    // ---------------------------------------------------------------- what the script reports to the plugin's log
+
+    [Fact]
+    public void A_new_frame_still_on_its_empty_page_is_not_reported_and_a_bench_page_that_stays_without_its_hooks_is_reported_once_per_load()
+    {
+        var page = new PageScript();
+
+        page.Run("var frame = openBlankFrame()");
+
+        for (var i = 0; i < 5; i++) page.Poll();
+
+        Assert.Empty(Diagnostics(page));
+
+        page.Run("loadBench(frame); delete bench().renderRecipes");
+
+        for (var i = 0; i < 3; i++) page.Poll();
+
+        Assert.Empty(Diagnostics(page));
+
+        page.Poll();
+
+        Assert.Single(Diagnostics(page));
+        Assert.Contains("core true", Diagnostics(page)[0].Text);
+        Assert.Contains("renderRecipes undefined", Diagnostics(page)[0].Text);
+
+        for (var i = 0; i < 5; i++) page.Poll();
+
+        Assert.Single(Diagnostics(page));
+
+        page.Run("loadBench(frame); delete bench().renderRecipes");
+
+        for (var i = 0; i < 4; i++) page.Poll();
+
+        Assert.Equal(2, Diagnostics(page).Count);
+    }
+
+    [Fact]
+    public void A_frame_out_of_reach_for_a_moment_is_not_reported_but_one_that_stays_out_of_reach_is_reported_once()
+    {
+        var page = new PageScript();
+
+        page.Run("var frame = openBlankFrame(); denyFrame(frame)");
+
+        for (var i = 0; i < 3; i++) page.Poll();
+
+        page.Run("allowFrame(frame, null); loadBench(frame)");
+        page.Poll();
+
+        Assert.Empty(Diagnostics(page));
+        Assert.False(page.Truth("$('cc-mid') === null"));
+
+        page.Run("var other = openBlankFrame(); denyFrame(other)");
+
+        for (var i = 0; i < 6; i++) page.Poll();
+
+        Assert.Single(Diagnostics(page));
+        Assert.Contains("cannot reach the workbench page", Diagnostics(page)[0].Text);
+    }
+
+    [Fact]
     public void The_whole_queues_materials_list_short_ones_and_the_parts_it_makes_on_the_way()
     {
         var page = BenchWithRecipes();
@@ -1030,6 +1187,173 @@ public class PageScriptTests
         Assert.True(page.Truth("card('crate').classList.contains('cc-sel')"));
     }
 
+    [Fact]
+    public void A_queued_click_goes_to_the_bench_page_the_hub_is_on_not_one_it_could_not_hook_into()
+    {
+        var page = new PageScript();
+
+        page.Run("var broken = openBench(); delete broken.renderRecipes; var good = openBench()");
+        page.Poll();
+        page.Run("window.__craftinghub.act('recipe', 'crate')");
+
+        Assert.Equal(1, page.Number("good.sent.filter(function (e) { return e.action === 'RECIPE_CLICK'; }).length"));
+        Assert.Equal(0, page.Number("broken.sent.length"));
+    }
+
+    [Fact]
+    public void A_queued_click_with_no_bench_to_go_to_is_reported_once_and_again_only_after_one_has_worked()
+    {
+        var page = new PageScript();
+
+        for (var i = 0; i < 3; i++) page.Run("window.__craftinghub.act('craft', 1)");
+
+        Assert.Single(Diagnostics(page));
+        Assert.Contains("no workbench page for craft", Diagnostics(page)[0].Text);
+
+        page.OpenBench();
+        page.RecipeMsg(Recipes);
+        page.Run("window.__craftinghub.act('craft', 1)");
+
+        Assert.Single(Diagnostics(page));
+
+        page.Run("document.body.removeChild(document.querySelector('iframe'))");
+        page.Run("window.__craftinghub.act('craft', 1)");
+        page.Run("window.__craftinghub.act('craft', 1)");
+
+        Assert.Equal(2, Diagnostics(page).Count);
+    }
+
+    // ---------------------------------------------------------------- keeping up with a busy game
+
+    [Fact]
+    public void The_same_view_and_the_same_recipes_sent_again_rebuild_nothing()
+    {
+        var page = BenchWithRecipes();
+
+        page.Show(View(TwoOrders, outlook: TwoOrdersOutlook));
+        page.Run("var plankCard = card('plank'); var firstRow = queueRow(0); var writesBefore = domWrites");
+        page.Show(View(TwoOrders, outlook: TwoOrdersOutlook));
+
+        Assert.Equal(0, page.Number("domWrites - writesBefore"));
+
+        page.RecipeMsg(Recipes);
+
+        Assert.True(page.Truth("card('plank') === plankCard"));
+        Assert.True(page.Truth("queueRow(0) === firstRow"));
+    }
+
+    [Fact]
+    public void A_change_to_the_queue_leaves_the_recipe_list_as_it_is()
+    {
+        var page = BenchWithRecipes();
+
+        page.Run("var plankCard = card('plank')");
+        page.Show(View(TwoOrders, outlook: TwoOrdersOutlook));
+
+        Assert.True(page.Truth("card('plank') === plankCard"));
+        Assert.Equal(2, page.Number("$('cc-qlist').querySelectorAll('.cc-qrow').length"));
+    }
+
+    [Fact]
+    public void Picking_a_recipe_moves_the_highlight_without_rebuilding_the_list()
+    {
+        var page = BenchWithRecipes();
+
+        page.Run("var plankCard = card('plank'); var crateCard = card('crate')");
+        page.Press("cardPart('plank', '.cc-card-name')");
+        page.Press("cardPart('crate', '.cc-card-name')");
+
+        Assert.True(page.Truth("card('plank') === plankCard && card('crate') === crateCard"));
+        Assert.False(page.Truth("plankCard.classList.contains('cc-sel')"));
+        Assert.True(page.Truth("crateCard.classList.contains('cc-sel')"));
+    }
+
+    [Fact]
+    public void A_poll_with_nothing_changed_writes_nothing_to_the_page()
+    {
+        var page = BenchWithRecipes();
+
+        page.Show(View(TwoOrders, isRunning: true, outlook: TwoOrdersOutlook, activeOrderId: 4));
+        page.Run("$('craft-progress').style.transform = 'scaleX(0.5)'");
+        page.Poll();
+        page.Run("var writesBefore = domWrites");
+        page.Poll();
+        page.Poll();
+
+        Assert.Equal(0, page.Number("domWrites - writesBefore"));
+        Assert.Equal("scaleX(0.5)", page.Text("$('cc-prog').style.transform"));
+    }
+
+    // ---------------------------------------------------------------- stamina
+
+    [Fact]
+    public void The_queue_column_shows_the_stamina_the_player_has()
+    {
+        var page = BenchWithRecipes();
+
+        page.Show(WithStamina(View(), "{\"have\":42,\"out\":false,\"cost\":{}}"));
+
+        Assert.Equal("Stamina 42", page.Text("$('cc-stamina').textContent"));
+        Assert.True(page.Truth("$('cc-queue').querySelector('.cc-title').contains($('cc-stamina'))"));
+        Assert.Equal("none", page.Text("$('cc-stamina-out').style.display"));
+    }
+
+    [Fact]
+    public void A_card_shows_the_stamina_one_craft_of_it_takes()
+    {
+        var page = BenchWithRecipes();
+
+        page.Show(WithStamina(View(), "{\"have\":42,\"out\":false,\"cost\":{\"crate\":8}}"));
+
+        Assert.Equal("8 stamina", page.Text("cardPart('crate', '.cc-cost').textContent"));
+        Assert.True(page.Truth("cardPart('plank', '.cc-cost') === null"));
+
+        page.Run("var crateCard = card('crate')");
+        page.Show(WithStamina(View(), "{\"have\":34,\"out\":false,\"cost\":{\"crate\":8}}"));
+
+        Assert.True(page.Truth("card('crate') === crateCard"));
+        Assert.Equal("Stamina 34", page.Text("$('cc-stamina').textContent"));
+    }
+
+    [Fact]
+    public void Running_out_of_stamina_puts_a_bar_across_the_queue_and_says_so_beside_the_count()
+    {
+        var page = BenchWithRecipes();
+
+        page.Show(WithStamina(View(), "{\"have\":0,\"out\":true,\"cost\":{\"crate\":8}}"));
+
+        Assert.Equal("", page.Text("$('cc-stamina-out').style.display"));
+        Assert.Contains("Out of stamina", page.Text("$('cc-stamina-out').textContent"));
+        Assert.Equal("Stamina 0 (out)", page.Text("$('cc-stamina').textContent"));
+        Assert.True(page.Truth("$('cc-stamina').classList.contains('cc-warn')"));
+
+        page.Show(WithStamina(View(), "{\"have\":20,\"out\":false,\"cost\":{\"crate\":8}}"));
+
+        Assert.Equal("none", page.Text("$('cc-stamina-out').style.display"));
+        Assert.Equal("Stamina 20", page.Text("$('cc-stamina').textContent"));
+        Assert.False(page.Truth("$('cc-stamina').classList.contains('cc-warn')"));
+    }
+
+    [Fact]
+    public void Without_a_stamina_reading_nothing_about_stamina_is_shown()
+    {
+        var page = BenchWithRecipes();
+
+        page.Show(WithStamina(View(), "{\"have\":0,\"out\":true,\"cost\":{\"crate\":8}}"));
+        page.Show(WithStamina(View(), "null"));
+
+        Assert.Equal("", page.Text("$('cc-stamina').textContent"));
+        Assert.Equal("none", page.Text("$('cc-stamina-out').style.display"));
+        Assert.Equal(0, page.Number("benchDoc().querySelectorAll('.cc-cost').length"));
+
+        page.Show(View(TwoOrders, outlook: TwoOrdersOutlook));
+
+        Assert.Equal("", page.Text("$('cc-stamina').textContent"));
+        Assert.Equal("none", page.Text("$('cc-stamina-out').style.display"));
+        Assert.Equal(0, page.Number("benchDoc().querySelectorAll('.cc-cost').length"));
+        Assert.Empty(Diagnostics(page));
+    }
+
     /// <summary>A workbench open with the fixture's recipes listed and the chain marks shown, nothing queued.</summary>
     private static PageScript BenchWithRecipes()
     {
@@ -1053,6 +1377,12 @@ public class PageScriptTests
         long activeOrderId = 0) =>
         HubView.Build(Marks, queue ?? Array.Empty<QueueEntry>(), isRunning, status, keep ?? NoKeep, isPaused, outlook, yields, activeOrderId);
 
+    /// <summary>The plugin's view with its stamina reading, which the plugin sends as the view's last field.</summary>
+    private static string WithStamina(string view, string stamina) => view[..^1] + ",\"stamina\":" + stamina + "}";
+
     /// <summary>What the script asked of the plugin, past its hello.</summary>
     private static List<PageCommand> Sent(PageScript page) => page.Posted.Where(command => command is not PageCommand.Ready).ToList();
+
+    /// <summary>What the script wrote to the plugin's log.</summary>
+    private static List<PageCommand.Diagnostic> Diagnostics(PageScript page) => page.Posted.OfType<PageCommand.Diagnostic>().ToList();
 }

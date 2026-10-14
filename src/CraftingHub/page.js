@@ -11,6 +11,11 @@
   var PREFIX = 'slmod|craftinghub|';
   var BENCH_PAGE = /ToolTable\.html/;
   var POLL_MS = 500;
+  // How many polls a frame may stay out of reach, or a loaded page stay without what the hub hooks into, before it
+  // is reported: both happen for a moment while a frame loads.
+  var SETTLE_POLLS = 4;
+  // How many times in a row the hub tries to draw on a page before it waits for new data from the game or the plugin.
+  var RENDER_TRIES = 2;
 
   var DEFAULT_KEEP = 10;
   var MAX_KEEP = 9999;
@@ -47,9 +52,12 @@
 
   var view = { marks: {}, queue: [], running: false, paused: false, activeId: 0, status: '', headsUp: '', totals: [], made: [], yields: {}, keep: { on: false, targets: [], byKey: {} } };
   var selectedKey = '';
-  var reported = {};
+  // The plugin's last view as it was sent, so the same view sent again draws nothing.
+  var lastViewText = '';
   var hasSkippedRender = false;
   var isQueueActing = false;
+  // Where the problems with the queue's own clicks are reported from.
+  var actProblems = {};
 
   function post(message) {
     try {
@@ -57,27 +65,50 @@
     } catch (e) {}
   }
 
-  // Each problem is reported once per session, so a broken hook cannot flood the log.
-  function diag(id, text) {
+  // Each problem is reported once per owner (a workbench page's document, a frame, the queue's clicks), so a broken
+  // hook cannot flood the log, and a page loaded afresh that breaks again is still heard about.
+  function diag(owner, id, text) {
+    var reported = owner.__ccReported || (owner.__ccReported = {});
+
     if (reported[id]) return;
 
     reported[id] = true;
     post('diag|' + text);
   }
 
+  // A problem that cleared up is reported again if it comes back.
+  function forget(owner, id) {
+    if (owner.__ccReported) delete owner.__ccReported[id];
+  }
+
+  function pageDiag(win, id, text) {
+    try {
+      diag(win.document, id, text);
+    } catch (e) {}
+  }
+
+  function benchFrames() {
+    return Array.prototype.filter.call(document.querySelectorAll('iframe'), function (frame) { return BENCH_PAGE.test(frame.src || ''); });
+  }
+
+  // The frame's workbench page; null while the frame still holds the empty page a new frame starts with, which already
+  // counts as loaded. Throws when the browser will not let the root reach the page.
+  function benchWindowOf(frame) {
+    var win = frame.contentWindow;
+
+    return win && win.document && win.location && BENCH_PAGE.test(String(win.location.href)) ? win : null;
+  }
+
   function benchWindows() {
     var found = [];
-    var frames = document.querySelectorAll('iframe');
 
-    for (var i = 0; i < frames.length; i++) {
-      if (!BENCH_PAGE.test(frames[i].src || '')) continue;
-
+    benchFrames().forEach(function (frame) {
       try {
-        if (frames[i].contentWindow && frames[i].contentWindow.document) found.push(frames[i].contentWindow);
-      } catch (e) {
-        diag('access', 'cannot reach the workbench page: ' + e);
-      }
-    }
+        var win = benchWindowOf(frame);
+
+        if (win) found.push(win);
+      } catch (e) {}
+    });
 
     return found;
   }
@@ -87,7 +118,7 @@
     try {
       return win.eval('typeof ' + name + ' !== "undefined" ? ' + name + ' : null');
     } catch (e) {
-      diag('read-' + name, 'cannot read ' + name + ' on the workbench page: ' + e);
+      pageDiag(win, 'read-' + name, 'cannot read ' + name + ' on the workbench page: ' + e);
 
       return null;
     }
@@ -111,27 +142,59 @@
     } catch (e) {}
   }
 
+  // Whether the hub is on the page. A page still loading has not defined its functions yet, and the poll tries again,
+  // so only a loaded page counts; the poll reports a loaded page that stays without them (noteBadShape).
   function install(win) {
-    if (win.__ccInstalled) return;
+    if (win.__ccInstalled) return true;
 
-    // A page still loading has not defined its functions yet; the poll tries again, so only a loaded page counts.
-    if (win.document.readyState !== 'complete') return;
+    if (win.document.readyState !== 'complete') return false;
 
     var core = benchCore(win);
 
-    if (!core || typeof win.renderRecipes !== 'function' || !pageValue(win, 'NOTE_CAT_META')) {
-      diag('shape', 'the workbench page changed shape (core ' + !!core + ', renderRecipes ' + typeof win.renderRecipes + '), the crafting hub is off');
-
-      return;
-    }
+    if (!core || typeof win.renderRecipes !== 'function' || !pageValue(win, 'NOTE_CAT_META')) return false;
 
     win.__ccInstalled = true;
-    win.__ccUi = { filter: 'all', group: ALL_GROUPS, amounts: {}, drag: null, view: 'bag', hover: null, isOverlayShown: false, isOverlayPending: false, isOwnCraft: true, isTabOff: false, dragCoord: null };
+    win.__ccUi = {
+      filter: 'all',
+      group: ALL_GROUPS,
+      amounts: {},
+      drag: null,
+      view: 'bag',
+      hover: null,
+      isOverlayShown: false,
+      isOverlayPending: false,
+      isOwnCraft: true,
+      isTabOff: false,
+      dragCoord: null,
+      renderFailures: 0,
+      recipesSig: null,
+      recipeVersion: 0,
+      mats: {},
+      icons: null
+    };
     selectedKey = '';
     wrapRenderer(win);
     wrapSend(win, core);
     wrapGridHitTests(win);
+    wireDragGuards(win);
     addStyle(win.document);
+
+    return true;
+  }
+
+  // Counted on the page's own document, so a page loaded afresh is given its own few polls.
+  function noteBadShape(win) {
+    var doc = win.document;
+
+    if (doc.readyState !== 'complete') return;
+
+    doc.__ccShapeMisses = (doc.__ccShapeMisses || 0) + 1;
+
+    if (doc.__ccShapeMisses < SETTLE_POLLS) return;
+
+    var core = benchCore(win);
+
+    pageDiag(win, 'shape', 'the workbench page changed shape (core ' + !!core + ', renderRecipes ' + typeof win.renderRecipes + '), the crafting hub is off');
   }
 
   // The game rebuilds its own, hidden, list on every recipe message. The hub's list is redrawn in the same turn, so
@@ -142,10 +205,36 @@
     win.renderRecipes = function () {
       var result = original.apply(this, arguments);
 
+      noteRecipes(win);
       refresh();
 
       return result;
     };
+  }
+
+  // The game sends the same recipes again often. Only different ones count as new: what was worked out from the last
+  // ones is dropped, and a hub that gave up drawing tries again.
+  function noteRecipes(win) {
+    var ui = win.__ccUi;
+    var sig = recipesSignature(pageValue(win, 'lastRecipeData'));
+
+    if (sig !== null && sig === ui.recipesSig) return;
+
+    ui.recipesSig = sig;
+    ui.recipeVersion += 1;
+    ui.mats = {};
+    ui.icons = null;
+    ui.renderFailures = 0;
+  }
+
+  // The page marks its own recipe objects as it draws them (r._match); those marks are not the game's data. null when
+  // the recipes cannot be written out, which counts as new every time.
+  function recipesSignature(recipes) {
+    try {
+      return JSON.stringify(recipes, function (name, value) { return name.charAt(0) === '_' ? undefined : value; });
+    } catch (e) {
+      return null;
+    }
   }
 
   // Watches what the page sends on its way to the game, which always gets it, whatever the hub makes of it.
@@ -156,7 +245,7 @@
       try {
         noteSend(win, action, data);
       } catch (e) {
-        diag('send', 'could not follow what the workbench page sent: ' + e);
+        pageDiag(win, 'send', 'could not follow what the workbench page sent: ' + e);
       }
 
       return original.apply(this, arguments);
@@ -199,7 +288,7 @@
       var grid = pageValue(win, name);
 
       if (!grid || typeof grid.isMouseOver !== 'function' || typeof grid.getGridCoordinates !== 'function') {
-        diag('grid-' + name, 'the workbench page\'s ' + name + ' grid changed shape; a drop may land where it was before a tab switch');
+        pageDiag(win, 'grid-' + name, 'the workbench page\'s ' + name + ' grid changed shape; a drop may land where it was before a tab switch');
 
         return;
       }
@@ -262,10 +351,12 @@
       '.cc-ghead{grid-column:1/-1;display:flex;align-items:center;gap:8px;padding:5px 10px;border-radius:6px;background:linear-gradient(90deg,#6b5726,#48381a);border-left:3px solid #ffc107;color:#fff3cf;font-weight:700;cursor:pointer;font-size:13px}',
       '.cc-arrow{font-size:10px;opacity:.8;width:12px}',
       '.cc-gcount{margin-left:auto;font-size:12px;font-weight:600;color:#ffe6a8}',
-      '.cc-card{display:grid;grid-template-columns:40px minmax(0,1fr);gap:5px 8px;align-items:start;align-content:space-between;padding:6px 8px;background:rgba(8,8,10,.55);border:1px solid rgba(255,255,255,.07);border-left:3px solid #7ce087;border-radius:8px;min-width:0;cursor:pointer}',
+      '.cc-card{display:grid;grid-template-columns:40px minmax(0,1fr);gap:5px 8px;align-items:start;align-content:space-between;padding:6px 8px;background:rgba(8,8,10,.55);border:1px solid rgba(255,255,255,.07);border-left:3px solid #7ce087;border-radius:8px;min-width:0}',
       '.cc-card.cc-k-via{border-left-color:#e0b45a}',
       '.cc-card.cc-k-short{border-left-color:#e08b6a}',
-      '.cc-card.cc-k-locked{border-left-color:#5f5f66;opacity:.7;cursor:default}',
+      '.cc-card.cc-k-locked{border-left-color:#5f5f66;opacity:.7}',
+      '.cc-card-ic,.cc-card-name{cursor:pointer}',
+      '.cc-card.cc-k-locked .cc-card-ic,.cc-card.cc-k-locked .cc-card-name{cursor:default}',
       '.cc-card.cc-sel{border-color:rgba(255,193,7,.6)}',
       '.cc-card-ic{position:relative;width:38px;height:38px;background:linear-gradient(180deg,#131316,#1d1d20);border-radius:6px;display:flex;align-items:center;justify-content:center;border:1px solid #000}',
       '.cc-card-ic img{width:32px;height:32px;object-fit:contain}',
@@ -276,6 +367,7 @@
       '.cc-card-sub{display:flex;align-items:center;gap:6px;min-height:20px;margin-top:2px}',
       '.cc-card-st{flex:1;min-width:0;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
       '.cc-st-now{color:#7ce087}.cc-st-via{color:#e0b45a}.cc-st-short{color:#e08b6a}.cc-st-locked{color:#8a8a92}',
+      '.cc-cost{flex:none;font-size:11px;color:#9fc7e8;white-space:nowrap}',
       '.cc-mats{display:flex;flex-wrap:wrap;gap:4px}',
       '.cc-mat{display:inline-flex;align-items:center;gap:3px;background:rgba(255,255,255,.05);border-radius:5px;padding:1px 6px 1px 2px;font-size:12px;font-weight:600}',
       '.cc-mat img{width:20px;height:20px;object-fit:contain}',
@@ -298,6 +390,10 @@
       '.cc-pill.paused{background:rgba(224,180,90,.16);color:#e0b45a;border:1px solid rgba(224,180,90,.4)}',
       '.cc-banner{background:rgba(224,180,90,.12);border:1px solid rgba(224,180,90,.4);color:#f1d79b;border-radius:8px;padding:7px 10px;font-size:12px;margin-bottom:8px}',
       '.cc-banner.bad{background:rgba(224,139,106,.12);border-color:rgba(224,139,106,.4);color:#f2c0ad}',
+      '.cc-outbar{flex:none;font-size:13px;font-weight:700}',
+      '.cc-stamina{font-size:12px;font-weight:600;color:#9fc7e8;white-space:nowrap}',
+      '.cc-stamina:empty{display:none}',
+      '.cc-stamina.cc-warn{color:#ffd0c2;background:rgba(224,139,106,.25);border:1px solid #e08b6a;border-radius:6px;padding:1px 8px}',
       '.cc-hint{font-size:12px;color:#888;margin:0 0 8px}',
       '.cc-notes{flex:none}',
       '.cc-qlist{flex:1 1 auto;min-height:110px;overflow-y:auto;display:flex;flex-direction:column;gap:5px;padding-right:4px}',
@@ -399,6 +495,26 @@
     return box;
   }
 
+  // Changes the page only where it differs, so a redraw of the same thing costs the page nothing.
+  function setText(node, text) {
+    if (node.textContent !== text) node.textContent = text;
+  }
+
+  function setClass(node, className) {
+    if (node.className !== className) node.className = className;
+  }
+
+  // Fills a part of the hub again only when what it shows has changed. inputs is everything fill reads that can change
+  // under it; the key is kept on the box itself, so a box built afresh is always filled.
+  function redraw(box, inputs, fill) {
+    var key = JSON.stringify(inputs);
+
+    if (!box || box.__ccKey === key) return;
+
+    fill();
+    box.__ccKey = key;
+  }
+
   function hasOwn(map, key) {
     return !!map && Object.prototype.hasOwnProperty.call(map, key);
   }
@@ -428,10 +544,25 @@
     return hasOwn(view.yields, key) ? view.yields[key] : 1;
   }
 
-  function craftQty(win) {
-    var qty = pageValue(win, 'craftQty');
+  // The plugin's reading of the player's stamina: have, out, and cost, the stamina one craft takes by recipe key. null
+  // when the plugin could not read it, and then nothing about stamina is shown.
+  function staminaOf() {
+    var stamina = view.stamina;
 
-    return qty > 0 ? Math.floor(qty) : 1;
+    return stamina && typeof stamina === 'object' ? stamina : null;
+  }
+
+  function staminaCosts() {
+    var stamina = staminaOf();
+
+    return stamina && stamina.cost && typeof stamina.cost === 'object' ? stamina.cost : null;
+  }
+
+  function staminaCost(key) {
+    var costs = staminaCosts();
+    var cost = hasOwn(costs, key) ? costs[key] : null;
+
+    return typeof cost === 'number' ? cost : null;
   }
 
   // The recipes the page last drew its list from, as the game sent them.
@@ -441,9 +572,18 @@
     return (recipes || []).filter(function (r) { return r && r.recipeKey; });
   }
 
+  // Read once per recipe for as long as the game keeps sending the same recipes.
+  function materialsOf(win, r) {
+    var cache = win.__ccUi.mats;
+
+    if (!hasOwn(cache, r.recipeKey)) cache[r.recipeKey] = parseMaterials(r);
+
+    return cache[r.recipeKey];
+  }
+
   // What the page itself reads from each recipe (getMaterials): per material its icon, name, need and have for one
   // craft, hasEnough, and sub, the key of the recipe that makes it.
-  function materialsOf(r) {
+  function parseMaterials(r) {
     try {
       var mats = r.materialsJson ? JSON.parse(r.materialsJson) : [];
 
@@ -482,7 +622,7 @@
 
   function entriesOf(win, query) {
     return recipesOf(win).map(function (r) {
-      var mats = materialsOf(r);
+      var mats = materialsOf(win, r);
 
       return { recipe: r, kind: kindOf(r), group: groupOf(r), mats: mats, hits: searchHits(r, mats, query) };
     });
@@ -840,6 +980,8 @@
     var column = el(doc, 'div', 'cc-col');
     var title = el(doc, 'div', 'cc-title');
     var pill = el(doc, 'span', 'cc-pill idle');
+    var stamina = el(doc, 'span', 'cc-stamina');
+    var outOfStamina = el(doc, 'div', 'cc-banner bad cc-outbar', 'Out of stamina: crafts that take stamina cannot start.');
     var notes = el(doc, 'div', 'cc-notes');
     var list = el(doc, 'div', 'cc-qlist cc-scroll');
     var totals = el(doc, 'div', 'cc-totwrap cc-scroll');
@@ -850,6 +992,9 @@
 
     column.id = 'cc-queue';
     pill.id = 'cc-pill';
+    stamina.id = 'cc-stamina';
+    outOfStamina.id = 'cc-stamina-out';
+    outOfStamina.style.display = 'none';
     notes.id = 'cc-notes';
     list.id = 'cc-qlist';
     totals.id = 'cc-totals';
@@ -861,8 +1006,10 @@
     list.addEventListener('mousemove', function (e) { dragOver(win, e.target); });
     title.appendChild(el(doc, 'span', null, 'Craft queue'));
     title.appendChild(el(doc, 'span', 'cc-grow'));
+    title.appendChild(stamina);
     title.appendChild(pill);
     column.appendChild(title);
+    column.appendChild(outOfStamina);
     column.appendChild(notes);
     column.appendChild(list);
     column.appendChild(section(doc, 'Materials for the whole queue', 'need / you have', totals));
@@ -905,7 +1052,7 @@
     try {
       if (typeof win.applyViewportFit === 'function') win.applyViewportFit();
     } catch (e) {
-      diag('fit', 'could not fit the workbench page to the window: ' + e);
+      pageDiag(win, 'fit', 'could not fit the workbench page to the window: ' + e);
     }
   }
 
@@ -944,6 +1091,43 @@
     else list.appendChild(el(doc, 'div', 'cc-empty', typed ? 'No recipes match "' + typed + '".' : 'No recipes in this view.'));
 
     list.scrollTop = scrollTop;
+    list.__ccKey = listKey(win);
+  }
+
+  // The game and the plugin redraw the list only when something it shows from them changed. The player's own search,
+  // filter, group and amounts draw it straight away (drawList), and the recipe on the bench is marked in place.
+  function drawListIfChanged(win) {
+    var list = win.document.getElementById('cc-list');
+
+    if (list && list.__ccKey !== listKey(win)) drawList(win, false);
+  }
+
+  function listKey(win) {
+    var metas = pageValue(win, 'NOTE_CAT_META') || [];
+    var collapsed = pageValue(win, 'collapsedCats');
+    var groupNames = metas.map(function (meta) { return groupName(win, meta); });
+
+    return JSON.stringify([
+      win.__ccUi.recipeVersion,
+      groupNames,
+      collapsed ? Array.from(collapsed) : null,
+      view.marks,
+      view.keep.on,
+      view.keep.byKey,
+      view.yields,
+      staminaCosts()
+    ]);
+  }
+
+  function markSelected(win) {
+    var list = win.document.getElementById('cc-list');
+    var cards = list ? list.querySelectorAll('.cc-card') : [];
+
+    Array.prototype.forEach.call(cards, function (card) {
+      var isSelected = card.getAttribute('data-key') === selectedKey;
+
+      if (card.classList.contains('cc-sel') !== isSelected) card.classList.toggle('cc-sel', isSelected);
+    });
   }
 
   function drawFilters(win, entries) {
@@ -1065,12 +1249,14 @@
     var sub = el(doc, 'div', 'cc-card-sub');
     var foot = el(doc, 'div', 'cc-card-foot');
     var mats = el(doc, 'div', 'cc-mats');
+    var cost = staminaCost(key);
 
     node.setAttribute('data-key', key);
     icon.appendChild(picture(doc, r.icon));
     if (yieldOf(key) > 1) icon.appendChild(el(doc, 'span', 'cc-yield', 'x' + yieldOf(key)));
     if (r.isNew) name.appendChild(el(doc, 'span', 'cc-new', 'NEW'));
     sub.appendChild(el(doc, 'div', 'cc-card-st cc-st-' + entry.kind, statusLine(entry)));
+    if (cost !== null) sub.appendChild(el(doc, 'span', 'cc-cost', cost + ' stamina'));
     if (view.keep.on) sub.appendChild(keepButton(doc, key, isLocked));
     head.appendChild(name);
     head.appendChild(sub);
@@ -1086,12 +1272,19 @@
     node.appendChild(icon);
     node.appendChild(head);
     node.appendChild(foot);
-    // A click on the card lays the recipe on the bench, as a click on the game's own row does.
-    node.addEventListener('click', function () {
-      if (!isLocked) send(win, 'RECIPE_CLICK', { recipeKey: key });
-    });
+    icon.addEventListener('click', function () { pickRecipe(win, key, isLocked); });
+    name.addEventListener('click', function () { pickRecipe(win, key, isLocked); });
 
     return node;
+  }
+
+  // The card's picture and name lay its recipe on the bench, as a click on the game's own row does; the rest of the
+  // card is for setting it up, so a missed click on the amount does not swap the bench. Never while a queue run holds
+  // the bench: a recipe laid between the queue's own pick and its craft would be crafted in its place.
+  function pickRecipe(win, key, isLocked) {
+    if (isLocked || view.running) return;
+
+    send(win, 'RECIPE_CLICK', { recipeKey: key });
   }
 
   function materialChip(doc, m, amount, byKey, hits) {
@@ -1116,38 +1309,56 @@
 
   // ---------------------------------------------------------------- queue column
 
+  // Each part is filled again only when what it shows changed, so the plugin's frequent views cost the page little and
+  // the queue keeps where it was scrolled to.
   function drawQueue(win) {
     var doc = win.document;
     var list = doc.getElementById('cc-qlist');
 
     if (!list) return;
 
+    var version = win.__ccUi.recipeVersion;
     var icons = iconsOf(win);
-    var scrollTop = list.scrollTop;
 
     drawPill(doc);
-    drawNotes(doc);
+    drawStamina(doc);
+    redraw(doc.getElementById('cc-notes'), [view.running, view.paused, view.headsUp, view.status], function () { drawNotes(doc); });
+    redraw(list, [view.queue, view.running, view.paused, view.activeId, view.yields, version], function () { drawOrders(win, list, icons); });
+    redraw(doc.getElementById('cc-totals'), [view.totals, view.queue.length, version], function () { drawTotals(doc, icons); });
+    redraw(doc.getElementById('cc-made'), [view.made, version], function () { drawMade(doc, icons); });
+    redraw(doc.getElementById('cc-actions'), [view.running, view.queue], function () { drawActions(doc); });
+    redraw(doc.getElementById('cc-keeps'), [view.keep, version], function () { drawKeeps(doc, icons); });
+  }
+
+  function drawOrders(win, list, icons) {
+    var doc = win.document;
+    var scrollTop = list.scrollTop;
+
     list.innerHTML = '';
     view.queue.forEach(function (order, index) { list.appendChild(queueRow(win, icons, order, index)); });
 
     if (!view.queue.length) list.appendChild(el(doc, 'div', 'cc-empty', 'The queue is empty. Use Add on any recipe.'));
 
     list.scrollTop = scrollTop;
-    drawTotals(doc, icons);
-    drawMade(doc, icons);
-    drawActions(doc);
-    drawKeeps(doc, icons);
   }
 
   // Pictures for the queue column, from the recipe data the page already holds: a recipe's icon by its key, and an
-  // item's icon by its name, since the totals name items rather than recipes.
+  // item's icon by its name, since the totals name items rather than recipes. Gathered once per set of recipes.
   function iconsOf(win) {
+    var ui = win.__ccUi;
+
+    if (!ui.icons) ui.icons = gatherIcons(win);
+
+    return ui.icons;
+  }
+
+  function gatherIcons(win) {
     var icons = { byKey: {}, byName: {} };
 
     recipesOf(win).forEach(function (r) {
       if (r.icon) icons.byKey[r.recipeKey] = r.icon;
       if (r.icon && !icons.byName[r.name]) icons.byName[r.name] = r.icon;
-      materialsOf(r).forEach(function (m) {
+      materialsOf(win, r).forEach(function (m) {
         if (m.icon && !icons.byName[m.name]) icons.byName[m.name] = m.icon;
       });
     });
@@ -1159,8 +1370,27 @@
     var pill = doc.getElementById('cc-pill');
     var state = view.paused ? 'paused' : view.running ? 'running' : 'idle';
 
-    pill.className = 'cc-pill ' + state;
-    pill.textContent = { idle: 'Idle', running: 'Crafting', paused: 'Paused' }[state];
+    setClass(pill, 'cc-pill ' + state);
+    setText(pill, { idle: 'Idle', running: 'Crafting', paused: 'Paused' }[state]);
+  }
+
+  // The stamina the player has, beside the queue's state, and a bar across the column once it has run out; the
+  // readout then turns into a warning too, in words as well as colour.
+  function drawStamina(doc) {
+    var readout = doc.getElementById('cc-stamina');
+    var bar = doc.getElementById('cc-stamina-out');
+
+    if (!readout || !bar) return;
+
+    var stamina = staminaOf();
+    var isOut = !!stamina && stamina.out === true;
+    var have = stamina && typeof stamina.have === 'number' ? 'Stamina ' + stamina.have : '';
+    var display = isOut ? '' : 'none';
+
+    setText(readout, isOut ? (have || 'Stamina') + ' (out)' : have);
+    setClass(readout, 'cc-stamina' + (isOut ? ' cc-warn' : ''));
+
+    if (bar.style.display !== display) bar.style.display = display;
   }
 
   // While paused the status is the run's own word on where it carries on, or why a button was refused, so it is shown
@@ -1211,11 +1441,20 @@
 
       crafts += step;
       post('amount|' + order.id + '|' + crafts);
+      awaitAnswer(row.parentElement);
     }));
     row.appendChild(moves);
     row.appendChild(button(doc, 'cc-x', GLYPH.cross, 'Remove from the queue', function () { post('remove|' + order.id); }));
 
     return row;
+  }
+
+  // The rows count ahead of the view until the plugin answers. Its answer redraws them even when it turns the change
+  // down and so sends the same view again, which puts the count back to what the queue holds.
+  function awaitAnswer(rows) {
+    lastViewText = '';
+
+    if (rows) rows.__ccKey = null;
   }
 
   function craftsLine(order) {
@@ -1245,8 +1484,9 @@
 
   function mirrorProgress(win) {
     var fill = win.document.getElementById('cc-prog');
+    var progress = gameProgress(win);
 
-    if (fill) fill.style.transform = gameProgress(win);
+    if (fill && fill.style.transform !== progress) fill.style.transform = progress;
   }
 
   function drawTotals(doc, icons) {
@@ -1374,6 +1614,13 @@
 
   // The order is moved by its id, so a drop still moves the order that was picked up if the queue changed meanwhile.
   function finishDrag(win) {
+    var drag = endDrag(win);
+
+    if (drag && !isNaN(drag.to) && drag.to !== drag.from) post('move|' + drag.id + '|' + drag.to);
+  }
+
+  // Lets go of the drag without moving anything; returns the drag that was let go of.
+  function endDrag(win) {
     var drag = win.__ccUi.drag;
     var list = win.document.getElementById('cc-qlist');
 
@@ -1386,7 +1633,16 @@
       });
     }
 
-    if (drag && !isNaN(drag.to) && drag.to !== drag.from) post('move|' + drag.id + '|' + drag.to);
+    return drag;
+  }
+
+  // A mouse let go of outside the page is never heard here, so leaving the page, or the page losing focus, ends the
+  // drag; otherwise the next release anywhere on the page would drop the order there.
+  function wireDragGuards(win) {
+    win.addEventListener('blur', function () { endDrag(win); });
+    win.document.addEventListener('mouseout', function (e) {
+      if (!e.relatedTarget) endDrag(win);
+    });
   }
 
   // ---------------------------------------------------------------- the line under the bench's Craft button
@@ -1408,16 +1664,25 @@
       controls.parentNode.insertBefore(panel, controls.nextSibling);
     }
 
-    panel.innerHTML = '';
+    var key = selectedKey;
+    var plan = key && view.marks[key];
 
-    var plan = selectedKey && view.marks[selectedKey];
+    redraw(panel, [key, plan || ''], function () { fillChain(win, panel, key, plan); });
+  }
+
+  // The amount is the one set on the recipe's card, read at the click. The bench's own quantity box cannot carry it:
+  // the page holds that to what the bag's parts make now, which is 1 for a recipe whose parts are still to be made.
+  function fillChain(win, panel, key, plan) {
+    var doc = win.document;
+
+    panel.innerHTML = '';
 
     if (!plan) return;
 
     var actions = el(doc, 'div', 'cc-row');
 
-    actions.appendChild(button(doc, 'btn', 'Craft with intermediates', 'Make the missing intermediates first, then this, using the quantity above', function () {
-      post('chain|' + encodeURIComponent(selectedKey) + '|' + craftQty(win));
+    actions.appendChild(button(doc, 'btn', 'Craft with intermediates', 'Make the missing intermediates first, then this, using the amount set on its recipe card', function () {
+      post('chain|' + encodeURIComponent(key) + '|' + amountFor(win, key));
     }));
     panel.appendChild(el(doc, 'div', 'cc-plan', plain(plan)));
     panel.appendChild(actions);
@@ -1425,23 +1690,38 @@
 
   // ---------------------------------------------------------------- drawing
 
+  // A page the hub has failed to draw on RENDER_TRIES times in a row is left alone until the game or the plugin sends
+  // something new, so a failure that happens every time is not retried at every poll.
   function renderWindow(win) {
-    install(win);
+    if (!install(win)) return;
 
-    if (!win.__ccInstalled) return;
+    var ui = win.__ccUi;
+
+    if (ui.renderFailures >= RENDER_TRIES) return;
 
     try {
       if (!ensureLayout(win)) return;
 
       followCraftOverlay(win);
-      drawList(win, false);
+      drawListIfChanged(win);
+      markSelected(win);
       drawQueue(win);
       drawChain(win);
       refit(win);
+      ui.renderFailures = 0;
     } catch (e) {
-      win.__ccUi.isTabOff = true;
+      ui.renderFailures += 1;
+      ui.isTabOff = true;
       removeHub(win);
       throw e;
+    }
+  }
+
+  function renderOne(win) {
+    try {
+      renderWindow(win);
+    } catch (e) {
+      pageDiag(win, 'render', 'could not draw on the workbench page: ' + e);
     }
   }
 
@@ -1465,20 +1745,21 @@
   }
 
   function renderAll() {
-    var wins = benchWindows();
-
-    for (var i = 0; i < wins.length; i++) {
-      try {
-        renderWindow(wins[i]);
-      } catch (e) {
-        diag('render', 'could not draw on the workbench page: ' + e);
-      }
-    }
+    benchWindows().forEach(renderOne);
   }
 
+  // The plugin sends its view often, mostly unchanged; the same view again draws nothing. A different one also lets a
+  // hub that gave up drawing try again.
   function setData(next) {
-    if (next) view = next;
+    var text = next ? JSON.stringify(next) : '';
 
+    if (!next || text === lastViewText) return;
+
+    lastViewText = text;
+    view = next;
+    benchWindows().forEach(function (win) {
+      if (win.__ccUi) win.__ccUi.renderFailures = 0;
+    });
     refresh();
   }
 
@@ -1550,46 +1831,88 @@
     }
   };
 
+  // The plugin retries a click that failed, so each kind of failure is reported once, and again only after that kind
+  // of click has worked in between.
   function act(kind, arg) {
-    var wins = benchWindows();
-    var core = wins.length ? benchCore(wins[0]) : null;
+    var win = actingWindow();
+    var core = win ? benchCore(win) : null;
 
     if (!core || !ACTIONS[kind]) {
-      post('diag|no workbench page for ' + kind);
+      diag(actProblems, 'none-' + kind, 'no workbench page for ' + kind);
 
       return;
     }
 
+    forget(actProblems, 'none-' + kind);
     isQueueActing = true;
 
     try {
-      ACTIONS[kind](wins[0], core, arg);
+      ACTIONS[kind](win, core, arg);
+      forget(actProblems, 'fail-' + kind);
     } catch (e) {
-      post('diag|' + kind + ' failed on the workbench page: ' + e);
+      diag(actProblems, 'fail-' + kind, kind + ' failed on the workbench page: ' + e);
     } finally {
       isQueueActing = false;
     }
   }
 
+  // The page the hub is on, ahead of one that is still loading or that the hub could not hook into.
+  function actingWindow() {
+    var wins = benchWindows();
+    var installed = wins.filter(function (win) { return win.__ccInstalled; });
+
+    return installed[0] || wins[0] || null;
+  }
+
   // Installs on a newly opened bench, puts the hub back if the page lost it, shows the bench when a craft comes up on
   // it, keeps the running order's bar in step with the game's, and refits when the game shows or hides its recipe list.
+  // With nothing changed it reads the page and writes nothing.
   setInterval(function () {
-    var wins = benchWindows();
-
-    for (var i = 0; i < wins.length; i++) {
+    benchFrames().forEach(function (frame) {
       try {
-        install(wins[i]);
-
-        if (!wins[i].__ccInstalled) continue;
-
-        if (!wins[i].document.getElementById('cc-mid') || !wins[i].document.getElementById('cc-panel')) renderWindow(wins[i]);
-
-        followCraftOverlay(wins[i]);
-        mirrorProgress(wins[i]);
-        refit(wins[i]);
-      } catch (e) {}
-    }
+        pollFrame(frame);
+      } catch (e) {
+        diag(frame, 'poll', 'the crafting hub could not keep up with the workbench page: ' + e);
+      }
+    });
   }, POLL_MS);
+
+  function pollFrame(frame) {
+    var win = reachFrame(frame);
+
+    if (!win) return;
+
+    if (!install(win)) {
+      noteBadShape(win);
+
+      return;
+    }
+
+    var doc = win.document;
+
+    if (!doc.getElementById('cc-mid') || !doc.getElementById('cc-panel')) renderOne(win);
+
+    followCraftOverlay(win);
+    mirrorProgress(win);
+    refit(win);
+  }
+
+  // A frame the root cannot reach for a moment while it loads is normal; one that stays out of reach is reported.
+  function reachFrame(frame) {
+    try {
+      var win = benchWindowOf(frame);
+
+      frame.__ccDenied = 0;
+
+      return win;
+    } catch (e) {
+      frame.__ccDenied = (frame.__ccDenied || 0) + 1;
+
+      if (frame.__ccDenied >= SETTLE_POLLS) diag(frame, 'access', 'cannot reach the workbench page: ' + e);
+
+      return null;
+    }
+  }
 
   window.__craftinghub = { setData: setData, act: act };
   post('ready');

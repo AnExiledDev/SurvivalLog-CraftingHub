@@ -45,6 +45,9 @@ function poll() {
 
 // ---------------------------------------------------------------- DOM
 
+// Every change made to any page's elements: a node added or taken away, or its text or classes set.
+var domWrites = 0;
+
 var FakeElement = class {
   constructor(doc, tagName) {
     var element = this;
@@ -92,7 +95,10 @@ var FakeElement = class {
 
   get className() { return this.classes.join(' '); }
 
-  set className(value) { this.classes = String(value).split(' ').filter(function (name) { return name; }); }
+  set className(value) {
+    domWrites += 1;
+    this.classes = String(value).split(' ').filter(function (name) { return name; });
+  }
 
   get parentNode() { return this.parentElement; }
 
@@ -115,6 +121,7 @@ var FakeElement = class {
   get textContent() { return this.text + this.children.map(function (child) { return child.textContent; }).join(''); }
 
   set textContent(value) {
+    domWrites += 1;
     this.clear();
     this.text = value == null ? '' : String(value);
   }
@@ -151,6 +158,7 @@ var FakeElement = class {
 
     var index = before ? this.children.indexOf(before) : -1;
 
+    domWrites += 1;
     child.parentElement = this;
 
     if (index < 0) this.children.push(child);
@@ -160,6 +168,7 @@ var FakeElement = class {
   }
 
   removeChild(child) {
+    domWrites += 1;
     this.children = this.children.filter(function (c) { return c !== child; });
     child.parentElement = null;
 
@@ -319,6 +328,7 @@ function fire(target, type, init) {
     deltaMode: (init && init.deltaMode) || 0,
     clientX: (init && init.clientX) || 0,
     clientY: (init && init.clientY) || 0,
+    relatedTarget: (init && init.relatedTarget) || null,
     defaultPrevented: false,
     isStopped: false,
     stopPropagation: function () { event.isStopped = true; },
@@ -456,13 +466,15 @@ function gridBag(doc, containerId) {
 
 // The page's top-level const and let values, which the script can only read through the page's eval.
 function benchWindow(doc) {
-  var win = { document: doc, sent: [], renders: 0, fits: 0, closes: 0 };
+  var win = { document: doc, location: { href: BENCH_URL }, listeners: [], sent: [], renders: 0, fits: 0, closes: 0 };
   var values = {
     core: { UnitySendEvent: function (action, data) { win.sent.push({ action: action, data: data }); } },
     NOTE_CAT_META: GROUPS,
     lastRecipeData: null,
     collapsedCats: new Set(),
     craftQty: 1,
+    // How many of the laid recipe the bag's parts make; the page shows its quantity box only from 2 up.
+    maxCraftCount: 999,
     // The page's drag of its grid items (createBagDragCoordinator) and its bench grid (createGridBag).
     dragCoord: { dragging: false, isDragging: function () { return this.dragging; } },
     backpack: gridBag(doc, 'backpack-grid'),
@@ -477,13 +489,20 @@ function benchWindow(doc) {
 
     if (read && read[1] === read[2]) return Object.prototype.hasOwnProperty.call(values, read[1]) ? values[read[1]] : null;
 
+    // clampQty and renderQtyRow (ToolTable.html): the quantity is held to what the parts make, and with fewer than 2
+    // makeable the row is hidden and the quantity forced back to 1.
     if (qty) {
-      values.craftQty = Math.max(1, parseInt(qty[1], 10));
+      var asked = Math.max(1, parseInt(qty[1], 10));
+
+      values.craftQty = values.maxCraftCount >= 2 ? Math.min(asked, values.maxCraftCount) : 1;
 
       return undefined;
     }
 
     throw new Error('the fake page cannot eval: ' + code);
+  };
+  win.addEventListener = function (type, listener, options) {
+    FakeElement.prototype.addEventListener.call(win, type, listener, options);
   };
   // renderRecipes (ToolTable.html:3038): keeps the data, then draws its own list again from nothing.
   win.renderRecipes = function (recipes) {
@@ -510,16 +529,61 @@ function benchWindow(doc) {
   return win;
 }
 
-// Opens a workbench: its page in a fresh iframe, as the game loads it.
-function openBench() {
-  var doc = new FakeDocument();
+var BENCH_URL = 'https://game.local/UI/ToolTable/ToolTable.html';
+
+// A fresh iframe for the workbench as the browser first makes it: the src already set, but still holding an empty,
+// finished about:blank document until the page loads.
+function openBlankFrame() {
   var frame = document.body.appendChild(document.createElement('iframe'));
 
+  frame.src = BENCH_URL;
+  frame.contentWindow = {
+    document: new FakeDocument(),
+    location: { href: 'about:blank' },
+    listeners: [],
+    addEventListener: function () {},
+    eval: function () { return null; }
+  };
+
+  return frame;
+}
+
+// The workbench page loading into a frame.
+function loadBench(frame) {
+  var doc = new FakeDocument();
+
   benchMarkup(doc);
-  frame.src = 'https://game.local/UI/ToolTable/ToolTable.html';
   frame.contentWindow = benchWindow(doc);
 
   return frame.contentWindow;
+}
+
+// Opens a workbench: its page in a fresh iframe, as the game loads it.
+function openBench() {
+  return loadBench(openBlankFrame());
+}
+
+// A frame whose page the root cannot reach, as the browser refuses a page from another origin.
+function denyFrame(frame) {
+  Object.defineProperty(frame, 'contentWindow', {
+    configurable: true,
+    get: function () { throw new Error('SecurityError: Blocked a frame from accessing a cross-origin frame.'); }
+  });
+}
+
+// The browser letting the root reach the frame's page again.
+function allowFrame(frame, win) {
+  Object.defineProperty(frame, 'contentWindow', { configurable: true, writable: true, value: win });
+}
+
+// The workbench page's window losing focus, as when the mouse is let go over another part of the game.
+function blurBench() {
+  notify(bench(), { type: 'blur', target: bench(), stopPropagation: function () {}, preventDefault: function () {} }, null);
+}
+
+// The mouse leaving the workbench page altogether.
+function leavePage() {
+  fire(benchDoc().body, 'mouseout', { relatedTarget: null });
 }
 
 function bench() {
