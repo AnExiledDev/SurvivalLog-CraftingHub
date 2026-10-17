@@ -34,22 +34,21 @@ public sealed record QueueOutlook(IReadOnlyList<OrderOutlook> Orders, IReadOnlyL
 /// </summary>
 public static class QueueForecast
 {
-    public static QueueOutlook Plan(IReadOnlyList<QueueEntry> queue, RecipeBook book, IReadOnlyDictionary<int, int> stock, IReadOnlyList<KeepTarget> kept, int maxDepth, Func<int, string> itemName)
+    public static QueueOutlook Plan(IReadOnlyList<QueueEntry> queue, RecipeBook book, IReadOnlyDictionary<int, int> stock, IReadOnlyList<KeepTarget> kept, int maxDepth, Func<int, string> itemName, bool isChinese = false)
     {
-        var walk = new QueueWalk(book, stock, kept, maxDepth, itemName);
+        var walk = new QueueWalk(book, stock, kept, maxDepth, itemName, isChinese);
         var orders = queue.Select(walk.Order).ToList();
-        var headsUp = queue.Zip(orders, HeadsUp).FirstOrDefault(line => line.Length > 0) ?? "";
+        var headsUp = queue.Zip(orders, (order, outlook) => HeadsUp(order, outlook, isChinese)).FirstOrDefault(line => line.Length > 0) ?? "";
 
         return new QueueOutlook(orders, walk.Totals(), walk.Made, headsUp);
     }
 
-    private const string ShortPrefix = "Short: ";
-
-    private static string HeadsUp(QueueEntry order, OrderOutlook outlook) => outlook.State switch
+    // The short note ends with the missing list, so the heads-up reads it back from after the note's prefix.
+    private static string HeadsUp(QueueEntry order, OrderOutlook outlook, bool isChinese) => outlook.State switch
     {
-        OrderState.Short => $"Heads up: {order.Name} is short of {outlook.Note.Substring(ShortPrefix.Length)}. The queue will stop there.",
-        OrderState.Locked => $"Heads up: {order.Name} is not unlocked yet. The queue will stop there.",
-        OrderState.NotListed => $"Heads up: {order.Name} is not in your recipe list yet. The queue will stop there.",
+        OrderState.Short => Texts.HeadsUpShort.Say(isChinese, order.Name, outlook.Note.Substring(Texts.NoteShort.Say(isChinese, "").Length)),
+        OrderState.Locked => Texts.HeadsUpLocked.Say(isChinese, order.Name),
+        OrderState.NotListed => Texts.HeadsUpNotListed.Say(isChinese, order.Name),
         _ => "",
     };
 
@@ -60,17 +59,19 @@ public static class QueueForecast
         private readonly IReadOnlyList<KeepTarget> _kept;
         private readonly int _maxDepth;
         private readonly Func<int, string> _itemName;
+        private readonly bool _isChinese;
         private readonly Dictionary<int, int> _left;
         private readonly Dictionary<int, int> _missing = new();
         private readonly List<MadeOnTheWay> _made = new();
 
-        public QueueWalk(RecipeBook book, IReadOnlyDictionary<int, int> stock, IReadOnlyList<KeepTarget> kept, int maxDepth, Func<int, string> itemName)
+        public QueueWalk(RecipeBook book, IReadOnlyDictionary<int, int> stock, IReadOnlyList<KeepTarget> kept, int maxDepth, Func<int, string> itemName, bool isChinese)
         {
             _book = book;
             _stock = stock;
             _kept = kept;
             _maxDepth = maxDepth;
             _itemName = itemName;
+            _isChinese = isChinese;
             _left = stock.ToDictionary(pair => pair.Key, pair => pair.Value);
         }
 
@@ -78,9 +79,9 @@ public static class QueueForecast
 
         public OrderOutlook Order(QueueEntry order)
         {
-            if (_book.Find(order.Key) is not { } target) return new OrderOutlook(order.Id, OrderState.NotListed, "Not in your recipe list yet");
+            if (_book.Find(order.Key) is not { } target) return new OrderOutlook(order.Id, OrderState.NotListed, Texts.NoteNotListed.Pick(_isChinese));
 
-            if (target.IsLocked) return new OrderOutlook(order.Id, OrderState.Locked, "Not unlocked yet");
+            if (target.IsLocked) return new OrderOutlook(order.Id, OrderState.Locked, Texts.NoteLocked.Pick(_isChinese));
 
             // A top-up only plans from what is spare above the kept counts, as the run does.
             var floor = order.IsTopUp ? KeptStock.Floor(_kept) : null;
@@ -91,11 +92,11 @@ public static class QueueForecast
             Count(walk.Missing);
             foreach (var step in intermediates) AddTo(_made, step);
 
-            if (walk.Missing.Count > 0) return new OrderOutlook(order.Id, OrderState.Short, ShortPrefix + Missing(walk.Missing));
+            if (walk.Missing.Count > 0) return new OrderOutlook(order.Id, OrderState.Short, Texts.NoteShort.Say(_isChinese, Missing(walk.Missing)));
 
-            if (intermediates.Count > 0) return new OrderOutlook(order.Id, OrderState.MakesFirst, "Makes first: " + string.Join(", ", intermediates.Select(step => $"{step.Name} x{step.Crafts}")));
+            if (intermediates.Count > 0) return new OrderOutlook(order.Id, OrderState.MakesFirst, Texts.MakesFirst.Say(_isChinese, Texts.Join(_isChinese, intermediates.Select(step => $"{step.Name} x{step.Crafts}"))));
 
-            return new OrderOutlook(order.Id, OrderState.Ready, "Ready");
+            return new OrderOutlook(order.Id, OrderState.Ready, Texts.Ready.Pick(_isChinese));
         }
 
         /// <summary>
@@ -132,7 +133,7 @@ public static class QueueForecast
         }
 
         private string Missing(IReadOnlyDictionary<int, int> missing) =>
-            string.Join(", ", missing.OrderBy(pair => pair.Key).Select(pair => $"{_itemName(pair.Key)} x{pair.Value}"));
+            Texts.Join(_isChinese, missing.OrderBy(pair => pair.Key).Select(pair => $"{_itemName(pair.Key)} x{pair.Value}"));
 
         private static List<MadeOnTheWay> Merged(IEnumerable<CraftStep> steps)
         {

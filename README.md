@@ -30,7 +30,7 @@ Every craft goes through the workbench page's own clicks (pick the recipe, set t
 
 Crafting Hub adds no data of its own to your save. Keep-stocked counts are kept in a separate file (see [Keep stocked](#keep-stocked)). The crafts it runs are real crafts: they use up materials from any storage in your home and add the results, exactly as if you had clicked them yourself. You can remove it at any time; workbenches go back to their linked storages, and nothing already crafted changes.
 
-Recipe and item names come from the game, so they show in whatever language the game uses. The mod's own buttons and messages are in English.
+The panel and every message follow the game's language: English or Simplified Chinese. Recipe and item names come from the game as it words them.
 
 ## How it works
 
@@ -93,7 +93,7 @@ If a craft uses the wrong materials, makes the wrong amount, or a run stops for 
 
 ## Requirements
 
-- Survival Log 1.1.18317. Built and tested on this version; a game update can break it until the mod is updated.
+- Survival Log 1.1.18902. Built and tested on this version; a game update can break it until the mod is updated.
 - The [BepInEx Pack for Survival Log](https://www.nexusmods.com/survivallog/mods/12), the BepInEx 6 (IL2CPP) build for the game.
 - Not together with BetterCrafting. Both change which storages a workbench uses; remove BetterCrafting before installing this. If both are loaded, the log says so.
 
@@ -109,18 +109,19 @@ Delete `CraftingHub.dll` from the `BepInEx\plugins` folder. For a clean slate, a
 
 ## Configuration
 
-Settings live in `BepInEx\config\com.dev.survivallog.craftinghub.cfg`, created the first time the game starts with the mod. Edit it while the game is closed; changes apply at the next game start. See [CONFIG.md](CONFIG.md) for every setting.
+Settings live in `BepInEx\config\com.dev.survivallog.craftinghub.cfg`, created the first time the game starts with the mod. Edit it while the game is closed; changes apply at the next game start. Each setting in the cfg file is explained in English and Simplified Chinese. See [CONFIG.md](CONFIG.md) for every setting.
 
 ## Troubleshooting
 
-Tested on Survival Log 1.1.18317 with BepInEx `6.0.0-be.788`.
+Tested on Survival Log 1.1.18902 with BepInEx `6.0.0-be.788`.
 
-Check `BepInEx\LogOutput.log` for `===== Crafting Hub 0.7.0 started: all home storages on, intermediates up to 4 deep, keep stocked on, resume on reopen on, other workbenches on` (the words change with your settings). The same line, plus every step of every run and why it stopped, is in `BepInEx\crafting-hub.log`, which survives restarts. When that file passes 1 MB, it is cut down to its newest part at the next game start.
+Check `BepInEx\LogOutput.log` for `===== Crafting Hub 0.7.1 started: all home storages on, intermediates up to 4 deep, keep stocked on, resume on reopen on, other workbenches on` (the words change with your settings). The same line, plus every step of every run and why it stopped, is in `BepInEx\crafting-hub.log`, which survives restarts. When that file passes 1 MB, it is cut down to its newest part at the next game start.
 
 If workbenches still only see their linked storages, look in the logs for "BetterCrafting is also loaded".
 
 ## Changelog
 
+- 0.7.1: The panel and every message follow the game's language, English or Simplified Chinese. Settings are explained in both. No setting changed.
 - 0.7.0: Reliability and speed. A queued amount is really made: items crafted one at a time, like Repair Parts, are counted craft by craft instead of the whole amount being credited after one. Stamina shows on the Workbench tab with the cost per craft, and a run that runs out says so with the numbers. The tab redraws only what changed, so it is much lighter. Keep stocked counts items that do not stack, refills a kept part before using it in something else, and respects every order in the queue. The queue waits out a busy or briefly unreadable workbench instead of stopping, checks stock again right after a batch before calling an item short, and asks you to close and reopen the bench if the game gets stuck after a craft. Clicking a card only lays out the recipe from its picture or name, and never while the queue runs. "Craft with intermediates" uses the amount set on the card. No setting changed.
 - 0.6.1: Fixes. When the game misses the queue's click on a recipe, the queue clicks it again, and it waits up to 6 seconds for the materials. A run that stops because the game allows no craft with the materials laid out now says you may be out of stamina. The bench no longer jumps up for crafts the queue starts or while you drag an item; a craft you start during a drag brings it up after the drop. Drop highlights follow you when a drag switches tabs, and the screen is no longer resized in the middle of a drag. If the Workbench tab cannot be drawn, the bench stays where the game puts it. No setting changed.
 - 0.6.0: A roomier workbench screen. The bench grid and its Craft button are now a Workbench tab in the bag's panel, next to the bag, the drawer and the cabinets, instead of a column of their own. The bench comes up by itself when you pick a recipe, start a craft or drop an item on it, and resting a dragged item on a tab switches to it. No setting changed.

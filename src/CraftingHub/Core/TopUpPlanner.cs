@@ -30,7 +30,7 @@ public static class TopUpPlanner
     /// <param name="stock">Item id to count of the materials the bench crafts from.</param>
     /// <param name="held">Item id to count of each target's item in the home. A target missing here is skipped.</param>
     public static TopUpPlan Plan(IReadOnlyList<KeepTarget> targets, RecipeBook book, IReadOnlyDictionary<int, int> stock,
-        IReadOnlyDictionary<int, int> held, IReadOnlyList<QueueEntry> queue, int maxDepth)
+        IReadOnlyDictionary<int, int> held, IReadOnlyList<QueueEntry> queue, int maxDepth, bool isChinese = false)
     {
         var floor = KeptStock.Floor(targets);
         var left = stock.ToDictionary(pair => pair.Key, pair => pair.Value);
@@ -41,9 +41,9 @@ public static class TopUpPlanner
         {
             // The run stops at an order this bench cannot make, so nothing queued behind it would run from here, and
             // what that order makes and uses cannot be known; topping up now would only guess.
-            if (book.Find(entry.Key) is not { } recipe) return Waits($"the queue holds {entry.Name}, which this workbench cannot make");
+            if (book.Find(entry.Key) is not { } recipe) return Waits(Texts.WaitsCannotMake.Say(isChinese, entry.Name));
 
-            if (recipe.IsLocked) return Waits($"the queue holds {entry.Name}, which is not unlocked yet");
+            if (recipe.IsLocked) return Waits(Texts.WaitsLocked.Say(isChinese, entry.Name));
 
             left = new Dictionary<int, int>(CraftPlanner.Walk(book, left, recipe, entry.Crafts, maxDepth, entry.IsTopUp ? floor : null).Left);
         }
@@ -75,19 +75,19 @@ public static class TopUpPlanner
     }
 
     /// <summary>The status line for a plan, or "" when there is nothing to say.</summary>
-    public static string Describe(TopUpPlan plan)
+    public static string Describe(TopUpPlan plan, bool isChinese = false)
     {
-        if (plan.Waiting.Length > 0) return WaitsPrefix + plan.Waiting;
+        if (plan.Waiting.Length > 0) return Texts.KeepWaits.Say(isChinese, plan.Waiting);
 
-        var queued = string.Join(", ", plan.Orders.Select(order => $"{order.Recipe.Name} \u00d7{order.Crafts}"));
-        var shortOf = string.Join(", ", plan.Short);
+        var queued = Texts.Join(isChinese, plan.Orders.Select(order => $"{order.Recipe.Name} \u00d7{order.Crafts}"));
+        var shortOf = Texts.Join(isChinese, plan.Short);
 
         return (queued.Length, shortOf.Length) switch
         {
             (0, 0) => "",
-            (_, 0) => "Keep stocked: queued " + queued,
-            (0, _) => "Keep stocked: not enough materials for " + shortOf,
-            _ => $"Keep stocked: queued {queued}; not enough materials for {shortOf}",
+            (_, 0) => Texts.KeepQueued.Say(isChinese, queued),
+            (0, _) => Texts.KeepShort.Say(isChinese, shortOf),
+            _ => Texts.KeepQueuedAndShort.Say(isChinese, queued, shortOf),
         };
     }
 

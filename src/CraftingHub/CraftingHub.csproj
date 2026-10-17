@@ -9,7 +9,7 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
-    <GameDir Condition="'$(GameDir)' == ''">D:\Downloads\Survival-Log-AnkerGames\Survival Log</GameDir>
+    <GameDir Condition="'$(GameDir)' == ''">D:\Games\Survival Log\Survival Log</GameDir>
     <BepInExCore>$(GameDir)\BepInEx\core</BepInExCore>
     <Interop>$(GameDir)\BepInEx\interop</Interop>
   </PropertyGroup>

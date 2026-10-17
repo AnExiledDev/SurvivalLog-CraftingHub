@@ -39,13 +39,89 @@
     cross: String.fromCharCode(0x2715)
   };
 
+  // Each filter's label is the word under its key.
   var FILTERS = [
-    { id: 'all', label: 'All' },
-    { id: 'now', label: 'Can make now' },
-    { id: 'via', label: 'Needs parts first' },
-    { id: 'short', label: 'Short' },
-    { id: 'kept', label: 'Kept in stock' }
+    { id: 'all', label: 'filterAll' },
+    { id: 'now', label: 'filterNow' },
+    { id: 'via', label: 'filterVia' },
+    { id: 'short', label: 'filterShort' },
+    { id: 'kept', label: 'filterKept' }
   ];
+
+  // The panel's words, used until the plugin sends them in the game's language (window.__craftinghubWords) before
+  // each call.
+  var ENGLISH = {
+    filterAll: 'All',
+    filterNow: 'Can make now',
+    filterVia: 'Needs parts first',
+    filterShort: 'Short',
+    filterKept: 'Kept in stock',
+    oneLess: 'One less',
+    oneMore: 'One more',
+    locked: 'Locked',
+    canMakeNow: 'Can make now',
+    shortOf: 'Short: {0}',
+    cannotMake: 'Cannot make now',
+    clearSearch: 'Clear the search',
+    search: 'Search a recipe or a material',
+    recipes: 'Recipes',
+    outOfStamina: 'Out of stamina: crafts that take stamina cannot start.',
+    keepInStock: 'Keep in stock',
+    keepInStockAside: 'topped up when you open a workbench',
+    craftQueue: 'Craft queue',
+    materials: 'Materials for the whole queue',
+    materialsAside: 'need / you have',
+    madeOnTheWay: 'Made on the way',
+    countOf: '{0} of {1}',
+    noMatch: 'No recipes match "{0}".',
+    noRecipes: 'No recipes in this view.',
+    allGroups: 'All groups',
+    canMakeCount: '{0} / {1} can make',
+    staminaCost: '{0} stamina',
+    add: 'Add',
+    addTip: 'Add this many crafts to the queue',
+    keep: 'Keep',
+    keepN: 'Keep {0}',
+    keepTip: 'Keep {0} of this in your home; opening any workbench queues the crafts to top it back up',
+    keepStopTip: 'Stop keeping this in stock',
+    queueEmptyHint: 'The queue is empty. Use Add on any recipe.',
+    idle: 'Idle',
+    crafting: 'Crafting',
+    paused: 'Paused',
+    stamina: 'Stamina',
+    staminaHave: 'Stamina {0}',
+    staminaOut: '{0} (out)',
+    dragTip: 'Drag to change the order',
+    ready: 'Ready',
+    moveUp: 'Move up',
+    moveDown: 'Move down',
+    removeTip: 'Remove from the queue',
+    craftOne: '{0} craft',
+    craftMany: '{0} crafts',
+    orderOne: '{0} order',
+    orderMany: '{0} orders',
+    listSep: ', ',
+    itemSep: ', ',
+    workbench: 'Workbench',
+    topUp: 'Top-up',
+    makes: ', makes {0}',
+    noMaterials: 'No materials to show.',
+    nothingQueued: 'Nothing queued.',
+    shortN: 'short {0}',
+    enough: 'ok',
+    noParts: 'No parts need making.',
+    craftingNow: 'Crafting...',
+    stop: 'Stop',
+    stopTip: 'Stop after nothing more is started; the queue is kept',
+    clear: 'Clear',
+    clearTip: 'Empty the queue',
+    queueIsEmpty: 'Queue is empty',
+    craftQueueTip: 'Craft everything in the queue, making intermediates as needed',
+    nothingKept: 'Nothing kept in stock. Use Keep on any recipe.',
+    unkeepTip: 'Stop keeping {0} in stock',
+    craftChain: 'Craft with intermediates',
+    craftChainTip: 'Make the missing intermediates first, then this, using the amount set on its recipe card'
+  };
 
   // The plugin's order states, as the colours the list uses for the same meaning.
   var STATE_LOOK = { ready: 'now', via: 'via', short: 'short', locked: 'short', unlisted: 'short' };
@@ -488,9 +564,9 @@
   function stepper(doc, value, onStep) {
     var box = el(doc, 'span', 'cc-stepper');
 
-    box.appendChild(button(doc, 'cc-less', GLYPH.minus, 'One less', function () { onStep(-1); }));
+    box.appendChild(button(doc, 'cc-less', GLYPH.minus, say('oneLess'), function () { onStep(-1); }));
     box.appendChild(el(doc, 'span', 'cc-val', String(value)));
-    box.appendChild(button(doc, 'cc-more', '+', 'One more', function () { onStep(1); }));
+    box.appendChild(button(doc, 'cc-more', '+', say('oneMore'), function () { onStep(1); }));
 
     return box;
   }
@@ -507,7 +583,8 @@
   // Fills a part of the hub again only when what it shows has changed. inputs is everything fill reads that can change
   // under it; the key is kept on the box itself, so a box built afresh is always filled.
   function redraw(box, inputs, fill) {
-    var key = JSON.stringify(inputs);
+    // A word of the current language goes in the key, so a language change draws everything again.
+    var key = say('recipes') + JSON.stringify(inputs);
 
     if (!box || box.__ccKey === key) return;
 
@@ -527,8 +604,20 @@
     return Math.max(low, Math.min(high, value));
   }
 
-  function plural(count, noun) {
-    return count + ' ' + noun + (count === 1 ? '' : 's');
+  function words() {
+    return window.__craftinghubWords || ENGLISH;
+  }
+
+  // say('keepN', 3) fills {0} with 3; a key the plugin's words lack falls back to English.
+  function say(key) {
+    var args = arguments;
+    var text = words()[key] || ENGLISH[key] || key;
+
+    return text.replace(/\{(\d)\}/g, function (all, index) { return String(args[Number(index) + 1]); });
+  }
+
+  function counted(count, one, many) {
+    return say(count === 1 ? one : many, count);
   }
 
   // The plugin's lines use the multiplication sign; the page shows a plain x.
@@ -665,15 +754,15 @@
   function statusLine(entry) {
     var r = entry.recipe;
 
-    if (entry.kind === 'locked') return r.craftLockText || 'Locked';
+    if (entry.kind === 'locked') return r.craftLockText || say('locked');
 
-    if (entry.kind === 'now') return 'Can make now';
+    if (entry.kind === 'now') return say('canMakeNow');
 
     if (entry.kind === 'via') return plain(view.marks[r.recipeKey]);
 
     var missing = entry.mats.filter(function (m) { return !m.hasEnough && (m.need || 0) > (m.have || 0); }).map(function (m) { return m.name + ' ' + (m.need - (m.have || 0)); });
 
-    return missing.length ? 'Short: ' + missing.join(', ') : 'Cannot make now';
+    return missing.length ? say('shortOf', missing.join(say('itemSep'))) : say('cannotMake');
   }
 
   // Green when you own enough for the amount set, amber when the bench lists a recipe that makes it, red otherwise.
@@ -759,7 +848,7 @@
     var heading = bench.querySelector('h2');
     var text = heading ? heading.textContent.trim() : '';
 
-    return text || 'Workbench';
+    return text || say('workbench');
   }
 
   // Wired once on the panel, which the page never rebuilds; the game's cabinet tabs are rebuilt, so their clicks are
@@ -909,7 +998,7 @@
     var count = el(doc, 'span', 'cc-dim');
     var search = el(doc, 'div', 'cc-search');
     var input = el(doc, 'input', 'cc-search-input');
-    var clear = button(doc, 'cc-search-clear', GLYPH.cross, 'Clear the search', function () {
+    var clear = button(doc, 'cc-search-clear', GLYPH.cross, say('clearSearch'), function () {
       input.value = '';
       drawList(win, true);
       input.focus();
@@ -924,7 +1013,7 @@
     filters.id = 'cc-filters';
     list.id = 'cc-list';
     input.type = 'text';
-    input.placeholder = 'Search a recipe or a material';
+    input.placeholder = say('search');
     input.spellcheck = false;
     input.autocomplete = 'off';
     mid.addEventListener('mousedown', holdUntilReleased, true);
@@ -936,7 +1025,7 @@
 
       if (e.key === 'Enter') input.blur();
     });
-    title.appendChild(el(doc, 'span', null, 'Recipes'));
+    title.appendChild(el(doc, 'span', null, say('recipes')));
     title.appendChild(count);
     search.appendChild(input);
     search.appendChild(clear);
@@ -981,14 +1070,14 @@
     var title = el(doc, 'div', 'cc-title');
     var pill = el(doc, 'span', 'cc-pill idle');
     var stamina = el(doc, 'span', 'cc-stamina');
-    var outOfStamina = el(doc, 'div', 'cc-banner bad cc-outbar', 'Out of stamina: crafts that take stamina cannot start.');
+    var outOfStamina = el(doc, 'div', 'cc-banner bad cc-outbar', say('outOfStamina'));
     var notes = el(doc, 'div', 'cc-notes');
     var list = el(doc, 'div', 'cc-qlist cc-scroll');
     var totals = el(doc, 'div', 'cc-totwrap cc-scroll');
     var made = el(doc, 'div', 'cc-made cc-scroll');
     var actions = el(doc, 'div', 'cc-actions');
     var keeps = el(doc, 'div', 'cc-keeps cc-scroll');
-    var keepSection = section(doc, 'Keep in stock', 'topped up when you open a workbench', keeps);
+    var keepSection = section(doc, say('keepInStock'), say('keepInStockAside'), keeps);
 
     column.id = 'cc-queue';
     pill.id = 'cc-pill';
@@ -1004,7 +1093,7 @@
     keepSection.id = 'cc-keepsect';
     column.addEventListener('mousedown', holdUntilReleased, true);
     list.addEventListener('mousemove', function (e) { dragOver(win, e.target); });
-    title.appendChild(el(doc, 'span', null, 'Craft queue'));
+    title.appendChild(el(doc, 'span', null, say('craftQueue')));
     title.appendChild(el(doc, 'span', 'cc-grow'));
     title.appendChild(stamina);
     title.appendChild(pill);
@@ -1012,8 +1101,8 @@
     column.appendChild(outOfStamina);
     column.appendChild(notes);
     column.appendChild(list);
-    column.appendChild(section(doc, 'Materials for the whole queue', 'need / you have', totals));
-    column.appendChild(section(doc, 'Made on the way', '', made));
+    column.appendChild(section(doc, say('materials'), say('materialsAside'), totals));
+    column.appendChild(section(doc, say('madeOnTheWay'), '', made));
     column.appendChild(actions);
     column.appendChild(keepSection);
 
@@ -1084,11 +1173,11 @@
 
     drawFilters(win, entries);
     drawGroups(win, metas, groups);
-    doc.getElementById('cc-count').textContent = shown.length + ' of ' + entries.length;
+    doc.getElementById('cc-count').textContent = say('countOf', shown.length, entries.length);
     list.innerHTML = '';
 
     if (shown.length) drawCards(win, list, metas, shown, groups, isFlat);
-    else list.appendChild(el(doc, 'div', 'cc-empty', typed ? 'No recipes match "' + typed + '".' : 'No recipes in this view.'));
+    else list.appendChild(el(doc, 'div', 'cc-empty', typed ? say('noMatch', typed) : say('noRecipes')));
 
     list.scrollTop = scrollTop;
     list.__ccKey = listKey(win);
@@ -1141,7 +1230,7 @@
 
       var count = entries.filter(function (entry) { return inFilter(filter.id, entry); }).length;
 
-      row.appendChild(chip(doc, filter.label, count, ui.filter === filter.id, function () {
+      row.appendChild(chip(doc, say(filter.label), count, ui.filter === filter.id, function () {
         ui.filter = filter.id;
         drawList(win, true);
       }));
@@ -1155,7 +1244,7 @@
     var ui = win.__ccUi;
 
     refillRow(row, function () {
-      row.appendChild(chip(doc, 'All groups', null, ui.group === ALL_GROUPS, function () {
+      row.appendChild(chip(doc, say('allGroups'), null, ui.group === ALL_GROUPS, function () {
         ui.group = ALL_GROUPS;
         drawList(win, true);
       }));
@@ -1213,7 +1302,7 @@
     header.setAttribute('data-group', meta.id);
     header.appendChild(el(doc, 'span', 'cc-arrow', isOpen ? GLYPH.open : GLYPH.closed));
     header.appendChild(el(doc, 'span', null, groupName(win, meta)));
-    header.appendChild(el(doc, 'span', 'cc-gcount', counts.canMake + ' / ' + counts.size + ' can make'));
+    header.appendChild(el(doc, 'span', 'cc-gcount', say('canMakeCount', counts.canMake, counts.size)));
     header.addEventListener('click', function () { toggleGroup(win, meta.id); });
 
     return header;
@@ -1256,7 +1345,7 @@
     if (yieldOf(key) > 1) icon.appendChild(el(doc, 'span', 'cc-yield', 'x' + yieldOf(key)));
     if (r.isNew) name.appendChild(el(doc, 'span', 'cc-new', 'NEW'));
     sub.appendChild(el(doc, 'div', 'cc-card-st cc-st-' + entry.kind, statusLine(entry)));
-    if (cost !== null) sub.appendChild(el(doc, 'span', 'cc-cost', cost + ' stamina'));
+    if (cost !== null) sub.appendChild(el(doc, 'span', 'cc-cost', say('staminaCost', cost)));
     if (view.keep.on) sub.appendChild(keepButton(doc, key, isLocked));
     head.appendChild(name);
     head.appendChild(sub);
@@ -1266,7 +1355,7 @@
       win.__ccUi.amounts[key] = clamp(amount + step, 1, MAX_AMOUNT);
       drawList(win, false);
     }));
-    foot.appendChild(button(doc, 'cc-add', 'Add', 'Add this many crafts to the queue', function () {
+    foot.appendChild(button(doc, 'cc-add', say('add'), say('addTip'), function () {
       post('add|' + encodeURIComponent(key) + '|' + amount);
     }, isLocked));
     node.appendChild(icon);
@@ -1300,9 +1389,9 @@
 
   function keepButton(doc, key, isLocked) {
     var kept = keptFor(key);
-    var title = kept ? 'Stop keeping this in stock' : 'Keep ' + DEFAULT_KEEP + ' of this in your home; opening any workbench queues the crafts to top it back up';
+    var title = kept ? say('keepStopTip') : say('keepTip', DEFAULT_KEEP);
 
-    return button(doc, 'cc-pin' + (kept ? ' on' : ''), kept ? 'Keep ' + kept : 'Keep', title, function () {
+    return button(doc, 'cc-pin' + (kept ? ' on' : ''), kept ? say('keepN', kept) : say('keep'), title, function () {
       post('keep|' + encodeURIComponent(key) + '|' + (kept ? 0 : DEFAULT_KEEP));
     }, isLocked);
   }
@@ -1337,7 +1426,7 @@
     list.innerHTML = '';
     view.queue.forEach(function (order, index) { list.appendChild(queueRow(win, icons, order, index)); });
 
-    if (!view.queue.length) list.appendChild(el(doc, 'div', 'cc-empty', 'The queue is empty. Use Add on any recipe.'));
+    if (!view.queue.length) list.appendChild(el(doc, 'div', 'cc-empty', say('queueEmptyHint')));
 
     list.scrollTop = scrollTop;
   }
@@ -1371,7 +1460,7 @@
     var state = view.paused ? 'paused' : view.running ? 'running' : 'idle';
 
     setClass(pill, 'cc-pill ' + state);
-    setText(pill, { idle: 'Idle', running: 'Crafting', paused: 'Paused' }[state]);
+    setText(pill, say({ idle: 'idle', running: 'crafting', paused: 'paused' }[state]));
   }
 
   // The stamina the player has, beside the queue's state, and a bar across the column once it has run out; the
@@ -1384,10 +1473,10 @@
 
     var stamina = staminaOf();
     var isOut = !!stamina && stamina.out === true;
-    var have = stamina && typeof stamina.have === 'number' ? 'Stamina ' + stamina.have : '';
+    var have = stamina && typeof stamina.have === 'number' ? say('staminaHave', stamina.have) : '';
     var display = isOut ? '' : 'none';
 
-    setText(readout, isOut ? (have || 'Stamina') + ' (out)' : have);
+    setText(readout, isOut ? say('staminaOut', have || say('stamina')) : have);
     setClass(readout, 'cc-stamina' + (isOut ? ' cc-warn' : ''));
 
     if (bar.style.display !== display) bar.style.display = display;
@@ -1419,18 +1508,18 @@
     var moves = el(doc, 'div', 'cc-qmove');
 
     row.setAttribute('data-index', index);
-    handle.title = 'Drag to change the order';
+    handle.title = say('dragTip');
     handle.addEventListener('mousedown', function (e) {
       e.preventDefault();
       startDrag(win, row, order.id, index);
     });
-    if (order.topUp) sub.appendChild(el(doc, 'span', 'cc-tag', 'Top-up'));
+    if (order.topUp) sub.appendChild(el(doc, 'span', 'cc-tag', say('topUp')));
     main.appendChild(name);
     main.appendChild(sub);
-    if (look) main.appendChild(el(doc, 'div', 'cc-qst cc-st-' + look, order.state === 'ready' ? 'Ready' : order.note));
+    if (look) main.appendChild(el(doc, 'div', 'cc-qst cc-st-' + look, order.state === 'ready' ? say('ready') : order.note));
     if (isActive) main.appendChild(progressBar(win));
-    moves.appendChild(button(doc, 'cc-up', GLYPH.up, 'Move up', function () { post('move|' + order.id + '|' + (index - 1)); }, index === 0));
-    moves.appendChild(button(doc, 'cc-down', GLYPH.down, 'Move down', function () { post('move|' + order.id + '|' + (index + 1)); }, isLast));
+    moves.appendChild(button(doc, 'cc-up', GLYPH.up, say('moveUp'), function () { post('move|' + order.id + '|' + (index - 1)); }, index === 0));
+    moves.appendChild(button(doc, 'cc-down', GLYPH.down, say('moveDown'), function () { post('move|' + order.id + '|' + (index + 1)); }, isLast));
     row.appendChild(handle);
     row.appendChild(el(doc, 'span', 'cc-num', String(index + 1)));
     row.appendChild(picture(doc, icons.byKey[order.key], 'cc-qic'));
@@ -1444,7 +1533,7 @@
       awaitAnswer(row.parentElement);
     }));
     row.appendChild(moves);
-    row.appendChild(button(doc, 'cc-x', GLYPH.cross, 'Remove from the queue', function () { post('remove|' + order.id); }));
+    row.appendChild(button(doc, 'cc-x', GLYPH.cross, say('removeTip'), function () { post('remove|' + order.id); }));
 
     return row;
   }
@@ -1460,7 +1549,7 @@
   function craftsLine(order) {
     var each = yieldOf(order.key);
 
-    return plural(order.crafts, 'craft') + (each > 1 ? ', makes ' + order.crafts * each : '');
+    return counted(order.crafts, 'craftOne', 'craftMany') + (each > 1 ? say('makes', order.crafts * each) : '');
   }
 
   // The running order's bar follows the game's own craft progress bar; the poll keeps it in step.
@@ -1496,7 +1585,7 @@
     box.innerHTML = '';
 
     if (!view.totals.length) {
-      box.appendChild(el(doc, 'div', 'cc-hint', view.queue.length ? 'No materials to show.' : 'Nothing queued.'));
+      box.appendChild(el(doc, 'div', 'cc-hint', view.queue.length ? say('noMaterials') : say('nothingQueued')));
 
       return;
     }
@@ -1510,7 +1599,7 @@
       row.appendChild(name);
       row.appendChild(el(doc, 'td', 'r', String(total.need)));
       row.appendChild(el(doc, 'td', 'r', String(total.have)));
-      row.appendChild(el(doc, 'td', total.short ? 'r' : 'r cc-st-now', total.short ? 'short ' + total.short : 'ok'));
+      row.appendChild(el(doc, 'td', total.short ? 'r' : 'r cc-st-now', total.short ? say('shortN', total.short) : say('enough')));
       table.appendChild(row);
     });
     box.appendChild(table);
@@ -1521,7 +1610,7 @@
 
     box.innerHTML = '';
 
-    if (!view.made.length) box.appendChild(el(doc, 'span', 'cc-hint', 'No parts need making.'));
+    if (!view.made.length) box.appendChild(el(doc, 'span', 'cc-hint', say('noParts')));
 
     view.made.forEach(function (step) {
       var item = el(doc, 'span', 'cc-made-item');
@@ -1540,17 +1629,17 @@
     bar.innerHTML = '';
 
     if (view.running) {
-      bar.appendChild(el(doc, 'span', 'cc-dim', 'Crafting...'));
+      bar.appendChild(el(doc, 'span', 'cc-dim', say('craftingNow')));
       bar.appendChild(el(doc, 'span', 'cc-grow'));
-      bar.appendChild(button(doc, 'cc-stop', 'Stop', 'Stop after nothing more is started; the queue is kept', function () { post('stop'); }));
+      bar.appendChild(button(doc, 'cc-stop', say('stop'), say('stopTip'), function () { post('stop'); }));
 
       return;
     }
 
-    bar.appendChild(button(doc, 'cc-btn cc-clear', 'Clear', 'Empty the queue', function () { post('clear'); }, !orders));
+    bar.appendChild(button(doc, 'cc-btn cc-clear', say('clear'), say('clearTip'), function () { post('clear'); }, !orders));
     bar.appendChild(el(doc, 'span', 'cc-grow'));
-    bar.appendChild(el(doc, 'span', 'cc-dim', orders ? plural(orders, 'order') + ', ' + plural(crafts, 'craft') : 'Queue is empty'));
-    bar.appendChild(button(doc, 'cc-go', 'Craft queue', 'Craft everything in the queue, making intermediates as needed', function () { post('start'); }, !orders));
+    bar.appendChild(el(doc, 'span', 'cc-dim', orders ? counted(orders, 'orderOne', 'orderMany') + say('listSep') + counted(crafts, 'craftOne', 'craftMany') : say('queueIsEmpty')));
+    bar.appendChild(button(doc, 'cc-go', say('craftQueue'), say('craftQueueTip'), function () { post('start'); }, !orders));
   }
 
   function drawKeeps(doc, icons) {
@@ -1561,7 +1650,7 @@
     section.style.display = view.keep.on ? '' : 'none';
     box.innerHTML = '';
 
-    if (!targets.length) box.appendChild(el(doc, 'div', 'cc-hint', 'Nothing kept in stock. Use Keep on any recipe.'));
+    if (!targets.length) box.appendChild(el(doc, 'div', 'cc-hint', say('nothingKept')));
 
     targets.forEach(function (target) { box.appendChild(keepRow(doc, icons, target)); });
   }
@@ -1586,7 +1675,7 @@
 
       if (count !== target.count) post('keep|' + encodeURIComponent(target.key) + '|' + count);
     }));
-    row.appendChild(button(doc, 'cc-x', GLYPH.cross, 'Stop keeping ' + target.name + ' in stock', function () { post('unkeep|' + target.item); }));
+    row.appendChild(button(doc, 'cc-x', GLYPH.cross, say('unkeepTip', target.name), function () { post('unkeep|' + target.item); }));
 
     return row;
   }
@@ -1681,7 +1770,7 @@
 
     var actions = el(doc, 'div', 'cc-row');
 
-    actions.appendChild(button(doc, 'btn', 'Craft with intermediates', 'Make the missing intermediates first, then this, using the amount set on its recipe card', function () {
+    actions.appendChild(button(doc, 'btn', say('craftChain'), say('craftChainTip'), function () {
       post('chain|' + encodeURIComponent(key) + '|' + amountFor(win, key));
     }));
     panel.appendChild(el(doc, 'div', 'cc-plan', plain(plan)));

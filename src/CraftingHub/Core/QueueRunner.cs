@@ -182,17 +182,6 @@ public sealed class QueueRunner
     /// <summary>Steps in a row the game may finish without making anything before the run stops.</summary>
     public const int MaxEmptySteps = 2;
 
-    private const string ClosedReason = "the workbench closed; the queue is kept, press Craft queue to carry on";
-    private const string PausedReason = "the workbench closed; the queue carries on when you open it again";
-    private const string PausedAnyBenchReason = "the workbench closed; the queue carries on when you open any workbench";
-    private const string ResumedReason = "the workbench is open again; carrying on with the queue";
-    private const string ResumedAnyBenchReason = "a workbench is open; carrying on with the queue here";
-    private const string ElsewhereReason = "the queue carries on at the workbench it was running on; press Stop, then Craft queue, to run it here";
-    private const string StaleBatchNotice = "the workbench shows a batch in progress with nothing being made; carrying on with the next craft";
-    private const string BusyNotice = "waiting for the workbench: it has shown a craft in progress for a while with no change";
-    private const string StuckPausedReason = "the workbench is stuck after the last craft; close it and open it again to carry on with the queue";
-    private const string StuckStoppedReason = "the workbench is stuck after the last craft; close it and open it again, then press Craft queue";
-
     private enum Stage
     {
         Idle,
@@ -206,6 +195,7 @@ public sealed class QueueRunner
 
     private readonly bool _resumesOnReopen;
     private readonly bool _resumesAtOtherBenches;
+    private readonly Func<bool> _isChinese;
 
     private Stage _stage = Stage.Idle;
     private NextStep.Craft? _current;
@@ -240,11 +230,15 @@ public sealed class QueueRunner
     /// <param name="resumesAtOtherBenches">
     /// On, a paused run carries on at whichever workbench opens next. Off, only at the one it was running on.
     /// </param>
-    public QueueRunner(bool resumesOnReopen = true, bool resumesAtOtherBenches = false)
+    /// <param name="isChinese">Asked each time a message is worded, so a language change in the game shows at once.</param>
+    public QueueRunner(bool resumesOnReopen = true, bool resumesAtOtherBenches = false, Func<bool>? isChinese = null)
     {
         _resumesOnReopen = resumesOnReopen;
         _resumesAtOtherBenches = resumesAtOtherBenches;
+        _isChinese = isChinese ?? (() => false);
     }
+
+    private bool IsChinese => _isChinese();
 
     /// <summary>A run is in progress, paused ones included: they still hold the queue's head and wait to carry on.</summary>
     public bool IsRunning => _stage != Stage.Idle;
@@ -354,7 +348,7 @@ public sealed class QueueRunner
         switch (step)
         {
             case NextStep.Finished:
-                return Stop("queue finished", isDone: true);
+                return Stop(Texts.QueueFinished.Pick(IsChinese), isDone: true);
             case NextStep.Wait wait:
                 return WaitForPlan(wait.Reason, now);
             case NextStep.Blocked blocked:
@@ -362,7 +356,7 @@ public sealed class QueueRunner
             case NextStep.Craft craft:
                 // Intermediates that never lead to a finished target mean the plan and the game disagree; better to
                 // stop than to turn every log in the house into planks.
-                if (!craft.IsTarget && ++_intermediateBatches > MaxIntermediateBatches) return Stop($"stopped after {MaxIntermediateBatches} intermediate crafts without finishing the target");
+                if (!craft.IsTarget && ++_intermediateBatches > MaxIntermediateBatches) return Stop(Texts.TooManyIntermediates.Say(IsChinese, MaxIntermediateBatches));
 
                 _current = craft;
                 _settledSince = null;
@@ -371,7 +365,7 @@ public sealed class QueueRunner
 
                 return new RunnerCommand.ClickRecipe(craft.Step.Recipe.Key);
             default:
-                return Stop("nothing to craft");
+                return Stop(Texts.NothingToCraft.Pick(IsChinese));
         }
     }
 
@@ -394,13 +388,13 @@ public sealed class QueueRunner
         _heldSince = null;
         _current = null;
 
-        if (!_resumesOnReopen) return Stop(StuckStoppedReason);
+        if (!_resumesOnReopen) return Stop(Texts.StuckStopped.Pick(IsChinese));
 
         _stage = Stage.Paused;
         _needsReopen = true;
         _hasToldElsewhere = false;
 
-        return new RunnerCommand.Paused(StuckPausedReason);
+        return new RunnerCommand.Paused(Texts.StuckPaused.Pick(IsChinese));
     }
 
     /// <summary>A moment the plan could not be worked out is waited out; one that lasts stops the run with its reason.</summary>
@@ -461,14 +455,14 @@ public sealed class QueueRunner
             _isBatchStale = true;
             _busyWith = null;
 
-            return new RunnerCommand.Notice(StaleBatchNotice);
+            return new RunnerCommand.Notice(Texts.StaleBatch.Pick(IsChinese));
         }
 
         if (_hasToldBusy || now - _busySince < BusyNoticeSeconds) return new RunnerCommand.None();
 
         _hasToldBusy = true;
 
-        return new RunnerCommand.Notice(BusyNotice);
+        return new RunnerCommand.Notice(Texts.Busy.Pick(IsChinese));
     }
 
     /// <summary>Busy as the game shows it, except that a batch flag taken as stale no longer counts.</summary>
@@ -543,25 +537,23 @@ public sealed class QueueRunner
 
         if (now - _settledSince < SettleSeconds) return new RunnerCommand.None();
 
-        if (bench.CraftLocked) return Stop(bench.LockText.Length > 0 ? $"{recipe.Name} is locked: {bench.LockText}" : $"{recipe.Name} is locked");
+        if (bench.CraftLocked) return Stop(bench.LockText.Length > 0 ? Texts.LockedBecause.Say(IsChinese, recipe.Name, bench.LockText) : Texts.Locked.Say(IsChinese, recipe.Name));
 
         return Stop(OutOfStamina(bench.Stamina, recipe.Name));
     }
 
-    private static string OutOfStamina(StaminaRead? stamina, string recipeName) =>
+    private string OutOfStamina(StaminaRead? stamina, string recipeName) =>
         stamina is { Cost: > 0 } read
-            ? $"Out of stamina: {recipeName} needs {read.Cost} per craft, you have {read.Have}"
-            : $"Out of stamina: there is not enough stamina for a craft of {recipeName}";
+            ? Texts.OutOfStaminaCost.Say(IsChinese, recipeName, read.Cost, read.Have)
+            : Texts.OutOfStamina.Say(IsChinese, recipeName);
 
     private string FillFailure(BenchView bench, Recipe recipe)
     {
-        if (IsBusy(bench)) return $"the game did not lay out the materials for {recipe.Name}";
+        if (IsBusy(bench)) return Texts.NotLaidOut.Say(IsChinese, recipe.Name);
 
-        if (HoldsOneCraft(bench.Contents, recipe.Materials)) return $"the materials for {recipe.Name} are laid out but the game allows no craft of it";
+        if (HoldsOneCraft(bench.Contents, recipe.Materials)) return Texts.NoCraftAllowed.Say(IsChinese, recipe.Name);
 
-        return HoldsAtLeastOneCraft(bench.Contents, recipe.Materials)
-            ? $"the workbench holds more than one craft's worth of materials for {recipe.Name}; the game crafts only from exactly one craft's worth, so take the extra off the workbench"
-            : $"the game did not lay out the materials for {recipe.Name}";
+        return (HoldsAtLeastOneCraft(bench.Contents, recipe.Materials) ? Texts.TooMuchOnBench : Texts.NotLaidOut).Say(IsChinese, recipe.Name);
     }
 
     /// <summary>
@@ -588,7 +580,7 @@ public sealed class QueueRunner
 
         if (isActive) _hasStarted = true;
 
-        if (!_hasStarted) return now - _stageSince > StartTimeoutSeconds ? Stop($"the craft of {Current.Step.Recipe.Name} did not start") : new RunnerCommand.None();
+        if (!_hasStarted) return now - _stageSince > StartTimeoutSeconds ? Stop(Texts.DidNotStart.Say(IsChinese, Current.Step.Recipe.Name)) : new RunnerCommand.None();
 
         if (bench.HasResult && !bench.IsBusy)
         {
@@ -617,7 +609,7 @@ public sealed class QueueRunner
 
         if (!bench.HasResult) return FinishStep(bench, now);
 
-        return now - _stageSince > CollectTimeoutSeconds ? Stop("the result screen did not close") : new RunnerCommand.None();
+        return now - _stageSince > CollectTimeoutSeconds ? Stop(Texts.ResultStuck.Pick(IsChinese)) : new RunnerCommand.None();
     }
 
     /// <summary>
@@ -692,12 +684,12 @@ public sealed class QueueRunner
 
         _current = null;
 
-        if (!_resumesOnReopen) return Stop(ClosedReason);
+        if (!_resumesOnReopen) return Stop(Texts.Closed.Pick(IsChinese));
 
         _stage = Stage.Paused;
         _hasToldElsewhere = false;
 
-        return new RunnerCommand.Paused(_resumesAtOtherBenches ? PausedAnyBenchReason : PausedReason);
+        return new RunnerCommand.Paused((_resumesAtOtherBenches ? Texts.PausedAnyBench : Texts.Paused).Pick(IsChinese));
     }
 
     /// <summary>
@@ -734,7 +726,7 @@ public sealed class QueueRunner
 
         _stage = Stage.Ready;
 
-        return new RunnerCommand.Resumed(_resumesAtOtherBenches ? ResumedAnyBenchReason : ResumedReason);
+        return new RunnerCommand.Resumed((_resumesAtOtherBenches ? Texts.ResumedAnyBench : Texts.Resumed).Pick(IsChinese));
     }
 
     private RunnerCommand WaitElsewhere()
@@ -745,7 +737,7 @@ public sealed class QueueRunner
 
         _hasToldElsewhere = true;
 
-        return new RunnerCommand.Paused(ElsewhereReason);
+        return new RunnerCommand.Paused(Texts.Elsewhere.Pick(IsChinese));
     }
 
     /// <summary>
@@ -784,8 +776,8 @@ public sealed class QueueRunner
         EndStep(now);
 
         return ++_emptySteps >= MaxEmptySteps
-            ? Stop($"the game made nothing from {name} twice in a row; press Craft queue to try again")
-            : new RunnerCommand.Notice($"the game made nothing from the {name} craft just sent; trying again");
+            ? Stop(Texts.NothingMadeTwice.Say(IsChinese, name))
+            : new RunnerCommand.Notice(Texts.NothingMadeOnce.Say(IsChinese, name));
     }
 
     private void EndStep(double now)

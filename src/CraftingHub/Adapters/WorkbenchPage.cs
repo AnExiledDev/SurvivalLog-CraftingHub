@@ -38,7 +38,7 @@ internal sealed class WorkbenchPage
 
     public void Install()
     {
-        if (Run(Script())) _log("page script sent to the web UI");
+        if (Run(Words() + Script())) _log("page script sent to the web UI");
     }
 
     public void Show(string viewJson) => Call($"setData({viewJson})");
@@ -49,7 +49,10 @@ internal sealed class WorkbenchPage
 
     public void ConfirmResult() => Call("act('confirm')");
 
-    private void Call(string expression) => Run($"window.__craftinghub?window.__craftinghub.{expression}:{NoScriptReply}");
+    // The words go with every call, so the panel follows a language change in the game's settings.
+    private void Call(string expression) => Run($"{Words()}window.__craftinghub?window.__craftinghub.{expression}:{NoScriptReply}");
+
+    private static string Words() => PageWords.Script(GameLanguage.IsChinese());
 
     private bool Run(string javaScript)
     {

@@ -24,10 +24,10 @@ internal sealed class HubSession
     private static readonly IReadOnlyDictionary<string, int> NoYields = new Dictionary<string, int>();
     private static readonly IReadOnlyList<string> NoRecipeKeys = Array.Empty<string>();
 
+    private static bool IsChinese => GameLanguage.IsChinese();
+
     /// <summary>A chain-marks pass slower than this is logged even when the count did not change.</summary>
     private const double SlowMarksMs = 5;
-
-    private const string RepeatedErrorsReason = "the craft queue stopped after repeated errors; details are in BepInEx/crafting-hub.log";
 
     private readonly Workbench _bench;
     private readonly WorkbenchPage _page;
@@ -64,7 +64,7 @@ internal sealed class HubSession
         _settings = settings;
         _log = log;
         _logFileOnly = logFileOnly;
-        _runner = new QueueRunner(settings.ResumeOnReopen, settings.ResumeAtOtherBenches);
+        _runner = new QueueRunner(settings.ResumeOnReopen, settings.ResumeAtOtherBenches, GameLanguage.IsChinese);
         _slot = new KeepSlot(keep.Store);
     }
 
@@ -114,7 +114,7 @@ internal sealed class HubSession
         {
             case PageCommand.Add add:
                 _queue.Add(add.Key, RecipeName(add.Key), add.Crafts);
-                _status = $"Queued {RecipeName(add.Key)} ×{add.Crafts}";
+                _status = Texts.Queued.Say(IsChinese, RecipeName(add.Key), add.Crafts);
                 break;
             case PageCommand.CraftNow craftNow:
                 CraftNow(craftNow.Key, craftNow.Crafts);
@@ -123,13 +123,13 @@ internal sealed class HubSession
                 StartQueue();
                 break;
             case PageCommand.Stop:
-                Apply(_runner.Stop("stopped"));
+                Apply(_runner.Stop(Texts.Stopped.Pick(IsChinese)));
                 break;
             case PageCommand.Remove remove:
                 RemoveOrder(remove.Id);
                 break;
             case PageCommand.Clear:
-                if (_runner.IsRunning) Apply(_runner.Stop("queue cleared"));
+                if (_runner.IsRunning) Apply(_runner.Stop(Texts.QueueCleared.Pick(IsChinese)));
 
                 _queue.Clear();
                 break;
@@ -166,13 +166,13 @@ internal sealed class HubSession
     {
         if (_queue.Head == null)
         {
-            _status = "the queue is empty";
+            _status = Texts.QueueEmpty.Pick(IsChinese);
 
             return;
         }
 
         StartRun("Craft queue");
-        _status = "running the queue";
+        _status = Texts.Running.Pick(IsChinese);
     }
 
     /// <summary>Logged, so two stops close together can be told apart from one stop logged twice.</summary>
@@ -192,7 +192,7 @@ internal sealed class HubSession
     {
         if (!_runner.IsRunning) return false;
 
-        Apply(_runner.Stop(RepeatedErrorsReason));
+        Apply(_runner.Stop(Texts.RepeatedErrors.Pick(IsChinese)));
         Show();
 
         return true;
@@ -206,17 +206,17 @@ internal sealed class HubSession
         {
             case CraftNowPlace.Refused:
                 _status = _settings.ResumeAtOtherBenches
-                    ? "the queue is paused and carries on here in a moment; press Stop first to craft this now"
-                    : "the queue is paused and carries on at the workbench it was running on; press Stop first to craft this now";
+                    ? Texts.RefusedHere.Pick(IsChinese)
+                    : Texts.RefusedElsewhere.Pick(IsChinese);
                 break;
             case CraftNowPlace.BehindHead:
                 _queue.PushFront(key, name, crafts, behindHead: true);
-                _status = $"Making {name} x{crafts} next, once the craft in progress is done";
+                _status = Texts.MakingNext.Say(IsChinese, name, crafts);
                 break;
             case CraftNowPlace.Front:
                 _queue.PushFront(key, name, crafts);
                 StartRun("craft now");
-                _status = $"Making {name} ×{crafts} with its intermediates";
+                _status = Texts.MakingNow.Say(IsChinese, name, crafts);
                 break;
         }
     }
@@ -227,7 +227,7 @@ internal sealed class HubSession
     /// </summary>
     private void RemoveOrder(long orderId)
     {
-        if (_runner.CraftingFor == orderId) Apply(_runner.Stop("stopped: the running order was removed"));
+        if (_runner.CraftingFor == orderId) Apply(_runner.Stop(Texts.OrderRemoved.Pick(IsChinese)));
 
         _queue.Remove(orderId);
     }
@@ -243,7 +243,7 @@ internal sealed class HubSession
                 break;
             case RunnerCommand.Craft craft:
                 _page.Craft(craft.Quantity);
-                _status = $"Crafting {_pickedName} ×{craft.Quantity}{ForHead()}";
+                _status = Texts.Crafting.Say(IsChinese, _pickedName, craft.Quantity, ForHead());
                 break;
             case RunnerCommand.ConfirmResult:
                 _page.ConfirmResult();
@@ -273,13 +273,13 @@ internal sealed class HubSession
         }
     }
 
-    private string ForHead() => _queue.Head is { } head && head.Key != _pickedKey ? $" for {head.Name}" : "";
+    private string ForHead() => _queue.Head is { } head && head.Key != _pickedKey ? Texts.ForOrder.Say(IsChinese, head.Name) : "";
 
     private NextStep Next()
     {
-        if (ReadBench() is not { } read) return new NextStep.Wait("could not read the workbench");
+        if (ReadBench() is not { } read) return new NextStep.Wait(Texts.CouldNotReadBench.Pick(IsChinese));
 
-        return QueuePlanner.Next(_queue.Head, read.Book, read.Stock, _slot.Targets.All, _settings.MaxDepth, _bench.ItemName);
+        return QueuePlanner.Next(_queue.Head, read.Book, read.Stock, _slot.Targets.All, _settings.MaxDepth, _bench.ItemName, IsChinese);
     }
 
     /// <summary>Topping up waits for the bench to be free: no run, no craft in progress, no result on screen.</summary>
@@ -304,14 +304,14 @@ internal sealed class HubSession
 
         if (_keep.Stock.Count(targets.Select(target => target.ItemId)) is not { } held) return;
 
-        var plan = TopUpPlanner.Plan(targets, read.Book, read.Stock, held, _queue.Entries, _settings.MaxDepth);
+        var plan = TopUpPlanner.Plan(targets, read.Book, read.Stock, held, _queue.Entries, _settings.MaxDepth, IsChinese);
         var wasEmpty = _queue.Head == null;
 
         if (plan.IsEmpty) return;
 
         foreach (var order in plan.Orders) _queue.Add(order.Recipe.Key, order.Recipe.Name, order.Crafts, isTopUp: true);
 
-        _status = TopUpPlanner.Describe(plan);
+        _status = TopUpPlanner.Describe(plan, IsChinese);
         _logFileOnly(TopUpPlanner.LogLine(plan, targets, held));
 
         if (_settings.AutoStartTopUps && wasEmpty && plan.Orders.Count > 0) StartRun("keep stocked");
@@ -325,7 +325,7 @@ internal sealed class HubSession
 
         if (ReadBench()?.Book.Find(key) is not { } recipe)
         {
-            _status = "that recipe is not in your recipe list yet";
+            _status = Texts.NotListedRecipe.Pick(IsChinese);
 
             return;
         }
@@ -333,7 +333,7 @@ internal sealed class HubSession
         var name = _bench.ItemName(recipe.ProductId);
         var edit = _slot.Set(new KeepTarget(recipe.ProductId, key, name, count));
 
-        _status = Describe(edit, count > 0 ? $"Keeping {count} {name} in stock" : $"No longer keeping {name} in stock");
+        _status = Describe(edit, count > 0 ? Texts.Keeping.Say(IsChinese, count, name) : Texts.NoLongerKeeping.Say(IsChinese, name));
         RefreshKeeps();
 
         if (count > 0 && edit is KeepEdit.Saved or KeepEdit.NotSaved) _topUps.Request();
@@ -347,16 +347,16 @@ internal sealed class HubSession
 
         if (_slot.Targets.All.FirstOrDefault(target => target.ItemId == itemId) is not { Count: > 0 } target) return;
 
-        _status = Describe(_slot.Remove(itemId), $"No longer keeping {target.Name} in stock");
+        _status = Describe(_slot.Remove(itemId), Texts.NoLongerKeeping.Say(IsChinese, target.Name));
         RefreshKeeps();
     }
 
     /// <summary>The status line after a target change: the change itself, or why it was not made or not saved.</summary>
     private static string Describe(KeepEdit edit, string change) => edit switch
     {
-        KeepEdit.NoSave => "no save is loaded, so the target was not kept",
-        KeepEdit.Unreadable => "the targets file could not be read, so nothing was changed (see the log)",
-        KeepEdit.NotSaved => change + " (could not save it to the targets file, see the log)",
+        KeepEdit.NoSave => Texts.NoSaveLoaded.Pick(IsChinese),
+        KeepEdit.Unreadable => Texts.TargetsUnreadable.Pick(IsChinese),
+        KeepEdit.NotSaved => Texts.NotSaved.Say(IsChinese, change),
         _ => change,
     };
 
@@ -378,12 +378,12 @@ internal sealed class HubSession
 
         if (load == SlotLoad.Read) _logFileOnly($"keep-stocked targets for {_slot.Save}: {_slot.Targets.All.Count}");
 
-        if (load == SlotLoad.Unreadable) _status = "the keep-stocked targets file could not be read (see the log)";
+        if (load == SlotLoad.Unreadable) _status = Texts.TargetsFileUnreadable.Pick(IsChinese);
     }
 
     private void ForgetQueue()
     {
-        if (_runner.IsRunning) Apply(_runner.Stop("another save was loaded"));
+        if (_runner.IsRunning) Apply(_runner.Stop(Texts.AnotherSave.Pick(IsChinese)));
 
         _queue.Clear();
         _logFileOnly("another save was loaded; the queue was emptied");
@@ -405,12 +405,12 @@ internal sealed class HubSession
     /// </summary>
     private void RefreshOutlook()
     {
-        var costedFor = $"{_bench.Refreshes}|{string.Join(",", _queue.Entries.Select(entry => $"{entry.Id}:{entry.Crafts}"))}|{string.Join(",", _slot.Targets.All.Select(target => $"{target.ItemId}:{target.Count}"))}";
+        var costedFor = $"{IsChinese}|{_bench.Refreshes}|{string.Join(",", _queue.Entries.Select(entry => $"{entry.Id}:{entry.Crafts}"))}|{string.Join(",", _slot.Targets.All.Select(target => $"{target.ItemId}:{target.Count}"))}";
 
         if (costedFor == _outlookFor || ReadBench() is not { } read) return;
 
         _outlookFor = costedFor;
-        _outlook = QueueForecast.Plan(_queue.Entries, read.Book, read.Stock, _slot.Targets.All, _settings.MaxDepth, _bench.ItemName);
+        _outlook = QueueForecast.Plan(_queue.Entries, read.Book, read.Stock, _slot.Targets.All, _settings.MaxDepth, _bench.ItemName, IsChinese);
         _yields = read.Book.All.Where(recipe => recipe.Yield > 1).ToDictionary(recipe => recipe.Key, recipe => recipe.Yield);
     }
 
@@ -426,7 +426,7 @@ internal sealed class HubSession
             return;
         }
 
-        _marks = read == null ? NoMarks : ChainMarks.Find(read.Book, read.Stock, read.CraftableNow, _settings.MaxDepth);
+        _marks = read == null ? NoMarks : ChainMarks.Find(read.Book, read.Stock, read.CraftableNow, _settings.MaxDepth, IsChinese);
 
         var elapsedMs = timer.Elapsed.TotalMilliseconds;
 

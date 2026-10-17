@@ -1395,6 +1395,22 @@ public class PageScriptTests
     }
 
     /// <summary>A workbench open with the fixture's recipes listed and the chain marks shown, nothing queued.</summary>
+    [Fact]
+    public void A_chinese_game_gets_the_panel_in_chinese()
+    {
+        var page = new PageScript();
+
+        page.Run(PageWords.Script(isChinese: true));
+        page.OpenBench();
+        page.RecipeMsg(Recipes);
+        page.Show(View());
+
+        Assert.Equal("5 / 5", page.Text("$('cc-count').textContent"));
+        Assert.Equal("搜索配方或材料", page.Text("$('cc-search').placeholder"));
+        Assert.Contains("队列是空的。在任意配方上点「添加」。", page.Text("$('cc-queue').textContent"));
+        Assert.DoesNotContain("Craft queue", page.Text("$('cc-queue').textContent"));
+    }
+
     private static PageScript BenchWithRecipes()
     {
         var page = new PageScript();

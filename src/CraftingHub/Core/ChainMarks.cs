@@ -9,7 +9,7 @@ namespace CraftingHub.Core;
 /// </summary>
 public static class ChainMarks
 {
-    public static IReadOnlyDictionary<string, string> Find(RecipeBook book, IReadOnlyDictionary<int, int> stock, IReadOnlySet<string> craftableNow, int maxDepth)
+    public static IReadOnlyDictionary<string, string> Find(RecipeBook book, IReadOnlyDictionary<int, int> stock, IReadOnlySet<string> craftableNow, int maxDepth, bool isChinese = false)
     {
         var marks = new Dictionary<string, string>();
 
@@ -19,13 +19,13 @@ public static class ChainMarks
         {
             if (recipe.IsLocked || craftableNow.Contains(recipe.Key)) continue;
 
-            if (CraftPlanner.Plan(book, stock, recipe, 1, maxDepth) is CraftPlan.Ready { NeedsIntermediates: true } plan) marks[recipe.Key] = MakesFirst(plan.Steps);
+            if (CraftPlanner.Plan(book, stock, recipe, 1, maxDepth) is CraftPlan.Ready { NeedsIntermediates: true } plan) marks[recipe.Key] = MakesFirst(plan.Steps, isChinese);
         }
 
         return marks;
     }
 
     /// <summary>"Makes first: Plank ×2, Rope ×1" for every step but the target itself.</summary>
-    public static string MakesFirst(IReadOnlyList<CraftStep> steps) =>
-        "Makes first: " + string.Join(", ", steps.Take(steps.Count - 1).Select(step => $"{step.Recipe.Name} ×{step.Crafts}"));
+    public static string MakesFirst(IReadOnlyList<CraftStep> steps, bool isChinese = false) =>
+        Texts.MakesFirst.Say(isChinese, Texts.Join(isChinese, steps.Take(steps.Count - 1).Select(step => $"{step.Recipe.Name} ×{step.Crafts}")));
 }
