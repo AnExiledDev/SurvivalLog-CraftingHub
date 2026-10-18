@@ -26,7 +26,6 @@ Works in English and Chinese.
 
 [size=5]Known issues[/size]
 [list]
-[*]Back up your save before trying it for the first time.[/*]
 [*]Do not use it together with BetterCrafting. Remove BetterCrafting first.[/*]
 [*]The queue only crafts at the workbench whose window is open. The mod never moves your character: when the queue pauses, you walk to a workbench and open it yourself.[/*]
 [*]The game cancels a craft when the workbench closes; that craft is made again when the queue carries on. Quitting the game empties the queue.[/*]
@@ -37,7 +36,6 @@ Works in English and Chinese.
 [*]A kept item is only topped up when you open a workbench. Recipes that make several at once can end a little over the count.[/*]
 [*]Kept counts follow the save file. A save the game starts fresh from an old one (rolling back, restarting from a snapshot) begins with none.[/*]
 [/list]
-If you run into anything strange, please tell me (see Feedback below).
 
 [size=5]Requirements[/size]
 [list]
@@ -92,7 +90,6 @@ Open source under MIT: [url=https://github.com/AnExiledDev/SurvivalLog-CraftingH
 
 [size=5]已知问题[/size]
 [list]
-[*]第一次试用前请先备份存档。[/*]
 [*]不要和 BetterCrafting 一起使用。请先移除 BetterCrafting。[/*]
 [*]队列只在窗口打开着的那个工作台制作。模组从不移动你的角色：队列暂停时，要你自己走到工作台前打开它。[/*]
 [*]工作台关闭时游戏会取消正在进行的制作；队列继续时会重新制作这一次。退出游戏会清空队列。[/*]
@@ -103,7 +100,6 @@ Open source under MIT: [url=https://github.com/AnExiledDev/SurvivalLog-CraftingH
 [*]保持库存的物品只在你打开工作台时补充。一次产出多个的配方，最后可能会比设定数量多一点。[/*]
 [*]保持库存的数量跟着存档文件走。游戏从旧存档重新开始的存档（回档、从快照重新开始）不会带有这些数量。[/*]
 [/list]
-如果遇到任何奇怪的情况，请告诉我（见下方反馈）。
 
 [size=5]前置要求[/size]
 [list]

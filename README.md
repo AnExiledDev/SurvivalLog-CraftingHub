@@ -72,15 +72,12 @@ Kept counts belong to the save you are playing. They are stored in `BepInEx\conf
 
 ## Known issues and limits
 
-This mod uses materials from every storage in your home and crafts many times on its own. Back up your save before trying it for the first time.
-
 - The queue only crafts at the workbench whose window is open, because the game uses your character for that. The mod never moves your character: when the queue pauses, you walk to a workbench and open it yourself. Anything made somewhere other than a workbench is not made for you; the run stops and says what it is short of.
 - The queue lives in memory only: quitting the game or loading another save empties it.
 - When the queue carries on after you open a workbench, it starts crafting right away. Press Stop first if you opened the workbench to do something else.
 - A craft that is still going when you press Stop is not counted against its order, so starting the queue again can make that batch a second time. Check the queue before you press Craft queue again.
 - If you close the workbench in the same moment a single craft finishes, that craft can be made once more when the queue carries on, using the materials for one more craft.
 - A failed craft still counts against its order, because the game spent the materials. It is not retried; the next step is planned from what the house holds.
-- A recipe's yield is read as one item per entry in the game's product list. The log lists the recipes this reads as making more than one; if one of them looks wrong in game, please report it.
 - With `UseAllHomeStorages` on, the game's own way of excluding a storage from crafting still applies, but every other storage in your home is used, including ones you may have meant to keep for something else.
 - A kept item is only topped up with the recipe you set the count on.
 - Spoiled food counts toward a kept count, as the game counts it, but the game does not craft with it.
@@ -88,8 +85,6 @@ This mod uses materials from every storage in your home and crafts many times on
 - The recipe cards do not show the game's hover box for a recipe. Click a card to lay the recipe on the bench and see it there. The queue does not show how long a craft takes; the running order's bar follows the game's own progress bar instead.
 - Right-clicking or shift-clicking an item while the bag tab is showing moves it to the workbench grid, which is hidden behind the Workbench tab; the view does not switch to it. Click the Workbench tab to see it.
 - BetterCrafting also changes the workbench's storage list. Do not use both (see [Requirements](#requirements)).
-
-If a craft uses the wrong materials, makes the wrong amount, or a run stops for no clear reason, please tell me (see [Feedback](#feedback-and-bug-reports)).
 
 ## Requirements
 
