@@ -82,6 +82,8 @@ internal sealed class Workbench
 
     public BenchRead? Read()
     {
+        RecipeRefresh.Flush();
+
         var state = _state;
         var items = ItemState();
 
@@ -112,6 +114,8 @@ internal sealed class Workbench
 
     public BenchView View()
     {
+        RecipeRefresh.Flush();
+
         var state = _state;
 
         if (state == null) return new BenchView(false, false, false, 0, new Dictionary<int, int>(), 0);

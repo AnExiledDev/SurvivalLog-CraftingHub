@@ -48,6 +48,7 @@ public sealed class Plugin : BasePlugin
         if (useAllHomeStorages) StoragePool.Apply(harmony, log.Write);
 
         Workbench.Apply(harmony, log.Write);
+        RecipeRefresh.Apply(harmony, log.Write);
         FrameProbe.Apply(harmony, log.WriteFileOnly);
         PageMessages.Apply(harmony, log.Write);
         CraftTicker.Log = log.Write;

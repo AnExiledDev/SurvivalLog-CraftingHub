@@ -25,6 +25,7 @@ public sealed class CraftTicker : MonoBehaviour
     private void Update()
     {
         FrameProbe.FrameEnded(Time.unscaledDeltaTime);
+        RecipeRefresh.Flush();
 
         var now = Time.unscaledTime;
 
@@ -46,6 +47,9 @@ public sealed class CraftTicker : MonoBehaviour
             NoteFailure(ex);
         }
     }
+
+    /// <summary>A recipe list rebuild the game asked for this frame runs before the frame is drawn.</summary>
+    private void LateUpdate() => RecipeRefresh.Flush();
 
     private void NoteFailure(Exception ex)
     {
