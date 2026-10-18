@@ -260,3 +260,83 @@ public class TopUpLogTests
         Assert.Equal("", TopUpPlanner.LogLine(plan, new[] { Rope }, Bench.Mats((Bench.Rope, 5))));
     }
 }
+
+/// <summary>A player's order is queued with the intermediates it needs ahead of it, planned from what the queue leaves.</summary>
+public class QueueSplitTests
+{
+    private const int MaxDepth = 4;
+
+    private static readonly RecipeBook Book = Bench.Book();
+    private static readonly NewOrder OneCrate = new("crate", "Crate", 1);
+
+    [Fact]
+    public void Intermediates_are_queued_as_their_own_orders_ahead_of_the_order_and_the_queue_makes_it()
+    {
+        var house = Bench.Mats((Bench.Log, 2), (Bench.Fibre, 3));
+        var queue = new CraftQueue();
+
+        Add(queue, house, OneCrate);
+        Run(queue, house);
+
+        Assert.Equal(new[] { ("plank", 2), ("rope", 1), ("crate", 1) }, Orders(queue));
+        Assert.Equal(1, house[Bench.Crate]);
+    }
+
+    [Fact]
+    public void Stock_the_orders_already_queued_will_use_is_not_counted_for_the_new_one()
+    {
+        var house = Bench.Mats((Bench.Plank, 4), (Bench.Rope, 1), (Bench.Log, 2), (Bench.Fibre, 3));
+        var queue = new CraftQueue();
+
+        Add(queue, house, OneCrate);
+        Add(queue, house, OneCrate);
+
+        Assert.Equal(new[] { ("crate", 1), ("plank", 2), ("rope", 1), ("crate", 1) }, Orders(queue));
+    }
+
+    [Fact]
+    public void An_order_that_is_short_or_needs_nothing_made_first_is_queued_as_asked()
+    {
+        var shortQueue = new CraftQueue();
+        var readyQueue = new CraftQueue();
+
+        Add(shortQueue, Bench.Mats((Bench.Fibre, 3)), OneCrate);
+        Add(readyQueue, Bench.Mats((Bench.Plank, 4), (Bench.Rope, 1)), OneCrate);
+
+        Assert.Equal(new[] { ("crate", 1) }, Orders(shortQueue));
+        Assert.Equal(new[] { ("crate", 1) }, Orders(readyQueue));
+    }
+
+    private static void Add(CraftQueue queue, Dictionary<int, int> house, NewOrder order)
+    {
+        foreach (var queued in QueueForecast.Split(queue.Entries, Book, house, Array.Empty<KeepTarget>(), MaxDepth, order)) queue.Add(queued.Key, queued.Name, queued.Crafts);
+    }
+
+    private static (string, int)[] Orders(CraftQueue queue) => queue.Entries.Select(entry => (entry.Key, entry.Crafts)).ToArray();
+
+    /// <summary>Runs a copy of the queue to the end as the hub does, so the queue keeps the orders as they were added.</summary>
+    private static void Run(CraftQueue queue, Dictionary<int, int> house)
+    {
+        var running = new CraftQueue();
+
+        foreach (var entry in queue.Entries) running.Add(entry.Key, entry.Name, entry.Crafts, entry.IsTopUp);
+
+        for (var steps = 0; steps < 20; steps++)
+        {
+            var next = QueuePlanner.Next(running.Head, Book, house, Array.Empty<KeepTarget>(), MaxDepth, Bench.Name);
+
+            if (next is NextStep.Finished) return;
+
+            var craft = Assert.IsType<NextStep.Craft>(next);
+
+            Assert.True(craft.IsTarget, "every intermediate already has its own order");
+
+            foreach (var (itemId, perCraft) in craft.Step.Recipe.Materials) house[itemId] = house.GetValueOrDefault(itemId) - perCraft * craft.Step.Crafts;
+
+            house[craft.Step.Recipe.ProductId] = house.GetValueOrDefault(craft.Step.Recipe.ProductId) + craft.Step.Crafts * craft.Step.Recipe.Yield;
+            running.Progress(craft.OrderId, craft.Step.Crafts);
+        }
+
+        Assert.Fail("the queue never finished");
+    }
+}

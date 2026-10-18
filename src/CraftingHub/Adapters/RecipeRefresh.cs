@@ -180,7 +180,7 @@ internal static class RecipeRefresh
         if (game != covers)
         {
             _isPoolTrusted = false;
-            _log($"the fast craftable check said {covers} where the game said {game}, the game's own is used from now on");
+            _log($"the fast craftable check said {covers} where the game said {game} (needed {string.Join(", ", Needed(needed))}), the game's own is used from now on");
 
             return false;
         }
@@ -190,7 +190,11 @@ internal static class RecipeRefresh
         return true;
     }
 
-    /// <summary>The storages the game would look in: its linked list with the bench added, duplicates kept, as it does.</summary>
+    /// <summary>
+    /// The storages the game would look in: its linked list with the bench added, duplicates kept, as it does. Every
+    /// storage is read once before any is counted: a read moves items whose owner changed into their owner's list, so
+    /// an item moved into a storage already counted would otherwise be missed.
+    /// </summary>
     private static MaterialPool ReadPool(State_Web_ToolTable state, State_Data_Item items)
     {
         var owners = new List<long>();
@@ -199,6 +203,8 @@ internal static class RecipeRefresh
         for (var i = 0; linked != null && i < linked.Count; i++) owners.Add(linked[i]);
 
         owners.Add(state.WorkbenchOwnerId.Value);
+
+        foreach (var owner in new HashSet<long>(owners)) State_Extensions_Item.GetItemDataList(items, owner);
 
         var held = new Dictionary<long, List<(int ItemId, int Count)>>();
         var stacks = new List<(int ItemId, int Count)>();

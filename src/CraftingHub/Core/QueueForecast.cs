@@ -22,6 +22,9 @@ public readonly record struct MaterialTotal(int ItemId, string Name, int Need, i
 /// <summary>An intermediate the queue crafts on its way to the orders.</summary>
 public readonly record struct MadeOnTheWay(string Key, string Name, int Crafts);
 
+/// <summary>One order to add to the back of the queue.</summary>
+public readonly record struct NewOrder(string Key, string Name, int Crafts);
+
 public sealed record QueueOutlook(IReadOnlyList<OrderOutlook> Orders, IReadOnlyList<MaterialTotal> Totals, IReadOnlyList<MadeOnTheWay> Made, string HeadsUp)
 {
     public static readonly QueueOutlook Empty = new(Array.Empty<OrderOutlook>(), Array.Empty<MaterialTotal>(), Array.Empty<MadeOnTheWay>(), "");
@@ -41,6 +44,29 @@ public static class QueueForecast
         var headsUp = queue.Zip(orders, (order, outlook) => HeadsUp(order, outlook, isChinese)).FirstOrDefault(line => line.Length > 0) ?? "";
 
         return new QueueOutlook(orders, walk.Totals(), walk.Made, headsUp);
+    }
+
+    /// <summary>
+    /// The orders a player's new order becomes: every intermediate it needs, planned from what the queued orders leave
+    /// behind, as its own order ahead of it, so the queue shows what gets made on the way. An order that is short,
+    /// locked or not listed stays as it was asked for, and the forecast says why.
+    /// </summary>
+    public static IReadOnlyList<NewOrder> Split(IReadOnlyList<QueueEntry> queue, RecipeBook book, IReadOnlyDictionary<int, int> stock, IReadOnlyList<KeepTarget> kept, int maxDepth, NewOrder order)
+    {
+        if (book.Find(order.Key) is not { IsLocked: false } target) return new[] { order };
+
+        var walk = new QueueWalk(book, stock, kept, maxDepth, _ => "", isChinese: false);
+
+        foreach (var queued in queue) walk.Order(queued);
+
+        var plan = walk.Next(target, order.Crafts);
+
+        if (plan.Missing.Count > 0) return new[] { order };
+
+        var orders = QueueWalk.Merged(plan.Steps.Take(plan.Steps.Count - 1)).Select(step => new NewOrder(step.Key, step.Name, step.Crafts)).ToList();
+        orders.Add(order);
+
+        return orders;
     }
 
     // The short note ends with the missing list, so the heads-up reads it back from after the note's prefix.
@@ -99,6 +125,9 @@ public static class QueueForecast
             return new OrderOutlook(order.Id, OrderState.Ready, Texts.Ready.Pick(_isChinese));
         }
 
+        /// <summary>Plans a player order from what every order walked so far leaves, without taking from it.</summary>
+        public CraftWalk Next(Recipe target, int crafts) => CraftPlanner.Walk(_book, _left, target, crafts, _maxDepth);
+
         /// <summary>
         /// Net use against what you own, short items first. Something the queue makes and then uses up again does not
         /// show; it is in <see cref="Made"/>.
@@ -135,7 +164,7 @@ public static class QueueForecast
         private string Missing(IReadOnlyDictionary<int, int> missing) =>
             Texts.Join(_isChinese, missing.OrderBy(pair => pair.Key).Select(pair => $"{_itemName(pair.Key)} x{pair.Value}"));
 
-        private static List<MadeOnTheWay> Merged(IEnumerable<CraftStep> steps)
+        public static List<MadeOnTheWay> Merged(IEnumerable<CraftStep> steps)
         {
             var merged = new List<MadeOnTheWay>();
 

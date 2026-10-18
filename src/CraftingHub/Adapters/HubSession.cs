@@ -113,8 +113,7 @@ internal sealed class HubSession
         switch (command)
         {
             case PageCommand.Add add:
-                _queue.Add(add.Key, RecipeName(add.Key), add.Crafts);
-                _status = Texts.Queued.Say(IsChinese, RecipeName(add.Key), add.Crafts);
+                AddOrder(new NewOrder(add.Key, RecipeName(add.Key), add.Crafts));
                 break;
             case PageCommand.CraftNow craftNow:
                 CraftNow(craftNow.Key, craftNow.Crafts);
@@ -196,6 +195,18 @@ internal sealed class HubSession
         Show();
 
         return true;
+    }
+
+    /// <summary>Queues the order with each intermediate it needs as its own order ahead of it.</summary>
+    private void AddOrder(NewOrder order)
+    {
+        var orders = ReadBench() is { } read
+            ? QueueForecast.Split(_queue.Entries, read.Book, read.Stock, _slot.Targets.All, _settings.MaxDepth, order)
+            : new[] { order };
+
+        foreach (var queued in orders) _queue.Add(queued.Key, queued.Name, queued.Crafts);
+
+        _status = Texts.Queued.Say(IsChinese, order.Name, order.Crafts);
     }
 
     private void CraftNow(string key, int crafts)
