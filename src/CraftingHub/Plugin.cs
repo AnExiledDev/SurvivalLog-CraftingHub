@@ -11,7 +11,7 @@ namespace CraftingHub;
 public sealed class Plugin : BasePlugin
 {
     private const string Guid = "com.dev.survivallog.craftinghub";
-    private const string Version = "0.7.1";
+    private const string Version = "0.8.0";
 
     public override void Load()
     {
@@ -49,7 +49,6 @@ public sealed class Plugin : BasePlugin
 
         Workbench.Apply(harmony, log.Write);
         RecipeRefresh.Apply(harmony, log.Write);
-        FrameProbe.Apply(harmony, log.WriteFileOnly);
         PageMessages.Apply(harmony, log.Write);
         CraftTicker.Log = log.Write;
         CraftTicker.Session = new HubSession(new Workbench(log.Write), new WorkbenchPage(log.Write), keep, settings, log.Write, log.WriteFileOnly);

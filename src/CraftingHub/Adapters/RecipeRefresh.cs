@@ -93,12 +93,7 @@ internal static class RecipeRefresh
             // Whatever the game would do with a missing state, it does itself.
             if (__0 == null || __2 == null) return true;
 
-            if (!Batch.RunsNow(new Rebuild(__0, __1, __2)))
-            {
-                FrameProbe.End("recipe rebuild held", FrameProbe.Begin());
-
-                return false;
-            }
+            if (!Batch.RunsNow(new Rebuild(__0, __1, __2))) return false;
 
             __state = true;
             _rebuildsRunning++;
@@ -138,13 +133,7 @@ internal static class RecipeRefresh
 
         try
         {
-            if (_storages == null)
-            {
-                var startedAt = FrameProbe.Begin();
-
-                _storages = ReadStorages(__0, __1);
-                FrameProbe.End("hub material pool", startedAt);
-            }
+            _storages ??= ReadStorages(__0, __1);
 
             var covers = _storages.Pool.Covers(Needed(__2));
 

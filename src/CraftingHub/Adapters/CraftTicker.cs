@@ -24,7 +24,6 @@ public sealed class CraftTicker : MonoBehaviour
 
     private void Update()
     {
-        FrameProbe.FrameEnded(Time.unscaledDeltaTime);
         RecipeRefresh.Flush();
 
         var now = Time.unscaledTime;
@@ -36,10 +35,7 @@ public sealed class CraftTicker : MonoBehaviour
         try
         {
             WarnAboutConflictsOnce();
-            var startedAt = FrameProbe.Begin();
-
             Session?.Tick(now);
-            FrameProbe.End("hub tick", startedAt);
             _failures.Succeeded();
         }
         catch (Exception ex)
