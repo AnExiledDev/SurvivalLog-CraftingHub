@@ -133,14 +133,25 @@ public class PageScriptTests
     }
 
     [Fact]
-    public void A_recipe_whose_materials_are_all_owned_can_be_made_even_when_the_game_says_not()
+    public void With_Stacking_a_recipe_whose_materials_are_all_owned_can_be_made_even_when_the_game_says_not()
     {
         var page = BenchWithRecipes();
 
+        page.Show(View(takesUnits: true));
         page.RecipeMsg("""[{ recipeKey: 'box', name: 'Box', canCraft: false, noteCategory: 1, materialsJson: '[{"name":"Scrap","need":3,"have":68,"hasEnough":true},{"name":"Wire","need":1,"have":1,"hasEnough":true}]' }, { recipeKey: 'rod', name: 'Rod', canCraft: false, noteCategory: 1, materialsJson: '[{"name":"Scrap","need":3,"have":68,"hasEnough":true},{"name":"Wire","need":2,"have":1,"hasEnough":false}]' }]""");
 
         Assert.Equal("Can make now", page.Text("cardPart('box', '.cc-card-st').textContent"));
         Assert.Equal("Short: Wire 1", page.Text("cardPart('rod', '.cc-card-st').textContent"));
+    }
+
+    [Fact]
+    public void Without_Stacking_the_game_decides_whether_a_recipe_can_be_made_from_owned_materials()
+    {
+        var page = BenchWithRecipes();
+
+        page.RecipeMsg("""[{ recipeKey: 'box', name: 'Box', canCraft: false, noteCategory: 1, materialsJson: '[{"name":"Scrap","need":3,"have":68,"hasEnough":true}]' }]""");
+
+        Assert.Equal("Cannot make now", page.Text("cardPart('box', '.cc-card-st').textContent"));
     }
 
     [Fact]
@@ -1440,8 +1451,9 @@ public class PageScriptTests
         KeepView? keep = null,
         IReadOnlyDictionary<string, int>? yields = null,
         string status = "",
-        long activeOrderId = 0) =>
-        HubView.Build(Marks, queue ?? Array.Empty<QueueEntry>(), isRunning, status, keep ?? NoKeep, isPaused, outlook, yields, activeOrderId);
+        long activeOrderId = 0,
+        bool takesUnits = false) =>
+        HubView.Build(Marks, queue ?? Array.Empty<QueueEntry>(), isRunning, status, keep ?? NoKeep, isPaused, outlook, yields, activeOrderId, takesUnitsOffStacks: takesUnits);
 
     /// <summary>The plugin's view with its stamina reading, which the plugin sends as the view's last field.</summary>
     private static string WithStamina(string view, string stamina) => view[..^1] + ",\"stamina\":" + stamina + "}";

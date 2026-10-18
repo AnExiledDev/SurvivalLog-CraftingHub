@@ -12,6 +12,7 @@ public sealed class Plugin : BasePlugin
 {
     private const string Guid = "com.dev.survivallog.craftinghub";
     private const string Version = "0.8.0";
+    private const string StackingGuid = "com.dev.survivallog.stacking";
 
     public override void Load()
     {
@@ -51,7 +52,10 @@ public sealed class Plugin : BasePlugin
         RecipeRefresh.Apply(harmony, log.Write);
         PageMessages.Apply(harmony, log.Write);
         CraftTicker.Log = log.Write;
-        CraftTicker.Session = new HubSession(new Workbench(log.Write), new WorkbenchPage(log.Write), keep, settings, log.Write, log.WriteFileOnly);
+        CraftTicker.Session = new HubSession(new Workbench(log.Write), new WorkbenchPage(log.Write), keep, settings, IsStackingLoaded, log.Write, log.WriteFileOnly);
         AddComponent<CraftTicker>();
     }
+
+    /// <summary>Stacking's fill takes part of a stack, so a material held in one big stack can still be used.</summary>
+    private static bool IsStackingLoaded() => IL2CPPChainloader.Instance.Plugins.ContainsKey(StackingGuid);
 }

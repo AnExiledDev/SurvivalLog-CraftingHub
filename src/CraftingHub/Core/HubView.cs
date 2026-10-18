@@ -57,7 +57,8 @@ public static class HubView
         QueueOutlook? outlook = null,
         IReadOnlyDictionary<string, int>? yields = null,
         long activeOrderId = 0,
-        StaminaView? stamina = null)
+        StaminaView? stamina = null,
+        bool takesUnitsOffStacks = false)
     {
         var forecast = outlook ?? QueueOutlook.Empty;
         var markPairs = marks.OrderBy(pair => pair.Key, System.StringComparer.Ordinal).Select(pair => $"{Str(pair.Key)}:{Str(pair.Value)}");
@@ -77,6 +78,7 @@ public static class HubView
             .Append("],\"yields\":{").AppendJoin(',', yieldPairs)
             .Append("},\"keep\":").Append(Keep(keep))
             .Append(",\"stamina\":").Append(Stamina(stamina))
+            .Append(",\"takesUnits\":").Append(Bool(takesUnitsOffStacks))
             .Append('}')
             .ToString();
     }

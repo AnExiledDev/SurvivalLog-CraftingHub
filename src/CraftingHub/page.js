@@ -124,7 +124,7 @@
   // The plugin's order states, as the colours the list uses for the same meaning.
   var STATE_LOOK = { ready: 'now', via: 'via', short: 'short', locked: 'short', unlisted: 'short' };
 
-  var view = { marks: {}, queue: [], running: false, paused: false, activeId: 0, status: '', headsUp: '', totals: [], yields: {}, keep: { on: false, targets: [], byKey: {} } };
+  var view = { marks: {}, queue: [], running: false, paused: false, activeId: 0, status: '', headsUp: '', totals: [], yields: {}, keep: { on: false, targets: [], byKey: {} }, takesUnits: false };
   var selectedKey = '';
   // The plugin's last view as it was sent, so the same view sent again draws nothing.
   var lastViewText = '';
@@ -677,12 +677,12 @@
     }
   }
 
-  // The game's canCraft only counts stacks no bigger than what is still needed, so one big stack reads as missing. The
-  // hub pulls part of a stack when it crafts, so the materials owned are enough on their own.
+  // The game's canCraft only counts stacks no bigger than what is still needed, so one big stack reads as missing. With
+  // Stacking loaded the bench's fill takes part of a stack, so the materials owned are enough on their own.
   function kindOf(r, mats) {
     if (r.craftLocked) return 'locked';
 
-    if (r.canCraft || ownsEveryMaterial(mats)) return 'now';
+    if (r.canCraft || view.takesUnits && ownsEveryMaterial(mats)) return 'now';
 
     if (hasOwn(view.marks, r.recipeKey)) return 'via';
 
@@ -1202,6 +1202,7 @@
       view.keep.on,
       view.keep.byKey,
       view.yields,
+      view.takesUnits,
       staminaCosts()
     ]);
   }

@@ -33,6 +33,7 @@ internal sealed class HubSession
     private readonly WorkbenchPage _page;
     private readonly KeepPorts _keep;
     private readonly HubSettings _settings;
+    private readonly Func<bool> _takesUnitsOffStacks;
     private readonly Action<string> _log;
     private readonly Action<string> _logFileOnly;
     private readonly CraftQueue _queue = new();
@@ -57,12 +58,13 @@ internal sealed class HubSession
     private int _loggedMarkCount = -1;
     private IReadOnlyList<string> _recipeKeys = NoRecipeKeys;
 
-    public HubSession(Workbench bench, WorkbenchPage page, KeepPorts keep, HubSettings settings, Action<string> log, Action<string> logFileOnly)
+    public HubSession(Workbench bench, WorkbenchPage page, KeepPorts keep, HubSettings settings, Func<bool> takesUnitsOffStacks, Action<string> log, Action<string> logFileOnly)
     {
         _bench = bench;
         _page = page;
         _keep = keep;
         _settings = settings;
+        _takesUnitsOffStacks = takesUnitsOffStacks;
         _log = log;
         _logFileOnly = logFileOnly;
         _runner = new QueueRunner(settings.ResumeOnReopen, settings.ResumeAtOtherBenches, GameLanguage.IsChinese);
@@ -132,6 +134,7 @@ internal sealed class HubSession
                 if (_runner.IsRunning) Apply(_runner.Stop(Texts.QueueCleared.Pick(IsChinese)));
 
                 _queue.Clear();
+                _hasStoppedForStamina = false;
                 break;
             case PageCommand.Move move:
                 // Finished crafts are credited by order id, so a running step still counts for its own order after a move.
@@ -400,6 +403,7 @@ internal sealed class HubSession
         if (_runner.IsRunning) Apply(_runner.Stop(Texts.AnotherSave.Pick(IsChinese)));
 
         _queue.Clear();
+        _hasStoppedForStamina = false;
         _logFileOnly("another save was loaded; the queue was emptied");
     }
 
@@ -470,7 +474,7 @@ internal sealed class HubSession
     {
         var keep = new KeepView(_settings.KeepStocked, _slot.Targets.All, _keepByKey, _keepHave);
         var stamina = StaminaView.From(_bench.Stamina(), _recipeKeys, _queue.Head != null, _hasStoppedForStamina);
-        var view = HubView.Build(_marks, _queue.Entries, _runner.IsRunning, _status, keep, _runner.IsPaused, _outlook, _yields, ActiveOrderId(), stamina);
+        var view = HubView.Build(_marks, _queue.Entries, _runner.IsRunning, _status, keep, _runner.IsPaused, _outlook, _yields, ActiveOrderId(), stamina, _takesUnitsOffStacks());
 
         if (view == _shownView) return;
 
