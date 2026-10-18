@@ -29,6 +29,7 @@ internal static class RecipeRefresh
     private static MaterialPool? _pool;
     private static bool _isPoolTrusted = true;
     private static bool _isAskingGame;
+    private static bool _hasLoggedReread;
     private static int _compared;
     private static int _failures;
 
@@ -177,8 +178,11 @@ internal static class RecipeRefresh
 
         _compared++;
 
+        // On a miss the game's own runs for this recipe; the fast check stays on only if a fresh read explains the miss.
         if (game != covers)
         {
+            if (IsFixedByRereading(state, items, needed, game)) return false;
+
             _isPoolTrusted = false;
             _log($"the fast craftable check said {covers} where the game said {game} (needed {string.Join(", ", Needed(needed))}), the game's own is used from now on");
 
@@ -186,6 +190,27 @@ internal static class RecipeRefresh
         }
 
         if (_compared == ChecksCompared) _log($"the fast craftable check matched the game's on {ChecksCompared} recipes, it is used alone from now on");
+
+        return true;
+    }
+
+    /// <summary>
+    /// Items can change while a rebuild runs (another mod, or a move the game finishes mid-rebuild), which leaves the
+    /// pool read on its first recipe out of date. When a fresh read agrees with the game, the fresh one is kept.
+    /// </summary>
+    private static bool IsFixedByRereading(State_Web_ToolTable state, State_Data_Item items, Il2CppNeeded needed, bool game)
+    {
+        var fresh = ReadPool(state, items);
+
+        if (fresh.Covers(Needed(needed)) != game) return false;
+
+        _pool = fresh;
+
+        if (!_hasLoggedReread)
+        {
+            _hasLoggedReread = true;
+            _log("the storages changed during a recipe list rebuild, the fast craftable check read them again");
+        }
 
         return true;
     }

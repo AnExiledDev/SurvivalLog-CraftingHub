@@ -682,14 +682,20 @@
     }
   }
 
-  function kindOf(r) {
+  // The game's canCraft only counts stacks no bigger than what is still needed, so one big stack reads as missing. The
+  // hub pulls part of a stack when it crafts, so the materials owned are enough on their own.
+  function kindOf(r, mats) {
     if (r.craftLocked) return 'locked';
 
-    if (r.canCraft) return 'now';
+    if (r.canCraft || ownsEveryMaterial(mats)) return 'now';
 
     if (hasOwn(view.marks, r.recipeKey)) return 'via';
 
     return 'short';
+  }
+
+  function ownsEveryMaterial(mats) {
+    return mats.length > 0 && mats.every(function (m) { return (m.have || 0) >= (m.need || 0); });
   }
 
   // The page's own grouping: categories 1 to 7, anything else in 0 ("other").
@@ -713,7 +719,7 @@
     return recipesOf(win).map(function (r) {
       var mats = materialsOf(win, r);
 
-      return { recipe: r, kind: kindOf(r), group: groupOf(r), mats: mats, hits: searchHits(r, mats, query) };
+      return { recipe: r, kind: kindOf(r, mats), group: groupOf(r), mats: mats, hits: searchHits(r, mats, query) };
     });
   }
 
