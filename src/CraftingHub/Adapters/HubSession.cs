@@ -409,9 +409,12 @@ internal sealed class HubSession
 
         if (costedFor == _outlookFor || ReadBench() is not { } read) return;
 
+        var startedAt = FrameProbe.Begin();
+
         _outlookFor = costedFor;
         _outlook = QueueForecast.Plan(_queue.Entries, read.Book, read.Stock, _slot.Targets.All, _settings.MaxDepth, _bench.ItemName, IsChinese);
         _yields = read.Book.All.Where(recipe => recipe.Yield > 1).ToDictionary(recipe => recipe.Key, recipe => recipe.Yield);
+        FrameProbe.End("hub forecast", startedAt);
     }
 
     /// <summary>The timer started before the bench was read, so a slow read shows in the logged time too.</summary>
@@ -426,7 +429,10 @@ internal sealed class HubSession
             return;
         }
 
+        var startedAt = FrameProbe.Begin();
+
         _marks = read == null ? NoMarks : ChainMarks.Find(read.Book, read.Stock, read.CraftableNow, _settings.MaxDepth, IsChinese);
+        FrameProbe.End("hub marks", startedAt);
 
         var elapsedMs = timer.Elapsed.TotalMilliseconds;
 
@@ -446,8 +452,11 @@ internal sealed class HubSession
     {
         if (_hasRead) return _read;
 
+        var startedAt = FrameProbe.Begin();
+
         _read = _bench.Read();
         _hasRead = true;
+        FrameProbe.End("hub bench read", startedAt);
 
         return _read;
     }
@@ -460,7 +469,10 @@ internal sealed class HubSession
 
         if (view == _shownView) return;
 
+        var startedAt = FrameProbe.Begin();
+
         _shownView = view;
         _page.Show(view);
+        FrameProbe.End("hub page update", startedAt);
     }
 }

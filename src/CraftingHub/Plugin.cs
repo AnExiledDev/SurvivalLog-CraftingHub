@@ -48,6 +48,7 @@ public sealed class Plugin : BasePlugin
         if (useAllHomeStorages) StoragePool.Apply(harmony, log.Write);
 
         Workbench.Apply(harmony, log.Write);
+        FrameProbe.Apply(harmony, log.WriteFileOnly);
         PageMessages.Apply(harmony, log.Write);
         CraftTicker.Log = log.Write;
         CraftTicker.Session = new HubSession(new Workbench(log.Write), new WorkbenchPage(log.Write), keep, settings, log.Write, log.WriteFileOnly);
