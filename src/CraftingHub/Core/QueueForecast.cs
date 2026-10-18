@@ -25,9 +25,9 @@ public readonly record struct MadeOnTheWay(string Key, string Name, int Crafts);
 /// <summary>One order to add to the back of the queue.</summary>
 public readonly record struct NewOrder(string Key, string Name, int Crafts);
 
-public sealed record QueueOutlook(IReadOnlyList<OrderOutlook> Orders, IReadOnlyList<MaterialTotal> Totals, IReadOnlyList<MadeOnTheWay> Made, string HeadsUp)
+public sealed record QueueOutlook(IReadOnlyList<OrderOutlook> Orders, IReadOnlyList<MaterialTotal> Totals, string HeadsUp)
 {
-    public static readonly QueueOutlook Empty = new(Array.Empty<OrderOutlook>(), Array.Empty<MaterialTotal>(), Array.Empty<MadeOnTheWay>(), "");
+    public static readonly QueueOutlook Empty = new(Array.Empty<OrderOutlook>(), Array.Empty<MaterialTotal>(), "");
 }
 
 /// <summary>
@@ -43,7 +43,7 @@ public static class QueueForecast
         var orders = queue.Select(walk.Order).ToList();
         var headsUp = queue.Zip(orders, (order, outlook) => HeadsUp(order, outlook, isChinese)).FirstOrDefault(line => line.Length > 0) ?? "";
 
-        return new QueueOutlook(orders, walk.Totals(), walk.Made, headsUp);
+        return new QueueOutlook(orders, walk.Totals(), headsUp);
     }
 
     /// <summary>
@@ -88,7 +88,6 @@ public static class QueueForecast
         private readonly bool _isChinese;
         private readonly Dictionary<int, int> _left;
         private readonly Dictionary<int, int> _missing = new();
-        private readonly List<MadeOnTheWay> _made = new();
 
         public QueueWalk(RecipeBook book, IReadOnlyDictionary<int, int> stock, IReadOnlyList<KeepTarget> kept, int maxDepth, Func<int, string> itemName, bool isChinese)
         {
@@ -100,8 +99,6 @@ public static class QueueForecast
             _isChinese = isChinese;
             _left = stock.ToDictionary(pair => pair.Key, pair => pair.Value);
         }
-
-        public IReadOnlyList<MadeOnTheWay> Made => _made;
 
         public OrderOutlook Order(QueueEntry order)
         {
@@ -116,7 +113,6 @@ public static class QueueForecast
 
             TakeFromStock(walk);
             Count(walk.Missing);
-            foreach (var step in intermediates) AddTo(_made, step);
 
             if (walk.Missing.Count > 0) return new OrderOutlook(order.Id, OrderState.Short, Texts.NoteShort.Say(_isChinese, Missing(walk.Missing)));
 
@@ -130,7 +126,7 @@ public static class QueueForecast
 
         /// <summary>
         /// Net use against what you own, short items first. Something the queue makes and then uses up again does not
-        /// show; it is in <see cref="Made"/>.
+        /// show.
         /// </summary>
         public IReadOnlyList<MaterialTotal> Totals() =>
             _stock.Keys.Union(_missing.Keys)

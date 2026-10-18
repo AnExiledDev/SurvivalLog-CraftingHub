@@ -469,14 +469,6 @@ public class QueueForecastTests
     }
 
     [Fact]
-    public void Parts_made_for_several_orders_are_listed_once_with_their_crafts_added()
-    {
-        var outlook = Plan(Bench.Mats((Bench.Log, 4), (Bench.Fibre, 6)), NoKeeps, Order("crate", 1, id: 1), Order("crate", 1, id: 2));
-
-        Assert.Equal(new[] { new MadeOnTheWay("plank", "Plank", 4), new MadeOnTheWay("rope", "Rope", 2) }, outlook.Made);
-    }
-
-    [Fact]
     public void The_heads_up_names_the_first_order_the_queue_will_stop_at()
     {
         var outlook = Plan(Bench.Mats((Bench.Plank, 4), (Bench.Rope, 1)), NoKeeps, Order("crate", 1, id: 1), Order("rope", 1, id: 2), Order("plank", 1, id: 3));
@@ -1293,7 +1285,6 @@ public class HubViewTests
         var outlook = new QueueOutlook(
             new[] { new OrderOutlook(4, OrderState.MakesFirst, "Makes first: Plank x2") },
             new[] { new MaterialTotal(Bench.Fibre, "Fibre", 3, 1, 2) },
-            new[] { new MadeOnTheWay("plank", "Plank", 2) },
             "Heads up: Crate is short of Fibre x2. The queue will stop there.");
 
         var json = HubView.Build(new Dictionary<string, string>(), queue, false, "", NoKeep, outlook: outlook);
@@ -1307,7 +1298,6 @@ public class HubViewTests
         Assert.Equal("Heads up: Crate is short of Fibre x2. The queue will stop there.", root.GetProperty("headsUp").GetString());
         Assert.Equal(2, root.GetProperty("totals")[0].GetProperty("short").GetInt32());
         Assert.Equal(3, root.GetProperty("totals")[0].GetProperty("need").GetInt32());
-        Assert.Equal(2, root.GetProperty("made")[0].GetProperty("crafts").GetInt32());
     }
 
     [Fact]

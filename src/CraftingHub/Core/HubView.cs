@@ -20,21 +20,24 @@ public readonly record struct StaminaView(int Have, bool IsOut, IReadOnlyDiction
     /// <summary>
     /// The game works a craft's stamina cost out from the player, not the recipe, so every listed recipe gets the same
     /// cost. Out only while the queue waits on a craft the player cannot afford now, so it clears as stamina comes
-    /// back; a run that stopped for stamina says so in its status line. Null when stamina could not be read.
+    /// back. After a run stopped for stamina the game may report no cost at all, so the warning then holds until the
+    /// player can be seen to cover a craft or starts the queue again. Null when stamina could not be read.
     /// </summary>
-    public static StaminaView? From(StaminaRead? read, IEnumerable<string> recipeKeys, bool hasQueue)
+    public static StaminaView? From(StaminaRead? read, IEnumerable<string> recipeKeys, bool hasQueue, bool hasStoppedForStamina = false)
     {
         if (read is not { } stamina || stamina.IsUnanswered) return null;
 
         var cost = stamina.Cost > 0 ? recipeKeys.Distinct().ToDictionary(key => key, _ => stamina.Cost) : new Dictionary<string, int>();
 
-        return new StaminaView(stamina.Have, hasQueue && stamina.IsShort, cost);
+        var isOut = hasQueue && (stamina.IsShort || hasStoppedForStamina && !stamina.CoversACraft);
+
+        return new StaminaView(stamina.Have, isOut, cost);
     }
 }
 
 /// <summary>
 /// The JSON the workbench page draws from: chain marks, the queue with where each order stands, the run's state and
-/// status line, the order the craft in progress is for, what the whole queue uses and makes on the way, how many each
+/// status line, the order the craft in progress is for, what the whole queue uses, how many each
 /// recipe makes, the keep-stocked targets, and the player's stamina.
 /// </summary>
 public static class HubView
@@ -60,7 +63,6 @@ public static class HubView
         var markPairs = marks.OrderBy(pair => pair.Key, System.StringComparer.Ordinal).Select(pair => $"{Str(pair.Key)}:{Str(pair.Value)}");
         var entries = queue.Select(entry => Entry(entry, forecast));
         var totals = forecast.Totals.Select(total => $"{{\"item\":{Num(total.ItemId)},\"name\":{Str(total.Name)},\"need\":{Num(total.Need)},\"have\":{Num(total.Have)},\"short\":{Num(total.Short)}}}");
-        var made = forecast.Made.Select(step => $"{{\"key\":{Str(step.Key)},\"name\":{Str(step.Name)},\"crafts\":{Num(step.Crafts)}}}");
         var yieldPairs = (yields ?? NoYields).Where(pair => pair.Value > 1).OrderBy(pair => pair.Key, System.StringComparer.Ordinal).Select(pair => $"{Str(pair.Key)}:{Num(pair.Value)}");
 
         return new StringBuilder(2048)
@@ -72,7 +74,6 @@ public static class HubView
             .Append(",\"status\":").Append(Str(status))
             .Append(",\"headsUp\":").Append(Str(forecast.HeadsUp))
             .Append(",\"totals\":[").AppendJoin(',', totals)
-            .Append("],\"made\":[").AppendJoin(',', made)
             .Append("],\"yields\":{").AppendJoin(',', yieldPairs)
             .Append("},\"keep\":").Append(Keep(keep))
             .Append(",\"stamina\":").Append(Stamina(stamina))

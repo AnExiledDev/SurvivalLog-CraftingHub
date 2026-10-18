@@ -46,6 +46,7 @@ internal sealed class HubSession
     private QueueOutlook _outlook = QueueOutlook.Empty;
     private string _outlookFor = "";
     private string _status = "";
+    private bool _hasStoppedForStamina;
     private string _shownView = "";
     private string _pickedKey = "";
     private string _pickedName = "";
@@ -180,6 +181,7 @@ internal sealed class HubSession
         if (_runner.IsRunning) return;
 
         _runner.Start();
+        _hasStoppedForStamina = false;
         _logFileOnly("queue started: " + source);
     }
 
@@ -267,6 +269,7 @@ internal sealed class HubSession
                 break;
             case RunnerCommand.Stopped stopped:
                 _status = stopped.Reason;
+                _hasStoppedForStamina = stopped.IsOutOfStamina;
                 _log(stopped.IsDone ? "queue finished" : "queue stopped: " + stopped.Reason);
                 break;
             case RunnerCommand.Paused paused:
@@ -475,7 +478,7 @@ internal sealed class HubSession
     private void Show()
     {
         var keep = new KeepView(_settings.KeepStocked, _slot.Targets.All, _keepByKey, _keepHave);
-        var stamina = StaminaView.From(_bench.Stamina(), _recipeKeys, _queue.Head != null);
+        var stamina = StaminaView.From(_bench.Stamina(), _recipeKeys, _queue.Head != null, _hasStoppedForStamina);
         var view = HubView.Build(_marks, _queue.Entries, _runner.IsRunning, _status, keep, _runner.IsPaused, _outlook, _yields, ActiveOrderId(), stamina);
 
         if (view == _shownView) return;

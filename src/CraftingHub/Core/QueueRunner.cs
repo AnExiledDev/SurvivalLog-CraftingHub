@@ -70,6 +70,9 @@ public readonly record struct StaminaRead(float Current, float PerCraft)
 
     public bool IsShort => PerCraft > 0 && Current < PerCraft;
 
+    /// <summary>Only a known cost can be covered; the game often reports none once a run has stopped for stamina.</summary>
+    public bool CoversACraft => PerCraft > 0 && Current >= PerCraft;
+
     /// <summary>Both zero is what the game's query leaves when nothing answered it, not a real reading.</summary>
     public bool IsUnanswered => Current == 0 && PerCraft == 0;
 }
@@ -113,7 +116,7 @@ public abstract record RunnerCommand
     /// <summary>A step finished; <see cref="Crafts"/> counts failed attempts too, since the game spent the materials.</summary>
     public sealed record StepDone(CraftStep Step, int Crafts, bool IsTarget, long OrderId = 0) : RunnerCommand;
 
-    public sealed record Stopped(string Reason, bool IsDone) : RunnerCommand;
+    public sealed record Stopped(string Reason, bool IsDone, bool IsOutOfStamina = false) : RunnerCommand;
 
     /// <summary>The run waits for its workbench to open again; the queue is untouched.</summary>
     public sealed record Paused(string Reason) : RunnerCommand;
@@ -271,12 +274,12 @@ public sealed class QueueRunner
         _emptySteps = 0;
     }
 
-    public RunnerCommand Stop(string reason, bool isDone = false)
+    public RunnerCommand Stop(string reason, bool isDone = false, bool isOutOfStamina = false)
     {
         _stage = Stage.Idle;
         _current = null;
 
-        return new RunnerCommand.Stopped(reason, isDone);
+        return new RunnerCommand.Stopped(reason, isDone, isOutOfStamina);
     }
 
     public RunnerCommand Tick(BenchView bench, double now, Func<NextStep> next)
@@ -539,7 +542,7 @@ public sealed class QueueRunner
 
         if (bench.CraftLocked) return Stop(bench.LockText.Length > 0 ? Texts.LockedBecause.Say(IsChinese, recipe.Name, bench.LockText) : Texts.Locked.Say(IsChinese, recipe.Name));
 
-        return Stop(OutOfStamina(bench.Stamina, recipe.Name));
+        return Stop(OutOfStamina(bench.Stamina, recipe.Name), isOutOfStamina: true);
     }
 
     private string OutOfStamina(StaminaRead? stamina, string recipeName) =>

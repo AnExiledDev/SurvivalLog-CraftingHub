@@ -481,6 +481,47 @@ public class StaminaViewTests
     }
 
     [Fact]
+    public void A_run_stopped_for_stamina_says_so_and_stays_out_while_the_game_reports_no_cost()
+    {
+        var runner = new QueueRunner();
+        var open = new BenchView(true, false, false, 0, new Dictionary<int, int>(), 0, 1);
+        var tired = open with { Contents = Bench.Mats((Bench.Log, 1)), PreviewReady = true, MaxByStamina = true, Stamina = new StaminaRead(3, 0) };
+        NextStep Plank() => new NextStep.Craft(new CraftStep(Bench.PlankRecipe, 3), IsTarget: true);
+
+        runner.Start();
+        runner.Tick(open, 0, Plank);
+        runner.Tick(tired, 0.1, Plank);
+        var stopped = Assert.IsType<RunnerCommand.Stopped>(runner.Tick(tired, 0.5, Plank));
+
+        Assert.True(stopped.IsOutOfStamina);
+        Assert.True(StaminaView.From(new StaminaRead(3, 0), Keys, hasQueue: true, hasStoppedForStamina: true)?.IsOut);
+        Assert.False(StaminaView.From(new StaminaRead(3, 0), Keys, hasQueue: true, hasStoppedForStamina: false)?.IsOut);
+    }
+
+    [Fact]
+    public void After_a_stamina_stop_the_warning_clears_once_a_craft_is_seen_to_be_covered()
+    {
+        Assert.False(StaminaView.From(new StaminaRead(100, 8), Keys, hasQueue: true, hasStoppedForStamina: true)?.IsOut);
+        Assert.True(StaminaView.From(new StaminaRead(5, 8), Keys, hasQueue: true, hasStoppedForStamina: true)?.IsOut);
+    }
+
+    [Fact]
+    public void A_run_that_stops_for_any_other_reason_is_not_called_out_of_stamina()
+    {
+        var runner = new QueueRunner();
+        var open = new BenchView(true, false, false, 0, new Dictionary<int, int>(), 0, 1);
+        var locked = open with { Contents = Bench.Mats((Bench.Log, 1)), PreviewReady = true, CraftLocked = true, Stamina = new StaminaRead(3, 0) };
+        NextStep Plank() => new NextStep.Craft(new CraftStep(Bench.PlankRecipe, 3), IsTarget: true);
+
+        runner.Start();
+        runner.Tick(open, 0, Plank);
+        runner.Tick(locked, 0.1, Plank);
+        var stopped = Assert.IsType<RunnerCommand.Stopped>(runner.Tick(locked, 0.5, Plank));
+
+        Assert.False(stopped.IsOutOfStamina);
+    }
+
+    [Fact]
     public void Crafts_that_cost_no_stamina_are_never_out_and_list_no_cost()
     {
         var shown = StaminaView.From(new StaminaRead(10, 0), Keys, hasQueue: true);

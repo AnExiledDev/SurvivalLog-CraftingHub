@@ -31,7 +31,6 @@ public class PageScriptTests
     private static readonly QueueOutlook TwoOrdersOutlook = new(
         new[] { new OrderOutlook(4, OrderState.Ready, "Ready"), new OrderOutlook(9, OrderState.Short, "Short: Fibre x2") },
         new[] { new MaterialTotal(Bench.Fibre, "Fibre", 3, 1, 2), new MaterialTotal(Bench.Log, "Log", 2, 5, 0) },
-        new[] { new MadeOnTheWay("plank", "Plank", 2) },
         "Heads up: Rope is short of Fibre x2. The queue will stop there.");
 
     // ---------------------------------------------------------------- the recipe list
@@ -474,19 +473,19 @@ public class PageScriptTests
     }
 
     [Fact]
-    public void Keep_on_a_card_keeps_ten_and_pressed_again_stops_keeping()
+    public void Keep_on_a_card_keeps_one_and_pressed_again_stops_keeping()
     {
         var page = BenchWithRecipes();
 
         page.Show(View(keep: new KeepView(true, Array.Empty<KeepTarget>(), new Dictionary<string, int>())));
         page.Press("cardPart('plank', '.cc-pin')");
-        page.Show(View(keep: new KeepView(true, new[] { new KeepTarget(Bench.Plank, "plank", "Plank", 10) }, new Dictionary<string, int> { ["plank"] = 10 })));
+        page.Show(View(keep: new KeepView(true, new[] { new KeepTarget(Bench.Plank, "plank", "Plank", 1) }, new Dictionary<string, int> { ["plank"] = 1 })));
 
-        Assert.Equal("Keep 10", page.Text("cardPart('plank', '.cc-pin').textContent"));
+        Assert.Equal("Keep 1", page.Text("cardPart('plank', '.cc-pin').textContent"));
 
         page.Press("cardPart('plank', '.cc-pin')");
 
-        Assert.Equal(new PageCommand[] { new PageCommand.Keep("plank", 10), new PageCommand.Keep("plank", 0) }, Sent(page));
+        Assert.Equal(new PageCommand[] { new PageCommand.Keep("plank", 1), new PageCommand.Keep("plank", 0) }, Sent(page));
     }
 
     [Fact]
@@ -1170,7 +1169,7 @@ public class PageScriptTests
     }
 
     [Fact]
-    public void The_whole_queues_materials_list_short_ones_and_the_parts_it_makes_on_the_way()
+    public void The_whole_queues_materials_list_short_ones_first_and_no_parts_list_is_drawn()
     {
         var page = BenchWithRecipes();
 
@@ -1179,7 +1178,7 @@ public class PageScriptTests
         Assert.Equal("Fibre31short 2", page.Text("$('cc-totals').querySelectorAll('tr')[0].textContent"));
         Assert.True(page.Truth("$('cc-totals').querySelectorAll('tr')[0].classList.contains('no')"));
         Assert.Equal("Log25ok", page.Text("$('cc-totals').querySelectorAll('tr')[1].textContent"));
-        Assert.Equal("Plank x2", page.Text("$('cc-made').textContent"));
+        Assert.False(page.Truth("!!$('cc-made')"));
     }
 
     [Fact]
@@ -1374,7 +1373,7 @@ public class PageScriptTests
         page.Show(WithStamina(View(), "{\"have\":0,\"out\":true,\"cost\":{\"crate\":8}}"));
 
         Assert.Equal("", page.Text("$('cc-stamina-out').style.display"));
-        Assert.Contains("Out of stamina", page.Text("$('cc-stamina-out').textContent"));
+        Assert.Contains("Stamina too low to craft", page.Text("$('cc-stamina-out').textContent"));
         Assert.Equal("Stamina 0 (out)", page.Text("$('cc-stamina').textContent"));
         Assert.True(page.Truth("$('cc-stamina').classList.contains('cc-warn')"));
 

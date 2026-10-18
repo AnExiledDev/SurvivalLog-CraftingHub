@@ -17,7 +17,7 @@
   // How many times in a row the hub tries to draw on a page before it waits for new data from the game or the plugin.
   var RENDER_TRIES = 2;
 
-  var DEFAULT_KEEP = 10;
+  var DEFAULT_KEEP = 1;
   var MAX_KEEP = 9999;
   var MAX_AMOUNT = 999;
   var PRESS_LIMIT_MS = 2000;
@@ -65,13 +65,12 @@
     clearSearch: 'Clear the search',
     search: 'Search a recipe or a material',
     recipes: 'Recipes',
-    outOfStamina: 'Out of stamina: crafts that take stamina cannot start.',
+    outOfStamina: 'Stamina too low to craft. Rest, then press "Craft queue" to carry on.',
     keepInStock: 'Keep in stock',
     keepInStockAside: 'topped up when you open a workbench',
     craftQueue: 'Craft queue',
     materials: 'Materials for the whole queue',
     materialsAside: 'need / you have',
-    madeOnTheWay: 'Made on the way',
     countOf: '{0} of {1}',
     noMatch: 'No recipes match "{0}".',
     noRecipes: 'No recipes in this view.',
@@ -109,7 +108,6 @@
     nothingQueued: 'Nothing queued.',
     shortN: 'short {0}',
     enough: 'ok',
-    noParts: 'No parts need making.',
     craftingNow: 'Crafting...',
     stop: 'Stop',
     stopTip: 'Stop after nothing more is started; the queue is kept',
@@ -126,7 +124,7 @@
   // The plugin's order states, as the colours the list uses for the same meaning.
   var STATE_LOOK = { ready: 'now', via: 'via', short: 'short', locked: 'short', unlisted: 'short' };
 
-  var view = { marks: {}, queue: [], running: false, paused: false, activeId: 0, status: '', headsUp: '', totals: [], made: [], yields: {}, keep: { on: false, targets: [], byKey: {} } };
+  var view = { marks: {}, queue: [], running: false, paused: false, activeId: 0, status: '', headsUp: '', totals: [], yields: {}, keep: { on: false, targets: [], byKey: {} } };
   var selectedKey = '';
   // The plugin's last view as it was sent, so the same view sent again draws nothing.
   var lastViewText = '';
@@ -502,9 +500,6 @@
       '.cc-tot td.r{text-align:right;font-weight:700;width:56px}',
       '.cc-tot tr.no td{color:#e08b6a}',
       '.cc-tot img{width:18px;height:18px;vertical-align:-4px;object-fit:contain;margin-right:4px}',
-      '.cc-made{display:flex;flex-wrap:wrap;gap:5px;max-height:60px;overflow-y:auto}',
-      '.cc-made-item{display:inline-flex;align-items:center;gap:4px;font-size:12px;background:rgba(224,180,90,.1);border:1px dashed rgba(224,180,90,.45);color:#f1d79b;border-radius:6px;padding:1px 7px 1px 2px}',
-      '.cc-made-item img{width:18px;height:18px;object-fit:contain}',
       '.cc-actions{display:flex;align-items:center;gap:10px;margin-top:10px;flex:none}',
       '.cc-btn{background:linear-gradient(180deg,rgba(58,58,60,.9),rgba(38,38,40,.92));border:1px solid rgba(255,255,255,.14);color:#e6e6e6;border-radius:8px;padding:6px 12px;cursor:pointer;font-size:13px}',
       '.cc-btn[disabled]{opacity:.4;cursor:default}',
@@ -1080,7 +1075,6 @@
     var notes = el(doc, 'div', 'cc-notes');
     var list = el(doc, 'div', 'cc-qlist cc-scroll');
     var totals = el(doc, 'div', 'cc-totwrap cc-scroll');
-    var made = el(doc, 'div', 'cc-made cc-scroll');
     var actions = el(doc, 'div', 'cc-actions');
     var keeps = el(doc, 'div', 'cc-keeps cc-scroll');
     var keepSection = section(doc, say('keepInStock'), say('keepInStockAside'), keeps);
@@ -1093,7 +1087,6 @@
     notes.id = 'cc-notes';
     list.id = 'cc-qlist';
     totals.id = 'cc-totals';
-    made.id = 'cc-made';
     actions.id = 'cc-actions';
     keeps.id = 'cc-keeps';
     keepSection.id = 'cc-keepsect';
@@ -1108,7 +1101,6 @@
     column.appendChild(notes);
     column.appendChild(list);
     column.appendChild(section(doc, say('materials'), say('materialsAside'), totals));
-    column.appendChild(section(doc, say('madeOnTheWay'), '', made));
     column.appendChild(actions);
     column.appendChild(keepSection);
 
@@ -1420,7 +1412,6 @@
     redraw(doc.getElementById('cc-notes'), [view.running, view.paused, view.headsUp, view.status], function () { drawNotes(doc); });
     redraw(list, [view.queue, view.running, view.paused, view.activeId, view.yields, version], function () { drawOrders(win, list, icons); });
     redraw(doc.getElementById('cc-totals'), [view.totals, view.queue.length, version], function () { drawTotals(doc, icons); });
-    redraw(doc.getElementById('cc-made'), [view.made, version], function () { drawMade(doc, icons); });
     redraw(doc.getElementById('cc-actions'), [view.running, view.queue], function () { drawActions(doc); });
     redraw(doc.getElementById('cc-keeps'), [view.keep, version], function () { drawKeeps(doc, icons); });
   }
@@ -1609,22 +1600,6 @@
       table.appendChild(row);
     });
     box.appendChild(table);
-  }
-
-  function drawMade(doc, icons) {
-    var box = doc.getElementById('cc-made');
-
-    box.innerHTML = '';
-
-    if (!view.made.length) box.appendChild(el(doc, 'span', 'cc-hint', say('noParts')));
-
-    view.made.forEach(function (step) {
-      var item = el(doc, 'span', 'cc-made-item');
-
-      item.appendChild(picture(doc, icons.byKey[step.key]));
-      item.appendChild(el(doc, 'span', null, step.name + ' x' + step.crafts));
-      box.appendChild(item);
-    });
   }
 
   function drawActions(doc) {
