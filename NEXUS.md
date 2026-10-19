@@ -59,10 +59,10 @@ Works in English and Chinese.
 Delete [font=Courier New]CraftingHub.dll[/font] from the [font=Courier New]BepInEx\plugins[/font] folder.
 
 [size=5]Configuration[/size]
-To turn off the whole-house storage, change how deep intermediates go, hide the marks, turn off keep stocked or its auto start, have closing the workbench stop the queue instead of pausing it, or keep a paused queue to the workbench it was running on, edit [font=Courier New]BepInEx\config\com.dev.survivallog.craftinghub.cfg[/font] while the game is closed, or do it in game on the Mod Manager's Mods screen, where changes take effect at once (see [url=https://github.com/AnExiledDev/SurvivalLog-CraftingHub/blob/main/CONFIG.md]CONFIG.md[/url]; the cfg file explains each setting in English and Chinese).
+To turn off the whole-house storage, change how deep intermediates go, hide the marks, turn off keep stocked or its auto start, have closing the workbench stop the queue instead of pausing it, or keep a paused queue to the workbench it was running on, edit [font=Courier New]BepInEx\config\com.dev.survivallog.craftinghub.cfg[/font] while the game is closed, or do it in game on the Mod Manager's Mods screen, where changes take effect at once (see [url=https://github.com/AnExiledDev/SurvivalLog-CraftingHub/blob/main/CONFIG.md]CONFIG.md[/url]; the cfg file explains each setting in English and Chinese). Without Exiled's Toolkit installed, changes made on the Mods screen take effect at the next game start instead.
 
 [size=5]Feedback[/size]
-Found a bug or have an idea? Come say hi on the [url=https://discord.gg/trTsyxUFqg]Core Directive Discord[/url], or leave a comment here. For bugs, please include [font=Courier New]BepInEx\LogOutput.log[/font] and [font=Courier New]BepInEx\crafting-hub.log[/font].
+Found a bug or have an idea? Come say hi on the [url=https://discord.gg/trTsyxUFqg]Core Directive Discord[/url], or post in this page's Posts tab. For bugs, please include [font=Courier New]BepInEx\LogOutput.log[/font] and [font=Courier New]BepInEx\crafting-hub.log[/font].
 To reach me directly, message [b]exiled.dev[/b] on Discord; you can find me in the [url=https://discord.gg/MZGg4gQAUe]official Survival Log Discord[/url]. I'm also on X as [url=https://x.com/AnExiledDev]@AnExiledDev[/url].
 Coming soon: a Survival Log wiki with detailed documentation for all of my mods.
 
@@ -125,10 +125,10 @@ Open source under MIT: [url=https://github.com/AnExiledDev/SurvivalLog-CraftingH
 从 [font=Courier New]BepInEx\plugins[/font] 文件夹中删除 [font=Courier New]CraftingHub.dll[/font]。工作台会恢复为只使用接入它的储物家具。
 
 [size=5]配置[/size]
-如需关闭全屋储物、修改中间材料的层数、隐藏标记、关闭保持库存或它的自动开始、让关掉工作台时停止队列而不是暂停，或让暂停的队列只在原来的工作台继续，可以在游戏内 Mod Manager 的「模组」界面修改（立即生效），也可以在游戏关闭时编辑 [font=Courier New]BepInEx\config\com.dev.survivallog.craftinghub.cfg[/font]。配置文件中每项设置都有中文说明，完整说明见 [url=https://github.com/AnExiledDev/SurvivalLog-CraftingHub/blob/main/CONFIG.md]CONFIG.md[/url]（英文）。
+如需关闭全屋储物、修改中间材料的层数、隐藏标记、关闭保持库存或它的自动开始、让关掉工作台时停止队列而不是暂停，或让暂停的队列只在原来的工作台继续，可以在游戏内 Mod Manager 的「模组」界面修改（立即生效），也可以在游戏关闭时编辑 [font=Courier New]BepInEx\config\com.dev.survivallog.craftinghub.cfg[/font]。配置文件中每项设置都有中文说明，完整说明见 [url=https://github.com/AnExiledDev/SurvivalLog-CraftingHub/blob/main/CONFIG.md]CONFIG.md[/url]（英文）。没装 Exiled's Toolkit 的话，在「模组」界面的改动改为在下次启动游戏时生效。
 
 [size=5]反馈[/size]
-发现 bug 或有好点子？欢迎来 [url=https://discord.gg/trTsyxUFqg]Core Directive Discord[/url] 打个招呼，或在这里留言。报告 bug 时，请附上 [font=Courier New]BepInEx\LogOutput.log[/font] 和 [font=Courier New]BepInEx\crafting-hub.log[/font]。
+发现 bug 或有好点子？欢迎来 [url=https://discord.gg/trTsyxUFqg]Core Directive Discord[/url] 打个招呼，或在本页的「Posts」标签里发帖。报告 bug 时，请附上 [font=Courier New]BepInEx\LogOutput.log[/font] 和 [font=Courier New]BepInEx\crafting-hub.log[/font]。
 想直接联系我，可以在 Discord 上给 [b]exiled.dev[/b] 发消息，我在 [url=https://discord.gg/MZGg4gQAUe]Survival Log 官方 Discord[/url] 里。也可以在 X 上找我：[url=https://x.com/AnExiledDev]@AnExiledDev[/url]。
 即将推出：Survival Log 维基，收录我所有模组的详细说明。
 
