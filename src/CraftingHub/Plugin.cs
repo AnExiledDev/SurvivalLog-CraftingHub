@@ -4,13 +4,12 @@ using BepInEx;
 using BepInEx.Configuration;
 using BepInEx.Unity.IL2CPP;
 using CraftingHub.Adapters;
-using ExiledToolkit;
 using HarmonyLib;
 
 namespace CraftingHub;
 
 [BepInPlugin(Guid, "Crafting Hub", Version)]
-[BepInDependency(ExiledToolkit.Plugin.Guid, ">=0.4.0")]
+[BepInDependency(OptionalLive.ToolkitGuid, BepInDependency.DependencyFlags.SoftDependency)]
 [BepInDependency(StackingGuid, BepInDependency.DependencyFlags.SoftDependency)]
 [BepInIncompatibility(BetterCraftingGuid)]
 public sealed class Plugin : BasePlugin
@@ -24,6 +23,8 @@ public sealed class Plugin : BasePlugin
 
     public override void Load()
     {
+        if (!OptionalLive.IsToolkitInstalled) Log.LogInfo(OptionalLive.MissingNote);
+
         var useAllHomeStorages = Config.Bind("Storage", "UseAllHomeStorages", true,
             "Workbenches use materials from every storage in your home, not only the storages linked to them. Off: only the linked storages, as in the base game.\n" +
             "工作台可以使用家里所有储物家具中的材料，不只是接入它的那几个。关闭后只用接入的储物家具，和原版游戏一样。");
@@ -37,8 +38,8 @@ public sealed class Plugin : BasePlugin
             "Adds a Keep button to every recipe and a \"Keep in stock\" list under the queue. Each time you open a workbench, crafts are queued to bring kept items back up to their counts.\n" +
             "在每个配方上加「保持」按钮，并在队列下方加「保持库存」列表。每次打开工作台，都会把需要的制作加入队列，让这些物品补回你设定的数量。");
         var autoStart = Config.Bind("Targets", "AutoStart", true,
-            "After kept items are topped up, start the queue by itself if nothing else was in it. Off: the crafts are only queued, and you press \"Craft queue\" yourself.\n" +
-            "补充库存后，如果队列里原本没有别的订单，就自动开始制作。关闭后只加入队列，需要你自己点「制作队列」。");
+            new ConfigDescription("After kept items are topped up, start the queue by itself if nothing else was in it. Off: the crafts are only queued, and you press \"Craft queue\" yourself.\n" +
+            "补充库存后，如果队列里原本没有别的订单，就自动开始制作。关闭后只加入队列，需要你自己点「制作队列」。", null, "ModManager.ShowWhen=KeepStocked"));
         var resumeOnReopen = Config.Bind("Queue", "ResumeOnReopen", true,
             "Closing a workbench pauses a running queue, and it carries on when you open a workbench again. Off: closing stops the queue, and you press \"Craft queue\" to carry on.\n" +
             "关掉工作台时，正在制作的队列会暂停，再次打开工作台后自动继续。关闭本选项后，关掉工作台会停止队列，要点「制作队列」才会继续。");
@@ -52,7 +53,7 @@ public sealed class Plugin : BasePlugin
 
         log.TrimIfLarge();
         log.Write($"===== Crafting Hub {Version} started");
-        LiveSettings.Watch(useAllHomeStorages, isOn => StoragePool.Use(harmony, isOn, log.Write));
+        OptionalLive.Watch(useAllHomeStorages, isOn => StoragePool.Use(harmony, isOn, log.Write));
         Workbench.Apply(harmony, log.Write);
         RecipeRefresh.Apply(harmony, log.Write);
         PageMessages.Apply(harmony, log.Write);
@@ -61,7 +62,7 @@ public sealed class Plugin : BasePlugin
 
         var session = new HubSession(new Workbench(log.Write), new WorkbenchPage(log.Write), keep, ReadSettings(), IsStackingLoaded, log.Write, log.WriteFileOnly);
 
-        LiveSettings.Watch(() =>
+        OptionalLive.Watch(() =>
         {
             var settings = ReadSettings();
 

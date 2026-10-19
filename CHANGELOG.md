@@ -2,7 +2,7 @@
 
 ## 0.9.0
 
-Every setting can be changed on the Mod Manager's Mods screen without a restart. The Mods screen shows the mod's name, description, category and links, lists Stacking as a mod it works with and BetterCrafting as one it does not work with. While BetterCrafting is installed, Crafting Hub does not load. Needs Exiled's Toolkit 0.4.0 or newer.
+Every setting can be changed on the Mod Manager's Mods screen without a restart. The Mods screen shows the mod's name, description, category and links, lists Stacking as a mod it works with and BetterCrafting as one it does not work with. While BetterCrafting is installed, Crafting Hub does not load. The Mods screen links this changelog, and `AutoStart` stays hidden there while `KeepStocked` is off. Exiled's Toolkit 0.4.0 or newer is optional. With it, settings changed on the Mods screen take effect without a restart; without it, at the next game start.
 
 ## 0.8.0
 
