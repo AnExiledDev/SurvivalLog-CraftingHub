@@ -32,7 +32,7 @@ internal sealed class HubSession
     private readonly Workbench _bench;
     private readonly WorkbenchPage _page;
     private readonly KeepPorts _keep;
-    private readonly HubSettings _settings;
+    private HubSettings _settings;
     private readonly Func<bool> _takesUnitsOffStacks;
     private readonly Action<string> _log;
     private readonly Action<string> _logFileOnly;
@@ -69,6 +69,15 @@ internal sealed class HubSession
         _logFileOnly = logFileOnly;
         _runner = new QueueRunner(settings.ResumeOnReopen, settings.ResumeAtOtherBenches, GameLanguage.IsChinese);
         _slot = new KeepSlot(keep.Store);
+    }
+
+    /// <summary>Called on the main thread at start and after each change; the marks and the outlook are worked out again at the next tick.</summary>
+    public void UseSettings(HubSettings settings)
+    {
+        _settings = settings;
+        _runner.Use(settings.ResumeOnReopen, settings.ResumeAtOtherBenches);
+        _seenRefreshes = -1;
+        _outlookFor = "";
     }
 
     public void Tick(float now)

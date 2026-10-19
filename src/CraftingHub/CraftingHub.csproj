@@ -12,6 +12,7 @@
     <GameDir Condition="'$(GameDir)' == ''">D:\Games\Survival Log\Survival Log</GameDir>
     <BepInExCore>$(GameDir)\BepInEx\core</BepInExCore>
     <Interop>$(GameDir)\BepInEx\interop</Interop>
+    <ToolkitDll Condition="'$(ToolkitDll)' == ''">D:\devnew\game-mods\SurvivalLog\mods\sl-exiled-toolkit\src\ExiledToolkit\bin\Release\ExiledToolkit.dll</ToolkitDll>
   </PropertyGroup>
 
   <ItemGroup>
@@ -28,11 +29,23 @@
     <Reference Include="$(Interop)\Vuplex.WebView.dll" Private="false" />
     <Reference Include="$(Interop)\R3.dll" Private="false" />
     <Reference Include="$(Interop)\ObservableCollections.dll" Private="false" />
+    <Reference Include="$(ToolkitDll)" Private="false" />
   </ItemGroup>
 
 
   <ItemGroup>
     <EmbeddedResource Include="page.js" LogicalName="CraftingHub.page.js" />
+  </ItemGroup>
+
+  <!-- What the Mod Manager's Mods screen shows about this mod. -->
+  <ItemGroup>
+    <AssemblyMetadata Include="ModManager.Name" Value="Crafting Hub&#10;制作中心" />
+    <AssemblyMetadata Include="ModManager.Description" Value="A wider, searchable workbench screen with a craft queue. Workbenches use every storage in your home, make intermediate materials for you, and craft a queue of different recipes.&#10;更宽、可搜索的工作台界面，带制作队列。工作台可以使用家里所有储物家具里的材料，替你制作中间材料，并能依次制作一整列不同的配方。" />
+    <AssemblyMetadata Include="ModManager.Author" Value="AnExiledDev" />
+    <AssemblyMetadata Include="ModManager.Category" Value="QualityOfLife" />
+    <AssemblyMetadata Include="ModManager.GameVersion" Value="1.1.18902" />
+    <AssemblyMetadata Include="ModManager.Settings" Value="Live" />
+    <AssemblyMetadata Include="ModManager.GitHub" Value="AnExiledDev/SurvivalLog-CraftingHub" />
   </ItemGroup>
 
 </Project>

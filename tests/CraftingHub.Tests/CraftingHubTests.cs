@@ -776,6 +776,28 @@ public class QueueRunnerTests
     }
 
     [Fact]
+    public void Resuming_turned_off_during_a_run_makes_the_next_close_stop_it()
+    {
+        var runner = CraftingRunner();
+
+        runner.Use(resumesOnReopen: false, resumesAtOtherBenches: false);
+
+        Assert.IsType<RunnerCommand.Stopped>(runner.Tick(Closed, 1, PlankNext));
+        Assert.False(runner.IsRunning);
+    }
+
+    [Fact]
+    public void Other_workbenches_turned_on_while_paused_let_the_run_carry_on_at_another()
+    {
+        var runner = PausedRunner();
+
+        runner.Use(resumesOnReopen: true, resumesAtOtherBenches: true);
+
+        Assert.IsType<RunnerCommand.None>(runner.Tick(Idle(bench: OtherBench), 10, PlankNext));
+        Assert.IsType<RunnerCommand.Resumed>(runner.Tick(Idle(bench: OtherBench), 10 + QueueRunner.ResumeSettleSeconds, PlankNext));
+    }
+
+    [Fact]
     public void Closing_the_workbench_pauses_the_run_instead_of_ending_it()
     {
         var runner = CraftingRunner();

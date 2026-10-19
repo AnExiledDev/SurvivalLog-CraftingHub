@@ -1,5 +1,4 @@
 using System;
-using BepInEx.Unity.IL2CPP;
 using CraftingHub.Core;
 using UnityEngine;
 
@@ -9,14 +8,12 @@ namespace CraftingHub.Adapters;
 public sealed class CraftTicker : MonoBehaviour
 {
     private const float TickSeconds = 0.1f;
-    private const string BetterCraftingGuid = "com.ivmakk.survivallog.bettercrafting";
 
     internal static HubSession? Session;
     internal static Action<string> Log = _ => { };
 
     private readonly TickFailures _failures = new();
     private float _nextTickAt;
-    private bool _hasCheckedConflicts;
 
     public CraftTicker(IntPtr pointer) : base(pointer)
     {
@@ -34,7 +31,6 @@ public sealed class CraftTicker : MonoBehaviour
 
         try
         {
-            WarnAboutConflictsOnce();
             Session?.Tick(now);
             _failures.Succeeded();
         }
@@ -67,15 +63,5 @@ public sealed class CraftTicker : MonoBehaviour
 
             return true;
         }
-    }
-
-    /// <summary>Checked on the first tick, once every plugin has loaded.</summary>
-    private void WarnAboutConflictsOnce()
-    {
-        if (_hasCheckedConflicts) return;
-
-        _hasCheckedConflicts = true;
-
-        if (IL2CPPChainloader.Instance.Plugins.ContainsKey(BetterCraftingGuid)) Log("BetterCrafting is also loaded; both change the workbench's storage list, remove one of them");
     }
 }

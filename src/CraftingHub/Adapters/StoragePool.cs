@@ -23,16 +23,33 @@ internal static class StoragePool
     private static int _cachedFrame = -1;
     private static Action<string> _log = _ => { };
     private static int _failures;
+    private static bool _isOn;
+    private static bool _isHooked;
 
-    public static void Apply(Harmony harmony, Action<string> log)
+    /// <summary>
+    /// Called on the main thread at start and after each change. The hook goes in the first time the setting is on and
+    /// stays; off, it adds nothing and the game's own list is used.
+    /// </summary>
+    public static void Use(Harmony harmony, bool isOn, Action<string> log)
     {
         _log = log;
+        _isOn = isOn;
+
+        if (isOn && !_isHooked) Hook(harmony, log);
+
+        log(isOn ? "workbenches use every home storage" : "workbenches use only their linked storages");
+    }
+
+    /// <summary>A hook that failed is not tried again.</summary>
+    private static void Hook(Harmony harmony, Action<string> log)
+    {
+        _isHooked = true;
 
         try
         {
             harmony.Patch(AccessTools.Method(typeof(Reducer_Web_ToolTable), nameof(Reducer_Web_ToolTable.GetAllLinkedOwnerIds)),
                 postfix: new HarmonyMethod(typeof(StoragePool), nameof(AddHomeStorages)));
-            log("workbenches use every home storage");
+            log("hooked the workbench's storage list");
         }
         catch (Exception ex)
         {
@@ -42,7 +59,7 @@ internal static class StoragePool
 
     private static void AddHomeStorages(State_Web_ToolTable state, Il2CppOwnerList __result)
     {
-        if (state == null || __result == null) return;
+        if (!_isOn || state == null || __result == null) return;
 
         try
         {

@@ -196,8 +196,8 @@ public sealed class QueueRunner
         Resuming,
     }
 
-    private readonly bool _resumesOnReopen;
-    private readonly bool _resumesAtOtherBenches;
+    private bool _resumesOnReopen;
+    private bool _resumesAtOtherBenches;
     private readonly Func<bool> _isChinese;
 
     private Stage _stage = Stage.Idle;
@@ -239,6 +239,13 @@ public sealed class QueueRunner
         _resumesOnReopen = resumesOnReopen;
         _resumesAtOtherBenches = resumesAtOtherBenches;
         _isChinese = isChinese ?? (() => false);
+    }
+
+    /// <summary>A change of the settings; a run in progress follows them from its next close or opening.</summary>
+    public void Use(bool resumesOnReopen, bool resumesAtOtherBenches)
+    {
+        _resumesOnReopen = resumesOnReopen;
+        _resumesAtOtherBenches = resumesAtOtherBenches;
     }
 
     private bool IsChinese => _isChinese();
