@@ -15,7 +15,7 @@ namespace CraftingHub;
 public sealed class Plugin : BasePlugin
 {
     private const string Guid = "com.dev.survivallog.craftinghub";
-    private const string Version = "0.9.0";
+    private const string Version = "0.9.1";
     private const string StackingGuid = "com.dev.survivallog.stacking";
 
     /// <summary>BetterCrafting also changes the workbench's storage list, so BepInEx loads only one of the two.</summary>

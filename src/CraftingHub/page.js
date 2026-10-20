@@ -397,6 +397,10 @@
       '.backpack-panel.cc-bench-view>.weight-section,.backpack-panel.cc-bench-view>#bagToolbar{display:none!important}',
       // Out of sight rather than hidden: the page still measures the bag grid, and a drop can never land on it.
       '.backpack-panel.cc-bench-view>#backpack-grid,.backpack-panel.cc-bench-view>#rack-rows{position:absolute!important;left:-20000px!important;top:0!important;visibility:hidden!important}',
+      // The game pads the bag grid out to its widest tab (a large rack is far wider than the bag) and sizes the tab
+      // bar to match; with the hub's columns beside it that empty width squeezes them. The panel fits the tab shown.
+      '.backpack-panel.cc-tabbed>#backpack-grid{margin-left:0!important;margin-right:0!important}',
+      '.backpack-panel.cc-tabbed>.left-tabs{width:0!important;min-width:100%!important}',
       '.backpack-panel.cc-bench-view .left-tab.active:not(#cc-tab-bench){color:var(--text-dim);background:rgba(8,8,10,.55);border-color:rgba(255,255,255,.10);box-shadow:none;cursor:pointer}',
       '.backpack-panel.cc-tabbed+.combined-panel #cc-mid{border-top-left-radius:14px;border-bottom-left-radius:14px}',
       '.backpack-panel.cc-tabbed+.combined-panel.no-notes #cc-queue{border-radius:14px}',
