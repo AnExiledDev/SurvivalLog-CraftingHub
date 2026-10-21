@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.9.2
+
+An order in the craft queue counts down by one as each craft of a batch finishes, and leaves the queue with its last craft. Before, it kept its full count until the whole batch was done, so "Materials for the whole queue" showed you short of materials the batch had already used. Crafts finished before you press Stop now come off the order too.
+
 ## 0.9.1
 
 The bag panel beside the crafting columns is as wide as the tab shown. Before, it kept the width of your widest storage (a large rack), which squeezed the recipe list and queue even while the bag was open.

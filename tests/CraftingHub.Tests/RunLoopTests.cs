@@ -286,6 +286,103 @@ public class RunLoopTests
     }
 
     [Fact]
+    public void A_batch_counts_its_order_down_as_each_craft_finishes_and_the_order_leaves_with_its_last()
+    {
+        var queue = new CraftQueue();
+        var runner = new QueueRunner();
+        var game = new BatchBench();
+        var seen = new List<int>();
+        var credited = 0;
+        NextStep Next() => queue.Head is { } head ? new NextStep.Craft(new CraftStep(Bench.PlankRecipe, head.Crafts), IsTarget: true, OrderId: head.Id) : new NextStep.Finished();
+
+        queue.Add("plank", "Plank", 3);
+        runner.Start();
+
+        RunBatches(runner, game, Next, command =>
+        {
+            var crafts = command switch
+            {
+                RunnerCommand.Made made => made.Crafts,
+                RunnerCommand.StepDone done => done.Uncredited,
+                _ => 0,
+            };
+
+            queue.Progress(queue.Head?.Id ?? 0, crafts);
+            credited += crafts;
+            seen.Add(queue.Head?.Crafts ?? 0);
+        });
+
+        Assert.Equal(new[] { 3, 2, 1, 0 }, seen.Distinct());
+        Assert.Equal(3, credited);
+        Assert.Equal(1, game.Batches);
+        Assert.Empty(queue.Entries);
+    }
+
+    [Fact]
+    public void Crafts_a_batch_finished_before_the_run_was_stopped_stay_taken_off_the_order()
+    {
+        var queue = new CraftQueue();
+        var runner = new QueueRunner();
+        var game = new BatchBench();
+        NextStep Next() => queue.Head is { } head ? new NextStep.Craft(new CraftStep(Bench.PlankRecipe, head.Crafts), IsTarget: true, OrderId: head.Id) : new NextStep.Finished();
+
+        queue.Add("plank", "Plank", 3);
+        runner.Start();
+
+        RunBatches(runner, game, Next, command =>
+        {
+            if (command is RunnerCommand.Made made)
+            {
+                queue.Progress(made.OrderId, made.Crafts);
+                runner.Stop("stopped by the player");
+            }
+        });
+
+        Assert.Equal(2, Assert.Single(queue.Entries).Crafts);
+    }
+
+    [Fact]
+    public void An_intermediate_batch_takes_nothing_off_any_order()
+    {
+        var runner = new QueueRunner();
+        var game = new BatchBench();
+        var commands = new List<RunnerCommand>();
+        var steps = 0;
+        NextStep Next() => steps++ == 0 ? new NextStep.Craft(new CraftStep(Bench.PlankRecipe, 3), IsTarget: false, OrderId: 7) : new NextStep.Finished();
+
+        runner.Start();
+        RunBatches(runner, game, Next, commands.Add);
+
+        Assert.DoesNotContain(commands, command => command is RunnerCommand.Made);
+        Assert.Equal(3, commands.OfType<RunnerCommand.StepDone>().Single().Uncredited);
+    }
+
+    /// <summary>Plays the game's side of a run against <paramref name="game"/>, handing every runner command to <paramref name="onCommand"/>.</summary>
+    private static void RunBatches(QueueRunner runner, BatchBench game, Func<NextStep> next, Action<RunnerCommand> onCommand)
+    {
+        for (var now = 0.0; runner.IsRunning && now < 120; now += 0.1)
+        {
+            var command = runner.Tick(game.View, now, next);
+
+            switch (command)
+            {
+                case RunnerCommand.ClickRecipe:
+                    game.LayOut();
+                    break;
+                case RunnerCommand.Craft craft:
+                    game.Craft(craft.Quantity);
+                    break;
+                case RunnerCommand.ConfirmResult:
+                    game.Confirm();
+                    break;
+            }
+
+            onCommand(command);
+            game.Advance();
+        }
+    }
+
+    [Fact]
     public void A_finished_craft_the_game_posted_no_result_for_credits_nothing_and_is_tried_again()
     {
         var runner = new QueueRunner();
@@ -432,6 +529,65 @@ public class RunLoopTests
             _isCrafting = false;
             _hasResult = true;
             _results++;
+        }
+    }
+
+    /// <summary>
+    /// A workbench that makes a whole batch from one craft order, one craft a frame, counting each in its batch and
+    /// result counts, and shows the result screen after the last.
+    /// </summary>
+    private sealed class BatchBench
+    {
+        private bool _isLaidOut;
+        private int _left;
+        private bool _isBatch;
+        private bool _hasResult;
+        private int _batchDone;
+        private int _results;
+
+        public int Batches { get; private set; }
+
+        public BenchView View => new(
+            IsOpen: true,
+            IsBusy: _left > 0,
+            HasResult: _hasResult,
+            MaxCrafts: _isLaidOut ? 3 : 0,
+            Contents: _isLaidOut ? OneCraft : Empty,
+            BatchDone: _batchDone,
+            BenchId: RunBench,
+            BatchActive: _isBatch,
+            BatchSuccess: _batchDone,
+            IsCrafting: _left > 0,
+            PreviewReady: _isLaidOut,
+            Results: new ResultCount(_results, _results),
+            ResultsProven: _results > 0);
+
+        public void LayOut() => _isLaidOut = true;
+
+        public void Craft(int quantity)
+        {
+            _isLaidOut = false;
+            _left = quantity;
+            _isBatch = quantity > 1;
+            _batchDone = 0;
+            Batches++;
+        }
+
+        public void Confirm() => _hasResult = false;
+
+        /// <summary>A frame passes: one craft of the batch finishes, and the last one shows the result.</summary>
+        public void Advance()
+        {
+            if (_left == 0) return;
+
+            _left--;
+            _batchDone++;
+            _results++;
+
+            if (_left > 0) return;
+
+            _isBatch = false;
+            _hasResult = true;
         }
     }
 }

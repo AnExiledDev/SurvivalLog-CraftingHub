@@ -43,7 +43,7 @@
     <AssemblyMetadata Include="ModManager.Description" Value="A wider, searchable workbench screen with a craft queue. Workbenches use every storage in your home, make intermediate materials for you, and craft a queue of different recipes.&#10;更宽、可搜索的工作台界面，带制作队列。工作台可以使用家里所有储物家具里的材料，替你制作中间材料，并能依次制作一整列不同的配方。" />
     <AssemblyMetadata Include="ModManager.Author" Value="AnExiledDev" />
     <AssemblyMetadata Include="ModManager.Category" Value="QualityOfLife" />
-    <AssemblyMetadata Include="ModManager.GameVersion" Value="1.1.18902" />
+    <AssemblyMetadata Include="ModManager.GameVersion" Value="1.1.19131" />
     <AssemblyMetadata Include="ModManager.Settings" Value="Restart" />
     <AssemblyMetadata Include="ModManager.GitHub" Value="AnExiledDev/SurvivalLog-CraftingHub" />
     <AssemblyMetadata Include="ModManager.Changelog" Value="https://github.com/AnExiledDev/SurvivalLog-CraftingHub/blob/main/CHANGELOG.md" />

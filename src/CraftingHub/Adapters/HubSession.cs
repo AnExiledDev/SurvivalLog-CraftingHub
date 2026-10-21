@@ -235,7 +235,8 @@ internal sealed class HubSession
                     : Texts.RefusedElsewhere.Pick(IsChinese);
                 break;
             case CraftNowPlace.BehindHead:
-                _queue.PushFront(key, name, crafts, behindHead: true);
+                // The order being made may have left the queue mid-step, with its last craft.
+                _queue.PushFront(key, name, crafts, behindHead: _queue.Head?.Id == _runner.CraftingFor);
                 _status = Texts.MakingNext.Say(IsChinese, name, crafts);
                 break;
             case CraftNowPlace.Front:
@@ -273,8 +274,11 @@ internal sealed class HubSession
             case RunnerCommand.ConfirmResult:
                 _page.ConfirmResult();
                 break;
+            case RunnerCommand.Made made:
+                _queue.Progress(made.OrderId, made.Crafts);
+                break;
             case RunnerCommand.StepDone done:
-                if (done.IsTarget) _queue.Progress(done.OrderId, done.Crafts);
+                if (done.IsTarget) _queue.Progress(done.OrderId, done.Uncredited);
 
                 _bench.NoteStepDone();
                 _logFileOnly($"made {done.Step.Recipe.Name} ×{done.Crafts}{(done.IsTarget ? "" : " (intermediate)")}");

@@ -113,8 +113,21 @@ public abstract record RunnerCommand
 
     public sealed record ConfirmResult : RunnerCommand;
 
-    /// <summary>A step finished; <see cref="Crafts"/> counts failed attempts too, since the game spent the materials.</summary>
-    public sealed record StepDone(CraftStep Step, int Crafts, bool IsTarget, long OrderId = 0) : RunnerCommand;
+    /// <summary>
+    /// Crafts of a target step the game finished while the rest of the step is still being made, so the order counts
+    /// down one craft at a time instead of all at once when the step ends.
+    /// </summary>
+    public sealed record Made(long OrderId, int Crafts) : RunnerCommand;
+
+    /// <summary>
+    /// A step finished; <see cref="Crafts"/> counts failed attempts too, since the game spent the materials.
+    /// <see cref="Credited"/> of them were already reported by <see cref="Made"/> while the step ran.
+    /// </summary>
+    public sealed record StepDone(CraftStep Step, int Crafts, bool IsTarget, long OrderId = 0, int Credited = 0) : RunnerCommand
+    {
+        /// <summary>The crafts no <see cref="Made"/> has counted yet.</summary>
+        public int Uncredited => Math.Max(0, Crafts - Credited);
+    }
 
     public sealed record Stopped(string Reason, bool IsDone, bool IsOutOfStamina = false) : RunnerCommand;
 
@@ -227,6 +240,7 @@ public sealed class QueueRunner
     private int _recheckRefreshes;
     private ResultCount? _resultsAtSend;
     private int _made;
+    private int _credited;
     private int _emptySteps;
 
     /// <param name="resumesOnReopen">Off, a closed workbench stops the run, as it did before runs could pause.</param>
@@ -512,6 +526,7 @@ public sealed class QueueRunner
         _quietSince = null;
         _resultsAtSend = bench.Results;
         _made = 0;
+        _credited = 0;
         Enter(Stage.Crafting, now);
 
         return new RunnerCommand.Craft(_sentQuantity);
@@ -603,13 +618,29 @@ public sealed class QueueRunner
         {
             _quietSince = null;
 
-            return new RunnerCommand.None();
+            return CreditMade(bench);
         }
 
         // Started, and now neither crafting nor showing a result: the game finished without a result screen.
         _quietSince ??= now;
 
-        return now - _quietSince >= QuietDoneSeconds ? FinishStep(bench, now) : new RunnerCommand.None();
+        return now - _quietSince >= QuietDoneSeconds ? FinishStep(bench, now) : CreditMade(bench);
+    }
+
+    /// <summary>
+    /// Reports the crafts of a target step counted since the last report, so a batch takes its order down as each
+    /// craft finishes. An intermediate step counts against no order, so it reports nothing.
+    /// </summary>
+    private RunnerCommand CreditMade(BenchView bench)
+    {
+        var counted = Counted(bench);
+
+        if (!Current.IsTarget || counted <= _credited) return new RunnerCommand.None();
+
+        var fresh = counted - _credited;
+        _credited = counted;
+
+        return new RunnerCommand.Made(Current.OrderId, fresh);
     }
 
     private RunnerCommand WaitForCollect(BenchView bench, double now)
@@ -772,7 +803,7 @@ public sealed class QueueRunner
         EndStep(now);
         _emptySteps = 0;
 
-        return new RunnerCommand.StepDone(finished.Step, crafts, finished.IsTarget, finished.OrderId);
+        return new RunnerCommand.StepDone(finished.Step, crafts, finished.IsTarget, finished.OrderId, _credited);
     }
 
     /// <summary>
