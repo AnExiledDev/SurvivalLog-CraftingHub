@@ -61,7 +61,7 @@ internal sealed class Workbench
         }
         catch (Exception ex)
         {
-            log("could not watch the workbench recipe list, chain marks and the queue will not work: " + ex.Message);
+            log("could not hook the workbench recipe list, chain marks and the queue will not work: " + ex.Message);
         }
 
         try
@@ -74,7 +74,7 @@ internal sealed class Workbench
         }
         catch (Exception ex)
         {
-            log("could not count finished crafts, a step is credited from the batch count alone: " + ex.Message);
+            log("could not hook finished crafts, a step is credited from the batch count alone: " + ex.Message);
         }
     }
 

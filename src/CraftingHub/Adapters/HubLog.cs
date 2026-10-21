@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using BepInEx.Logging;
+using CraftingHub.Core;
 
 namespace CraftingHub.Adapters;
 
@@ -26,7 +27,9 @@ internal sealed class HubLog
 
     public void Write(string message)
     {
-        _bepinex.LogInfo(message);
+        if (HookFailure.Is(message)) _bepinex.LogError(message);
+        else _bepinex.LogInfo(message);
+
         WriteFileOnly(message);
     }
 

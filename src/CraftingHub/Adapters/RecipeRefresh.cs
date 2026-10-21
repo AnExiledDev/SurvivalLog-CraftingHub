@@ -51,7 +51,7 @@ internal static class RecipeRefresh
         }
         catch (Exception ex)
         {
-            log("could not batch the workbench recipe list rebuilds, the game rebuilds it as before: " + ex.Message);
+            log("could not hook the workbench recipe list rebuilds, the game rebuilds it as before: " + ex.Message);
         }
 
         try
@@ -60,7 +60,7 @@ internal static class RecipeRefresh
         }
         catch (Exception ex)
         {
-            log("could not speed up the craftable check, the game's own runs: " + ex.Message);
+            log("could not hook the craftable check, the game's own runs: " + ex.Message);
         }
     }
 

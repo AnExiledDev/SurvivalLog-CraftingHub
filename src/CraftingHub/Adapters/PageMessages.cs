@@ -23,7 +23,7 @@ internal static class PageMessages
         }
         catch (Exception ex)
         {
-            log("could not listen for workbench page messages, the queue buttons will do nothing: " + ex.Message);
+            log("could not hook workbench page messages, the queue buttons will do nothing: " + ex.Message);
         }
     }
 
