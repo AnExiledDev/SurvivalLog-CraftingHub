@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using CraftingHub.Core;
 using GameCore.HotUpdate;
+using GameCore.HotUpdate.Battle.Logic;
 using GameCore.HotUpdate.ReduxUI;
 using HarmonyLib;
 using Il2CppInterop.Runtime;
@@ -24,7 +25,7 @@ internal sealed class Workbench
     private const int Succeeded = 2;
     private const int Failed = 3;
 
-    /// <summary>Stamina is worked out through a game event, so it is read at most this often.</summary>
+    /// <summary>Stamina is worked out from the player each time it is asked, so it is read at most this often.</summary>
     private const long StaminaReadMs = 500;
 
     private static State_Web_ToolTable? _state;
@@ -41,6 +42,7 @@ internal sealed class Workbench
     private StaminaRead? _stamina;
     private long _staminaReadAt = long.MinValue;
     private bool _hasLoggedStaminaFailure;
+    private bool _hasLoggedStamina;
     private bool _hasLoggedUnproven;
 
     public Workbench(Action<string> log)
@@ -149,30 +151,43 @@ internal sealed class Workbench
     }
 
     /// <summary>
-    /// The player's stamina and one craft's cost, asked of the game the way the workbench asks for its own count;
-    /// null when the workbench is closed or the game does not answer.
+    /// The player's stamina and one craft's cost; null when the workbench is closed or the game does not answer. The
+    /// first reading is logged, so a page without stamina can be told apart from a game that answered nothing.
     /// </summary>
     public StaminaRead? Stamina()
     {
-        var state = _state;
-
-        if (state == null || !IsOpen) return null;
+        if (_state == null || !IsOpen) return null;
 
         var now = Environment.TickCount64;
 
         if (now - _staminaReadAt < StaminaReadMs) return _stamina;
 
         _staminaReadAt = now;
-        _stamina = ReadStamina(state);
+        _stamina = ReadStamina();
+
+        if (!_hasLoggedStamina) LogFirstStamina(_stamina);
 
         return _stamina;
     }
 
-    private StaminaRead? ReadStamina(State_Web_ToolTable state)
+    private void LogFirstStamina(StaminaRead? read)
+    {
+        _hasLoggedStamina = true;
+
+        _log(read is { } stamina ? $"stamina read: have {stamina.Current:0.#}, a craft costs {stamina.PerCraft:0.#}" : "stamina read: the game gave no answer");
+    }
+
+    /// <summary>
+    /// Asked of the game's tool table directly, the code the workbench's own stamina query ends in. The query goes
+    /// through the game's event dispatch, and from here that answered nothing (zero for both), so no stamina showed.
+    /// </summary>
+    private StaminaRead? ReadStamina()
     {
         try
         {
-            Reducer_Web_ToolTable.QueryCraftStamina(state, out var current, out var required);
+            var tools = GameSingleton.Existing<BattleLogicWorld>()?._ToolTableManager;
+
+            if (tools == null || !tools.GetCraftStamina(out var current, out var required)) return null;
 
             return new StaminaRead(current, required);
         }

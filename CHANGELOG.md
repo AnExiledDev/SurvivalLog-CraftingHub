@@ -4,6 +4,8 @@
 
 An order in the craft queue counts down by one as each craft of a batch finishes, and leaves the queue with its last craft. Before, it kept its full count until the whole batch was done, so "Materials for the whole queue" showed you short of materials the batch had already used. Crafts finished before you press Stop now come off the order too.
 
+Your stamina shows beside the craft queue again, each recipe shows what a craft costs, and a bar says so when the queue cannot go on for lack of stamina. The game had been answering the stamina question with nothing, so none of this showed.
+
 - After a game update, a hook that can no longer be placed is logged as an error, so the Mod Manager can mark the mod as maybe needing an update.
 
 ## 0.9.1
