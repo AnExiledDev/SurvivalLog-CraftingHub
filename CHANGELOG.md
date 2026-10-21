@@ -7,6 +7,7 @@ An order in the craft queue counts down by one as each craft of a batch finishes
 Your stamina shows beside the craft queue again, each recipe shows what a craft costs, and a bar says so when the queue cannot go on for lack of stamina. The game had been answering the stamina question with nothing, so none of this showed.
 
 - After a game update, a hook that can no longer be placed is logged as an error, so the Mod Manager can mark the mod as maybe needing an update.
+- Made for Survival Log 1.1.19131.
 
 ## 0.9.1
 

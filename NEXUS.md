@@ -1,5 +1,5 @@
 Name: Crafting Hub
-Summary: A wider, searchable workbench screen with a craft queue. Workbenches use every storage in your home, make intermediate materials for you, and craft a queue of different recipes. 更宽、可搜索的工作台界面，带制作队列。工作台可以使用家里所有储物家具里的材料，替你制作中间材料，并能依次制作一整列不同的配方。
+Summary: Craft a whole queue of different recipes in one go, with materials from every storage in your home, not only the linked ones. Missing planks and parts get made first, by themselves. A wider, searchable workbench screen shows what you can make now, what you're short of and the stamina it costs, and Keep stocked tops up what you always want.
 
 Description (BBCode):
 A workbench normally only uses its linked storages and makes one recipe at a time. Crafting Hub lets every workbench use every storage in your home, makes the planks and parts in between for you, and crafts a whole queue of recipes in order.
@@ -39,7 +39,7 @@ Works in English and Chinese.
 
 [size=5]Requirements[/size]
 [list]
-[*]Survival Log 1.1.18902. A game update can break it until the mod is updated.[/*]
+[*]Survival Log 1.1.19131. A game update can break it until the mod is updated.[/*]
 [*][url=https://www.nexusmods.com/survivallog/mods/12]BepInEx for Survival Log[/url]. Install it first.[/*]
 [*]Optional: [url=https://github.com/AnExiledDev/SurvivalLog-ExiledToolkit]Exiled's Toolkit[/url] 0.4.0 or newer. With it, settings changed on the Mod Manager's Mods screen take effect without restarting the game. Without it, they take effect at the next game start.[/*]
 [*]Not together with BetterCrafting.[/*]
@@ -107,7 +107,7 @@ Open source under MIT: [url=https://github.com/AnExiledDev/SurvivalLog-CraftingH
 
 [size=5]前置要求[/size]
 [list]
-[*]Survival Log 1.1.18902。游戏更新后模组可能暂时失效，直到模组更新为止。[/*]
+[*]Survival Log 1.1.19131。游戏更新后模组可能暂时失效，直到模组更新为止。[/*]
 [*][url=https://www.nexusmods.com/survivallog/mods/12]BepInEx for Survival Log[/url]，请先安装。[/*]
 [*]可选：[url=https://github.com/AnExiledDev/SurvivalLog-ExiledToolkit]Exiled's Toolkit[/url] 0.4.0 或更新版本。装了它，在 Mod Manager 的「模组」界面改动的设置无需重启游戏即可生效；没装的话，改动在下次启动游戏时生效。[/*]
 [/list]
