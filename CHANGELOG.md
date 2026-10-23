@@ -2,7 +2,7 @@
 
 ## 0.9.8
 
-- Works with the 1.1.19611 workbench: recipes in the queue, on cards and in messages show their names again instead of numbers, and each material's count held is read correctly.
+- Works with the 1.1.19611 workbench: recipes in the queue, on cards and in messages show their names again instead of numbers, and each material's count held is read correctly, so materials in your home storages count again instead of showing as missing.
 - Made for Survival Log 1.1.19611.
 
 ## 0.9.7
