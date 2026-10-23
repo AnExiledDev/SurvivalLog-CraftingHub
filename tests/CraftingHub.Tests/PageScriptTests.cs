@@ -1369,7 +1369,7 @@ public class PageScriptTests
         page.Show(WithStamina(View(), "{\"have\":42,\"out\":false,\"cost\":{\"crate\":8}}"));
 
         Assert.Equal("8", page.Text("cardPart('crate', '.cc-cost').textContent"));
-        Assert.Equal("8 stamina", page.Text("cardPart('crate', '.cc-cost').title"));
+        Assert.Equal("8 stamina", page.Text("cardPart('crate', '.cc-cost').getAttribute('data-slip-tip')"));
         Assert.True(page.Truth("cardPart('plank', '.cc-cost') === null"));
 
         page.Run("var crateCard = card('crate')");
@@ -1428,7 +1428,7 @@ public class PageScriptTests
 
         Assert.Equal("queue needs 18", page.Text("$('cc-qneed').textContent"));
         Assert.Equal("16", page.Text("queueRow(0).querySelector('.cc-qcost').textContent"));
-        Assert.Equal("16 stamina", page.Text("queueRow(0).querySelector('.cc-qcost').title"));
+        Assert.Equal("16 stamina", page.Text("queueRow(0).querySelector('.cc-qcost').getAttribute('data-slip-tip')"));
         Assert.Equal("100%", page.Text("$('cc-meter').children[0].style.width"));
         Assert.Equal("10%", page.Text("$('cc-meter').children[1].style.left"));
         Assert.Equal("90%", page.Text("$('cc-meter').children[1].style.width"));
@@ -1531,6 +1531,68 @@ public class PageScriptTests
         Assert.Equal("搜索配方或材料", page.Text("$('cc-search').placeholder"));
         Assert.Contains("队列是空的。在任意配方上点「添加」。", page.Text("$('cc-queue').textContent"));
         Assert.DoesNotContain("Craft queue", page.Text("$('cc-queue').textContent"));
+    }
+
+    [Fact]
+    public void The_bell_amount_buttons_and_materials_say_what_they_are_for_in_a_tag_Info_Pack_reads()
+    {
+        var page = BenchWithRecipes();
+
+        page.Show(View(keep: new KeepView(true, Array.Empty<KeepTarget>(), new Dictionary<string, int>())));
+
+        Assert.Equal("Keep 1 of this in your home; opening any workbench queues the crafts to top it back up", page.Text("cardPart('plank', '.cc-pin').getAttribute('data-slip-tip')"));
+        Assert.Equal("One less", page.Text("cardPart('plank', '.cc-less').getAttribute('data-slip-tip')"));
+        Assert.Equal("One more", page.Text("cardPart('plank', '.cc-more').getAttribute('data-slip-tip')"));
+        Assert.Equal("How many crafts Add puts in the queue", page.Text("cardPart('plank', '.cc-val').getAttribute('data-slip-tip')"));
+        // A material's name, which Info Pack also looks the item up by.
+        Assert.Equal("Log", page.Text("cardPart('plank', '.cc-mat').getAttribute('data-slip-tip')"));
+        Assert.Equal("Log", page.Text("cardPart('plank', '.cc-mat').getAttribute('data-slip-name')"));
+    }
+
+    [Fact]
+    public void Without_Info_Pack_the_hub_shows_its_own_tooltip_after_a_short_wait_and_hides_it_when_the_mouse_moves_off()
+    {
+        var page = BenchWithRecipes();
+
+        page.Run("fire(cardPart('plank', '.cc-mat').querySelector('b'), 'mouseover', { clientX: 100, clientY: 50 })");
+        page.Advance(100);
+
+        Assert.True(page.Truth("$('cc-tip') === null || $('cc-tip').style.display === 'none'"));
+
+        page.Advance(400);
+
+        Assert.Equal("Log", page.Text("$('cc-tip').textContent"));
+        Assert.Equal("", page.Text("$('cc-tip').style.display"));
+        Assert.Equal("114px", page.Text("$('cc-tip').style.left"));
+
+        page.Run("fire(card('plank'), 'mouseover', {})");
+
+        Assert.Equal("none", page.Text("$('cc-tip').style.display"));
+    }
+
+    [Fact]
+    public void A_tooltip_left_before_the_wait_is_over_never_shows()
+    {
+        var page = BenchWithRecipes();
+
+        page.Run("fire(cardPart('plank', '.cc-more'), 'mouseover', {})");
+        page.Advance(200);
+        page.Run("fire(card('plank'), 'mouseover', {})");
+        page.Advance(1000);
+
+        Assert.True(page.Truth("$('cc-tip') === null"));
+    }
+
+    [Fact]
+    public void With_Info_Pack_drawing_tags_the_hub_leaves_the_tooltip_to_it()
+    {
+        var page = BenchWithRecipes();
+
+        page.Run("window.__slinfopack = { tags: ['item', 'name', 'tip'] }");
+        page.Run("fire(cardPart('plank', '.cc-more'), 'mouseover', {})");
+        page.Advance(1000);
+
+        Assert.True(page.Truth("$('cc-tip') === null"));
     }
 
     private static PageScript BenchWithRecipes()

@@ -24,6 +24,7 @@
   var ALL_GROUPS = -1;
   var WHEEL_LINE_PX = 16;
   var HOVER_SWITCH_MS = 400;
+  var TIP_DELAY_MS = 400;
   var BENCH_TAB = 'cc-tab-bench';
   var HUB_ROOTS = ['cc-mid', 'cc-queue', 'cc-panel', BENCH_TAB];
 
@@ -119,7 +120,8 @@
     shortCount: '{0} short',
     allCovered: 'All covered',
     showAll: 'show all {0}',
-    materialsTip: 'Show or hide every material the queue uses'
+    materialsTip: 'Show or hide every material the queue uses',
+    amountTip: 'How many crafts Add puts in the queue'
   };
 
   // The plugin's order states, as the colours the list uses for the same meaning.
@@ -247,13 +249,15 @@
       mats: {},
       icons: null,
       matsOpen: false,
-      queueTab: 'queue'
+      queueTab: 'queue',
+      tipNode: null
     };
     selectedKey = '';
     wrapRenderer(win);
     wrapSend(win, core);
     wrapGridHitTests(win);
     wireDragGuards(win);
+    wireTips(win);
     addStyle(win.document);
 
     return true;
@@ -560,6 +564,7 @@
       '.cc-kbar i{display:block;height:100%;background:#8cc56a}',
       '.cc-kbar i.low{background:#e9b955}',
       '.cc-kval{font-size:13px;color:#cbbfa8;width:52px;text-align:right;flex:none}',
+      '.cc-tip{position:fixed;z-index:100000;pointer-events:none;max-width:300px;padding:6px 10px;background:#251d14;border:1px solid rgba(220,188,120,.35);border-top:2px solid #ffc83a;border-radius:6px;color:#efe4cc;font-size:12px;line-height:1.4;box-shadow:0 6px 18px rgba(0,0,0,.55)}',
       '.cc-panel{display:flex;flex-direction:column;gap:8px;margin-top:12px;font-size:12px;width:100%}',
       '.cc-panel:empty{display:none}',
       '.cc-row{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:8px}',
@@ -581,7 +586,7 @@
   function button(doc, className, text, title, onClick, isDisabled) {
     var node = el(doc, 'button', className, text);
     node.type = 'button';
-    node.title = title;
+    tip(node, title);
     node.disabled = !!isDisabled;
     node.addEventListener('click', function (e) {
       e.stopPropagation();
@@ -589,6 +594,91 @@
     });
 
     return node;
+  }
+
+  // ---------------------------------------------------------------- tooltips
+
+  // What a part of the hub does, shown on hover. The game's web view draws no title tooltips, so the text sits in
+  // data-slip-tip: Info Pack draws its own tooltip for it when it is installed (a material, tagged with its name too,
+  // gets the full item tooltip), and the hub draws a plain one of its own when it is not.
+  function tip(node, text) {
+    if (text) node.setAttribute('data-slip-tip', text);
+
+    return node;
+  }
+
+  function tipOf(node) {
+    for (var element = node; element && element.getAttribute; element = element.parentElement) {
+      if (element.hasAttribute('data-slip-tip')) return element;
+    }
+
+    return null;
+  }
+
+  // Asked at each hover, since Info Pack may load after the hub.
+  function hasInfoPackTips() {
+    var api = window.__slinfopack;
+
+    return !!(api && api.tags && api.tags.indexOf('tip') >= 0);
+  }
+
+  function wireTips(win) {
+    var doc = win.document;
+
+    doc.addEventListener('mouseover', function (e) { hoverTip(win, e); }, true);
+    doc.addEventListener('mousedown', function () { hideTip(win); }, true);
+    doc.addEventListener('mouseout', function (e) { if (!e.relatedTarget) hideTip(win); }, true);
+  }
+
+  // Shown after a short wait on the same part; a part left, pressed or redrawn away before then shows nothing.
+  function hoverTip(win, e) {
+    var ui = win.__ccUi;
+    var target = tipOf(e.target);
+
+    if (target === ui.tipNode) return;
+
+    hideTip(win);
+    ui.tipNode = target;
+
+    if (!target || hasInfoPackTips()) return;
+
+    var x = e.clientX;
+    var y = e.clientY;
+
+    setTimeout(function () {
+      if (ui.tipNode === target && win.document.contains(target)) showTip(win, target.getAttribute('data-slip-tip'), x, y);
+    }, TIP_DELAY_MS);
+  }
+
+  function showTip(win, text, x, y) {
+    var doc = win.document;
+    var box = doc.getElementById('cc-tip');
+
+    if (!box) {
+      box = el(doc, 'div', 'cc-tip');
+      box.id = 'cc-tip';
+      doc.body.appendChild(box);
+    }
+
+    box.textContent = text;
+    box.style.display = '';
+    box.style.left = (x + 14) + 'px';
+    box.style.top = (y + 18) + 'px';
+
+    // Kept inside the page: flipped to the other side of the pointer where it would run off.
+    var width = box.offsetWidth || 0;
+    var height = box.offsetHeight || 0;
+
+    if (win.innerWidth && x + 14 + width > win.innerWidth) box.style.left = Math.max(0, x - 10 - width) + 'px';
+    if (win.innerHeight && y + 18 + height > win.innerHeight) box.style.top = Math.max(0, y - 10 - height) + 'px';
+  }
+
+  function hideTip(win) {
+    var box = win.document.getElementById('cc-tip');
+
+    win.__ccUi.tipNode = null;
+
+    if (box) box.style.display = 'none';
   }
 
   function picture(doc, src, className) {
@@ -606,7 +696,7 @@
     var box = el(doc, 'span', 'cc-stepper');
 
     box.appendChild(button(doc, 'cc-less', GLYPH.minus, say('oneLess'), function () { onStep(-1); }));
-    box.appendChild(el(doc, 'span', 'cc-val', String(value)));
+    box.appendChild(tip(el(doc, 'span', 'cc-val', String(value)), say('amountTip')));
     box.appendChild(button(doc, 'cc-more', '+', say('oneMore'), function () { onStep(1); }));
 
     return box;
@@ -1169,7 +1259,7 @@
     reading.id = 'cc-sta';
     stamina.id = 'cc-stamina';
     need.id = 'cc-qneed';
-    need.title = say('queueNeedsTip');
+    tip(need, say('queueNeedsTip'));
     meter.id = 'cc-meter';
     reading.style.display = 'none';
     line.appendChild(stamina);
@@ -1198,7 +1288,7 @@
 
     box.id = 'cc-matsect';
     head.id = 'cc-matfold';
-    head.title = say('materialsTip');
+    tip(head, say('materialsTip'));
     arrow.id = 'cc-matarrow';
     summary.id = 'cc-matsum';
     shorts.id = 'cc-shorts';
@@ -1444,14 +1534,14 @@
     icon.appendChild(picture(doc, r.icon));
     if (yieldOf(key) > 1) icon.appendChild(el(doc, 'span', 'cc-yield', 'x' + yieldOf(key)));
     if (r.isNew) name.appendChild(el(doc, 'span', 'cc-new', 'NEW'));
-    line.title = status;
+    tip(line, status);
     head.appendChild(name);
     head.appendChild(line);
     entry.mats.forEach(function (m) { mats.appendChild(materialChip(doc, m, amount, byKey, entry.hits)); });
 
     if (cost !== null) {
       costNode = el(doc, 'span', 'cc-cost', String(cost));
-      costNode.title = say('staminaCost', cost);
+      tip(costNode, say('staminaCost', cost));
       foot.appendChild(costNode);
     }
 
@@ -1487,7 +1577,8 @@
     var isHit = hits.indexOf(m.name) >= 0;
     var node = el(doc, 'span', 'cc-mat ' + materialLook(m, amount, byKey) + (isHit ? ' hit' : ''));
 
-    node.title = m.name || '';
+    tip(node, m.name);
+    if (m.name) node.setAttribute('data-slip-name', m.name);
     node.appendChild(picture(doc, m.icon));
     node.appendChild(el(doc, 'b', null, String((m.need || 0) * amount)));
     node.appendChild(el(doc, 'small', null, '/' + (m.have || 0)));
@@ -1697,14 +1788,14 @@
     var costNode = cost === null ? null : el(doc, 'span', 'cc-qcost', String(cost * crafts));
 
     row.setAttribute('data-index', index);
-    handle.title = say('dragTip');
+    tip(handle, say('dragTip'));
     handle.addEventListener('mousedown', function (e) {
       e.preventDefault();
       startDrag(win, row, order.id, index);
     });
 
     if (costNode) {
-      costNode.title = say('staminaCost', cost * crafts);
+      tip(costNode, say('staminaCost', cost * crafts));
       sub.appendChild(costNode);
     }
     if (order.topUp) sub.appendChild(el(doc, 'span', 'cc-tag', say('topUp')));

@@ -40,7 +40,7 @@ internal sealed class Workbench
     private readonly Dictionary<int, string> _itemNames = new();
     private bool _hasLoggedYield;
     private StaminaRead? _stamina;
-    private long _staminaReadAt = long.MinValue;
+    private readonly ReadThrottle _staminaReads = new(StaminaReadMs);
     private bool _hasLoggedStaminaFailure;
     private bool _hasLoggedStamina;
     private bool _hasLoggedUnproven;
@@ -158,11 +158,8 @@ internal sealed class Workbench
     {
         if (_state == null || !IsOpen) return null;
 
-        var now = Environment.TickCount64;
+        if (!_staminaReads.IsDue(Environment.TickCount64)) return _stamina;
 
-        if (now - _staminaReadAt < StaminaReadMs) return _stamina;
-
-        _staminaReadAt = now;
         _stamina = ReadStamina();
 
         if (!_hasLoggedStamina) LogFirstStamina(_stamina);

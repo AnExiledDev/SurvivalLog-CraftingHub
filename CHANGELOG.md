@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.9.4
+
+- Fixed: the stamina meter, the queue's stamina need and the stamina cost on cards never showed.
+- Point at a material on a card to see its name, and at the bell, the amount or its - and + to see what they do. With Info Pack 0.8.5 or newer installed, these use its tooltip, and a material gets the full item tooltip.
+- Made for Survival Log 1.1.19131.
+
 ## 0.9.3
 
 The workbench screen has a new look in the gold style of the other hubs.
