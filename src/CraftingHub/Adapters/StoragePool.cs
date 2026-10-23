@@ -94,9 +94,20 @@ internal static class StoragePool
         {
             var furniture = found[i];
 
-            if (furniture != null && !ItemManager.IsExcludedFromCostPool(furniture.InstanceId)) HomeCache.Add(furniture.InstanceId);
+            if (furniture != null && !ItemManager.IsExcludedFromCostPool(furniture.InstanceId) && !IsNeighborBasket(furniture)) HomeCache.Add(furniture.InstanceId);
         }
 
         return HomeCache;
+    }
+
+    /// <summary>
+    /// The neighbor's basket holds what the player staged for her, which the game's cost pool does not exclude, so
+    /// crafting would use it up. Its config id is 0 when there is no basket.
+    /// </summary>
+    public static bool IsNeighborBasket(Furniture furniture)
+    {
+        var basketId = NeighborRules.GetBasketFurnitureId();
+
+        return basketId > 0 && furniture.AgentConfigId == basketId;
     }
 }

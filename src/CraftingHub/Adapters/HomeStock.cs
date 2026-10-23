@@ -47,7 +47,10 @@ internal sealed class HomeStock
         }
     }
 
-    /// <summary>The same owners, and the same storage query, as GetAvailableItemCount (rva 0x2581980).</summary>
+    /// <summary>
+    /// The same owners, and the same storage query, as GetAvailableItemCount (rva 0x2581980), less the neighbor's
+    /// basket: what is staged there is going to her, so it does not count as stocked.
+    /// </summary>
     private static List<long> Owners(AgentManager agents)
     {
         var owners = new List<long> { agents.LeadingRoleId, WorkbenchDrawerConfig.DrawerOwnerId };
@@ -57,7 +60,7 @@ internal sealed class HomeStock
         {
             var furniture = storages[i];
 
-            if (furniture != null) owners.Add(furniture.InstanceId);
+            if (furniture != null && !StoragePool.IsNeighborBasket(furniture)) owners.Add(furniture.InstanceId);
         }
 
         return owners;

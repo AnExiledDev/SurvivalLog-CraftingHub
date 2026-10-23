@@ -6,7 +6,7 @@ A workbench normally only uses its linked storages and makes one recipe at a tim
 
 [size=5]Main features[/size]
 [list]
-[*][b]Every home storage counts[/b]: workbenches count and take materials from every storage in your home.[/*]
+[*][b]Every home storage counts[/b]: workbenches count and take materials from every storage in your home, except the neighbor's basket.[/*]
 [*][b]A wider workbench screen[/b]: the recipe list becomes a wider one in two columns, with a craft queue column beside it. The bench grid and its Craft button become a Workbench tab in the bag's panel, so the screen has more room, and the tab comes up by itself when you pick a recipe or start a craft.[/*]
 [*][b]Search and filters[/b]: search by recipe name or by a material it uses. Filter to what you can make now, what needs parts first, what you are short of, or what you keep in stock, and pick one recipe group at a time.[/*]
 [*][b]Craftable through intermediates[/b]: recipes you could make after crafting their intermediates show in amber with what gets made first.[/*]
@@ -78,7 +78,7 @@ Open source under MIT: [url=https://github.com/AnExiledDev/SurvivalLog-CraftingH
 
 [size=5]主要功能[/size]
 [list]
-[*][b]家里所有储物家具都算[/b]：工作台会清点并取用家里每个储物家具里的材料。[/*]
+[*][b]家里所有储物家具都算[/b]：工作台会清点并取用家里每个储物家具里的材料，邻居的篮子除外。[/*]
 [*][b]更宽的工作台界面[/b]：配方列表变成更宽的两列，旁边多出一列制作队列。工作台格子和它的「手工制作」按钮变成背包面板里的一个工作台标签页，界面更宽敞；选配方或开始制作时，这个标签页会自动切出来。[/*]
 [*][b]搜索和筛选[/b]：可以按配方名称或它用到的材料搜索。可以只看现在能做的、需先做材料的、材料不足的或保持库存的配方，也可以一次只看一个配方分组。[/*]
 [*][b]通过中间材料可做[/b]：先做中间材料就能做的配方会以琥珀色显示，并写明要先做什么。[/*]

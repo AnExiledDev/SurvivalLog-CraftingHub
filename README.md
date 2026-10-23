@@ -6,7 +6,7 @@ A workbench in Survival Log only takes materials from the storages linked to it,
 
 ## Features
 
-- **Every home storage counts**: a workbench counts and takes materials from every storage in your home, not only the ones linked to it. This applies to the materials list, the craftable check, the most you can craft at once, and laying out the materials.
+- **Every home storage counts**: a workbench counts and takes materials from every storage in your home, not only the ones linked to it. This applies to the materials list, the craftable check, the most you can craft at once, and laying out the materials. The neighbor's basket is left out, so what you staged for her stays there.
 - **A wider workbench screen**: the workbench's recipe list is replaced by a wider one in two columns, with a craft queue column beside it. The bench grid and its Craft button move into the bag's panel as a Workbench tab next to the bag's own tab, so the screen has room to breathe; they work as before. Picking a recipe, starting a craft, or dropping an item on the bench brings the Workbench tab up, and any of the bag panel's other tabs takes you back. While dragging an item, rest it on the Workbench tab or on the open bag tab for a moment to switch between them. The game's own list is still there, only hidden, and every click still goes through the game.
 - **Search**: type part of a recipe's name, or of a material it uses, in the search box at the top. When a material matches, it is outlined on the card. While you type in it, the workbench treats your keys as it does for its own search box. The x empties it.
 - **Filters**: All, Can make, Parts first, Short, and Kept (when keep stocked is on), each with how many recipes it holds. Below them, a row with one button per recipe group, with how many in that group you can make; press it again to show every group. When the row holds more than fits, scroll it sideways with the mouse wheel. Click a group's header in the list to fold it away; the game remembers that as it always has.
@@ -61,7 +61,7 @@ A run stops with a message in the status line when:
 
 A kept item is topped up about a second and a half after you open a workbench, and again right after you change its count. It is never checked on a timer or after a run ends, so a craft that keeps failing does not start another round by itself. If the workbench is busy when the check comes due, that check is skipped; close and open the workbench once it is free.
 
-What your home holds is counted the way the game counts what you can craft from: your own inventory plus every storage in your home, hidden ones too. What is already in the queue counts as well, so opening the workbench twice does not queue the same crafts twice.
+What your home holds is counted the way the game counts what you can craft from: your own inventory plus every storage in your home, hidden ones too, but not the neighbor's basket. What is already in the queue counts as well, so opening the workbench twice does not queue the same crafts twice.
 
 Crafts are only queued when the workbench is free (no craft running, no result showing, the queue not running) and the materials are in the house. Each order is capped at what the materials allow, after the orders already in the queue have taken theirs; if nothing can be made, the status line says which items are short and nothing is queued. Intermediates are made as for any other order, up to `MaxDepth`.
 
@@ -116,7 +116,7 @@ Settings live in `BepInEx\config\com.dev.survivallog.craftinghub.cfg`, created t
 
 Tested on Survival Log 1.1.19131 with BepInEx `6.0.0-be.788`.
 
-Check `BepInEx\LogOutput.log` for `===== Crafting Hub 0.9.5 started`, followed by `workbenches use every home storage` and `intermediates up to 4 deep, marks on, keep stocked on, auto start on, resume on reopen on, other workbenches on` (the words change with your settings, and a setting changed on the Mods screen writes them again). The same lines, plus every step of every run and why it stopped, is in `BepInEx\crafting-hub.log`, which survives restarts. When that file passes 1 MB, it is cut down to its newest part at the next game start.
+Check `BepInEx\LogOutput.log` for `===== Crafting Hub 0.9.6 started`, followed by `workbenches use every home storage` and `intermediates up to 4 deep, marks on, keep stocked on, auto start on, resume on reopen on, other workbenches on` (the words change with your settings, and a setting changed on the Mods screen writes them again). The same lines, plus every step of every run and why it stopped, is in `BepInEx\crafting-hub.log`, which survives restarts. When that file passes 1 MB, it is cut down to its newest part at the next game start.
 
 If the workbench looks like the game's own, check that BetterCrafting is not in `BepInEx\plugins`: BepInEx skips Crafting Hub while it is there, and `LogOutput.log` says so.
 
