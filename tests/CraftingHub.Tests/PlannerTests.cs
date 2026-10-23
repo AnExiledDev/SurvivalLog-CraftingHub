@@ -340,3 +340,42 @@ public class QueueSplitTests
         Assert.Fail("the queue never finished");
     }
 }
+
+/// <summary>Colored recipes: filled by the game's own key and planned with their dye like any other material.</summary>
+public class ColoredRecipeTests
+{
+    private const int RedDye = 90;
+    private const int RedCrate = 50;
+
+    private static readonly Recipe RedCrateRecipe = new(RecipeBook.KeyOf(new[] { RedDye, Bench.Plank, Bench.Plank, Bench.Plank, Bench.Plank, Bench.Rope }), "Red Crate", RedCrate, 1,
+        Bench.Mats((Bench.Plank, 4), (Bench.Rope, 1), (RedDye, 1)), IsLocked: false, BaseKey: "crate", DyeId: RedDye);
+
+    [Fact]
+    public void The_key_is_every_material_unit_in_number_order_as_the_game_builds_it()
+    {
+        Assert.Equal("2,2,9,10", RecipeBook.KeyOf(new[] { 10, 2, 9, 2 }));
+        Assert.Equal("2,2,2,2,4,90", RedCrateRecipe.Key);
+    }
+
+    [Fact]
+    public void A_colored_recipe_without_its_dye_is_short_of_the_dye_alone()
+    {
+        var book = Bench.Book(RedCrateRecipe);
+        var house = Bench.Mats((Bench.Plank, 4), (Bench.Rope, 1));
+
+        var plan = CraftPlanner.Plan(book, house, RedCrateRecipe, 1, maxDepth: 4);
+
+        Assert.Equal(new Dictionary<int, int> { [RedDye] = 1 }, Assert.IsType<CraftPlan.Short>(plan).Missing);
+    }
+
+    [Fact]
+    public void A_colored_recipe_makes_its_planks_first_like_the_plain_one()
+    {
+        var book = Bench.Book(RedCrateRecipe);
+        var house = Bench.Mats((Bench.Log, 2), (Bench.Rope, 1), (RedDye, 1));
+
+        var plan = Assert.IsType<CraftPlan.Ready>(CraftPlanner.Plan(book, house, RedCrateRecipe, 1, maxDepth: 4));
+
+        Assert.Equal(new[] { ("plank", 2), (RedCrateRecipe.Key, 1) }, plan.Steps.Select(step => (step.Recipe.Key, step.Crafts)));
+    }
+}

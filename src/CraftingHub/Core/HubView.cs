@@ -46,6 +46,7 @@ public static class HubView
     private const char ParagraphSeparator = (char)0x2029;
 
     private static readonly IReadOnlyDictionary<string, int> NoYields = new Dictionary<string, int>();
+    private static readonly IReadOnlyList<DyeOption> NoDyes = new List<DyeOption>();
 
     public static string Build(
         IReadOnlyDictionary<string, string> marks,
@@ -58,7 +59,8 @@ public static class HubView
         IReadOnlyDictionary<string, int>? yields = null,
         long activeOrderId = 0,
         StaminaView? stamina = null,
-        bool takesUnitsOffStacks = false)
+        bool takesUnitsOffStacks = false,
+        IReadOnlyList<DyeOption>? dyes = null)
     {
         var forecast = outlook ?? QueueOutlook.Empty;
         var markPairs = marks.OrderBy(pair => pair.Key, System.StringComparer.Ordinal).Select(pair => $"{Str(pair.Key)}:{Str(pair.Value)}");
@@ -79,6 +81,7 @@ public static class HubView
             .Append("},\"keep\":").Append(Keep(keep))
             .Append(",\"stamina\":").Append(Stamina(stamina))
             .Append(",\"takesUnits\":").Append(Bool(takesUnitsOffStacks))
+            .Append(",\"dyes\":").Append(Dyes(dyes ?? NoDyes))
             .Append('}')
             .ToString();
     }
@@ -114,6 +117,15 @@ public static class HubView
             .Append("],\"byKey\":{").AppendJoin(',', byKey)
             .Append("}}")
             .ToString();
+    }
+
+    /// <summary>The colors of each dyeable recipe, by its plain key, in the order the game's dye bar lists them.</summary>
+    private static string Dyes(IReadOnlyList<DyeOption> dyes)
+    {
+        var groups = dyes.GroupBy(dye => dye.BaseKey).OrderBy(group => group.Key, System.StringComparer.Ordinal).Select(group =>
+            $"{Str(group.Key)}:[{string.Join(',', group.Select(dye => $"{{\"key\":{Str(dye.Key)},\"dye\":{Num(dye.DyeId)},\"hex\":{Str(dye.Hex)},\"color\":{Str(dye.Color)},\"need\":{Num(dye.Need)},\"have\":{Num(dye.Have)}}}"))}]");
+
+        return "{" + string.Join(',', groups) + "}";
     }
 
     /// <summary>Null when stamina could not be read; a recipe that costs nothing is left out of the costs.</summary>

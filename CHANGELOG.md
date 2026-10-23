@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.7
+
+- Colors: a card for something that can be dyed has a row of color dots under its materials, the same colors the game's own dye bar offers, each with how much of that dye you have. Pick one and Add, the bell and a click on the card's picture or name use that color; the striped dot is the plain version.
+- Made for Survival Log 1.1.19131.
+
 ## 0.9.6
 
 - Workbenches no longer take materials from the neighbor's basket, and what is staged there no longer counts toward Keep stocked.

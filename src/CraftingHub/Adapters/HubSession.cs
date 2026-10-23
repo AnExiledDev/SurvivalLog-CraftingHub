@@ -57,6 +57,7 @@ internal sealed class HubSession
     private bool _hasRead;
     private int _loggedMarkCount = -1;
     private IReadOnlyList<string> _recipeKeys = NoRecipeKeys;
+    private IReadOnlyList<DyeOption> _dyes = Array.Empty<DyeOption>();
 
     public HubSession(Workbench bench, WorkbenchPage page, KeepPorts keep, HubSettings settings, Func<bool> takesUnitsOffStacks, Action<string> log, Action<string> logFileOnly)
     {
@@ -107,6 +108,7 @@ internal sealed class HubSession
             var read = ReadBench();
 
             _recipeKeys = read?.Book.All.Select(recipe => recipe.Key).ToList() ?? NoRecipeKeys;
+            _dyes = read?.Dyes ?? Array.Empty<DyeOption>();
             RefreshMarks(read, timer);
             RefreshKeeps(read);
         }
@@ -487,7 +489,7 @@ internal sealed class HubSession
     {
         var keep = new KeepView(_settings.KeepStocked, _slot.Targets.All, _keepByKey, _keepHave);
         var stamina = StaminaView.From(_bench.Stamina(), _recipeKeys, _queue.Head != null, _hasStoppedForStamina);
-        var view = HubView.Build(_marks, _queue.Entries, _runner.IsRunning, _status, keep, _runner.IsPaused, _outlook, _yields, ActiveOrderId(), stamina, _takesUnitsOffStacks());
+        var view = HubView.Build(_marks, _queue.Entries, _runner.IsRunning, _status, keep, _runner.IsPaused, _outlook, _yields, ActiveOrderId(), stamina, _takesUnitsOffStacks(), _dyes);
 
         if (view == _shownView) return;
 

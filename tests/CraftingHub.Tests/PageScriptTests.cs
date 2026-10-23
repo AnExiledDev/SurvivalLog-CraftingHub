@@ -1609,6 +1609,88 @@ public class PageScriptTests
         Assert.True(page.Truth("$('cc-tip') === null"));
     }
 
+    // ---------------------------------------------------------------- colors
+
+    // The game keeps colored recipes off its list; the plugin sends each dyeable recipe's colors by its plain key.
+    private static readonly DyeOption[] ChairColors =
+    {
+        new("plank", "1,2,90", 90, "#c03030", "Red", 1, 2),
+        new("plank", "1,2,91", 91, "#3050c0", "Blue", 1, 0),
+    };
+
+    [Fact]
+    public void A_dyeable_card_offers_plain_and_each_color_with_the_dye_on_hand()
+    {
+        var page = BenchWithColors();
+
+        Assert.Equal(3, page.Number("cardPart('plank', '.cc-dyes').children.length"));
+        Assert.True(page.Truth("cardPart('plank', '.cc-dye.plain').classList.contains('on')"));
+        Assert.Equal("2", page.Text("dyeDot('plank', '1,2,90').textContent"));
+        Assert.True(page.Truth("dyeDot('plank', '1,2,91').classList.contains('out')"));
+        Assert.True(page.Truth("cardPart('rope', '.cc-dyes') === null"));
+    }
+
+    [Fact]
+    public void A_picked_color_is_what_the_card_adds_keeps_and_lays_on_the_bench()
+    {
+        var page = BenchWithColors(new KeepView(true, Array.Empty<KeepTarget>(), new Dictionary<string, int>()));
+
+        page.Press("dyeDot('plank', '1,2,90')");
+        page.Press("cardPart('plank', '.cc-add')");
+        page.Press("cardPart('plank', '.cc-pin')");
+        page.Press("cardPart('plank', '.cc-card-name')");
+
+        Assert.Equal(new PageCommand[] { new PageCommand.Add("1,2,90", 1), new PageCommand.Keep("1,2,90", 1) }, Sent(page));
+        Assert.Equal("1,2,90", page.Text("sentActions('RECIPE_CLICK')[0].data.recipeKey"));
+        Assert.Equal("Plank (Red)", page.Text("cardPart('plank', '.cc-card-name').textContent"));
+        Assert.True(page.Truth("card('plank').classList.contains('cc-sel')"));
+    }
+
+    [Fact]
+    public void Going_back_to_plain_adds_the_plain_recipe()
+    {
+        var page = BenchWithColors();
+
+        page.Press("dyeDot('plank', '1,2,91')");
+        page.Press("cardPart('plank', '.cc-dye.plain')");
+        page.Press("cardPart('plank', '.cc-add')");
+
+        Assert.Equal(new PageCommand[] { new PageCommand.Add("plank", 1) }, Sent(page));
+        Assert.Equal("Plank", page.Text("cardPart('plank', '.cc-card-name').textContent"));
+    }
+
+    [Fact]
+    public void A_color_the_bench_no_longer_offers_falls_back_to_plain()
+    {
+        var page = BenchWithColors();
+
+        page.Press("dyeDot('plank', '1,2,90')");
+        page.Show(View());
+        page.Press("cardPart('plank', '.cc-add')");
+
+        Assert.Equal(new PageCommand[] { new PageCommand.Add("plank", 1) }, Sent(page));
+    }
+
+    [Fact]
+    public void The_view_sends_each_dyeable_recipes_colors_by_its_plain_key()
+    {
+        var json = View(dyes: ChairColors);
+
+        Assert.Contains("\"dyes\":{\"plank\":[{\"key\":\"1,2,90\",\"dye\":90,\"hex\":\"#c03030\",\"color\":\"Red\",\"need\":1,\"have\":2},", json);
+        Assert.Contains("\"dyes\":{}", View());
+    }
+
+    private static PageScript BenchWithColors(KeepView? keep = null)
+    {
+        var page = new PageScript();
+
+        page.OpenBench();
+        page.RecipeMsg(Recipes);
+        page.Show(View(keep: keep, dyes: ChairColors));
+
+        return page;
+    }
+
     private static PageScript BenchWithRecipes()
     {
         var page = new PageScript();
@@ -1629,8 +1711,9 @@ public class PageScriptTests
         IReadOnlyDictionary<string, int>? yields = null,
         string status = "",
         long activeOrderId = 0,
-        bool takesUnits = false) =>
-        HubView.Build(Marks, queue ?? Array.Empty<QueueEntry>(), isRunning, status, keep ?? NoKeep, isPaused, outlook, yields, activeOrderId, takesUnitsOffStacks: takesUnits);
+        bool takesUnits = false,
+        IReadOnlyList<DyeOption>? dyes = null) =>
+        HubView.Build(Marks, queue ?? Array.Empty<QueueEntry>(), isRunning, status, keep ?? NoKeep, isPaused, outlook, yields, activeOrderId, takesUnitsOffStacks: takesUnits, dyes: dyes);
 
     /// <summary>The plugin's view with its stamina reading, which the plugin sends as the view's last field.</summary>
     private static string WithStamina(string view, string stamina) => view[..^1] + ",\"stamina\":" + stamina + "}";

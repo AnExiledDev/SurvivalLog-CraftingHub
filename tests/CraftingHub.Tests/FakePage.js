@@ -639,6 +639,11 @@ function cardPart(key, selector) {
   return card(key).querySelector(selector);
 }
 
+// A color dot on a dyeable card, by the colored recipe's key.
+function dyeDot(key, colorKey) {
+  return card(key).querySelectorAll('.cc-dye').filter(function (dot) { return dot.getAttribute('data-key') === colorKey; })[0] || null;
+}
+
 function filterChip(label) {
   return $('cc-filters').children.filter(function (chip) { return chip.textContent.indexOf(label + ' ') === 0; })[0] || null;
 }

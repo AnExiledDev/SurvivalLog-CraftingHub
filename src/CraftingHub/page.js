@@ -121,13 +121,18 @@
     allCovered: 'All covered',
     showAll: 'show all {0}',
     materialsTip: 'Show or hide every material the queue uses',
-    amountTip: 'How many crafts Add puts in the queue'
+    amountTip: 'How many crafts Add puts in the queue',
+    plainTip: 'Plain, no dye',
+    dyeTip: '{0}: takes {1} dye per craft, you have {2}'
   };
 
   // The plugin's order states, as the colours the list uses for the same meaning.
+  // A dye's color as the game writes it; anything else is left to the stylesheet's grey.
+  var HEX = /^#[0-9a-fA-F]{3,8}$/;
+
   var STATE_LOOK = { ready: 'now', via: 'via', short: 'short', locked: 'short', unlisted: 'short' };
 
-  var view = { marks: {}, queue: [], running: false, paused: false, activeId: 0, status: '', headsUp: '', totals: [], yields: {}, keep: { on: false, targets: [], byKey: {} }, takesUnits: false };
+  var view = { marks: {}, queue: [], running: false, paused: false, activeId: 0, status: '', headsUp: '', totals: [], yields: {}, keep: { on: false, targets: [], byKey: {} }, takesUnits: false, dyes: {} };
   var selectedKey = '';
   // The plugin's last view as it was sent, so the same view sent again draws nothing.
   var lastViewText = '';
@@ -235,6 +240,8 @@
       filter: 'all',
       group: ALL_GROUPS,
       amounts: {},
+      // The colored recipe key picked on each dyeable card, by the card's plain key; absent means plain.
+      colors: {},
       drag: null,
       view: 'bag',
       hover: null,
@@ -483,6 +490,12 @@
       '.cc-add{height:28px;padding:0 14px;border-radius:4px;border:1px solid rgba(255,200,58,.6);background:rgba(255,200,58,.12);color:#FFC83A;font-weight:700;font-size:13px;cursor:pointer}',
       '.cc-add:hover{background:rgba(255,200,58,.22)}',
       '.cc-add[disabled],.cc-pin[disabled]{filter:grayscale(1);opacity:.35;cursor:default}',
+      '.cc-dyes{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:5px;padding-top:6px}',
+      '.cc-dye{position:relative;width:22px;height:22px;border-radius:50%;border:2px solid rgba(220,188,120,.25);cursor:pointer;flex:none;padding:0;box-sizing:border-box}',
+      '.cc-dye.plain{background:repeating-linear-gradient(45deg,#3a3226 0 3px,#5a4e3c 3px 6px)}',
+      '.cc-dye.out{opacity:.4}',
+      '.cc-dye.on{border-color:#FFC83A;box-shadow:0 0 0 1px #FFC83A}',
+      '.cc-dye em{position:absolute;bottom:-6px;right:-7px;font-style:normal;font-size:9px;font-weight:700;padding:0 3px;border-radius:3px;background:#2a1f10;color:#f0e8d8;line-height:12px}',
       '.cc-stepper{display:inline-flex;align-items:center;height:28px;border:1px solid rgba(220,188,120,.20);border-radius:4px;overflow:hidden;background:rgba(20,14,8,.5);flex:none}',
       '.cc-stepper button{width:24px;height:100%;border:0;background:rgba(255,240,210,.06);color:#cbbfa8;font-size:14px;cursor:pointer;line-height:1;padding:0}',
       '.cc-stepper button:hover{background:rgba(255,200,58,.18);color:#FFC83A}',
@@ -1398,6 +1411,7 @@
       view.keep.byKey,
       view.yields,
       view.takesUnits,
+      view.dyes,
       staminaCosts()
     ]);
   }
@@ -1407,7 +1421,7 @@
     var cards = list ? list.querySelectorAll('.cc-card') : [];
 
     Array.prototype.forEach.call(cards, function (card) {
-      var isSelected = card.getAttribute('data-key') === selectedKey;
+      var isSelected = card.getAttribute('data-pick') === selectedKey;
 
       if (card.classList.contains('cc-sel') !== isSelected) card.classList.toggle('cc-sel', isSelected);
     });
@@ -1524,13 +1538,16 @@
   function card(win, entry, byKey) {
     var doc = win.document;
     var r = entry.recipe;
-    var key = r.recipeKey;
-    var amount = amountFor(win, key);
+    var plainKey = r.recipeKey;
+    var colors = dyesOf(plainKey);
+    var key = colorKeyFor(win, plainKey);
+    var amount = amountFor(win, plainKey);
     var isLocked = entry.kind === 'locked';
     var node = el(doc, 'div', 'cc-card cc-k-' + entry.kind + (key === selectedKey ? ' cc-sel' : ''));
     var icon = el(doc, 'div', 'cc-card-ic');
     var head = el(doc, 'div', 'cc-card-head');
-    var name = el(doc, 'div', 'cc-card-name', r.name || key);
+    var color = colors.filter(function (d) { return d.key === key; })[0];
+    var name = el(doc, 'div', 'cc-card-name', (r.name || plainKey) + (color ? ' (' + color.color + ')' : ''));
     var status = statusLine(entry);
     var line = el(doc, 'div', 'cc-card-st cc-st-' + entry.kind, status);
     var foot = el(doc, 'div', 'cc-card-foot');
@@ -1538,7 +1555,8 @@
     var cost = staminaCost(key);
     var costNode;
 
-    node.setAttribute('data-key', key);
+    node.setAttribute('data-key', plainKey);
+    node.setAttribute('data-pick', key);
     itemTip(icon, r.name);
     itemTip(name, r.name);
     icon.appendChild(picture(doc, r.icon));
@@ -1558,7 +1576,7 @@
     foot.appendChild(el(doc, 'span', 'cc-grow'));
     if (view.keep.on) foot.appendChild(keepButton(doc, key, isLocked));
     foot.appendChild(stepper(doc, amount, function (step) {
-      win.__ccUi.amounts[key] = clamp(amount + step, 1, MAX_AMOUNT);
+      win.__ccUi.amounts[plainKey] = clamp(amount + step, 1, MAX_AMOUNT);
       drawList(win, false);
     }));
     foot.appendChild(button(doc, 'cc-add', say('add'), say('addTip'), function () {
@@ -1567,11 +1585,58 @@
     node.appendChild(icon);
     node.appendChild(head);
     node.appendChild(mats);
+    if (colors.length) node.appendChild(swatches(win, plainKey, colors, key));
     node.appendChild(foot);
     icon.addEventListener('click', function () { pickRecipe(win, key, isLocked); });
     name.addEventListener('click', function () { pickRecipe(win, key, isLocked); });
 
     return node;
+  }
+
+  // The colors the plugin found for a dyeable recipe, each with the key of its colored recipe.
+  function dyesOf(plainKey) {
+    var dyes = hasOwn(view.dyes, plainKey) ? view.dyes[plainKey] : null;
+
+    return Array.isArray(dyes) ? dyes.filter(function (d) { return d && d.key; }) : [];
+  }
+
+  // The recipe the card adds, keeps and lays on the bench: the color picked on it, or the plain recipe. A pick whose
+  // color the bench no longer offers falls back to plain.
+  function colorKeyFor(win, plainKey) {
+    var picked = win.__ccUi.colors[plainKey];
+    var isOffered = dyesOf(plainKey).some(function (d) { return d.key === picked; });
+
+    return picked && isOffered ? picked : plainKey;
+  }
+
+  // The plain choice first, then a dot per color as the game's dye bar shows them, each with the dye on hand. Picking
+  // only changes the card, so the bench is not swapped under a run.
+  function swatches(win, plainKey, colors, pickedKey) {
+    var doc = win.document;
+    var row = el(doc, 'div', 'cc-dyes');
+    var plainDot = button(doc, 'cc-dye plain' + (pickedKey === plainKey ? ' on' : ''), null, say('plainTip'), function () { pickColor(win, plainKey, null); });
+
+    row.appendChild(plainDot);
+    colors.forEach(function (d) {
+      var isShort = (d.have || 0) < (d.need || 1);
+      var dot = button(doc, 'cc-dye' + (d.key === pickedKey ? ' on' : '') + (isShort ? ' out' : ''), null, say('dyeTip', d.color, d.need || 1, d.have || 0), function () {
+        pickColor(win, plainKey, d.key);
+      });
+
+      if (HEX.test(d.hex || '')) dot.style.background = d.hex;
+      dot.setAttribute('data-key', d.key);
+      dot.appendChild(el(doc, 'em', null, String(d.have || 0)));
+      row.appendChild(dot);
+    });
+
+    return row;
+  }
+
+  function pickColor(win, plainKey, colorKey) {
+    if (colorKey) win.__ccUi.colors[plainKey] = colorKey;
+    else delete win.__ccUi.colors[plainKey];
+
+    drawList(win, false);
   }
 
   // The card's picture and name lay its recipe on the bench, as a click on the game's own row does; the rest of the

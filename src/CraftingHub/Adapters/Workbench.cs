@@ -12,7 +12,10 @@ using Il2CppInterop.Runtime.InteropTypes.Arrays;
 namespace CraftingHub.Adapters;
 
 /// <summary>The open workbench's recipes, what the house holds of their materials, and which the game allows now.</summary>
-internal sealed record BenchRead(RecipeBook Book, IReadOnlyDictionary<int, int> Stock, IReadOnlySet<string> CraftableNow);
+internal sealed record BenchRead(RecipeBook Book, IReadOnlyDictionary<int, int> Stock, IReadOnlySet<string> CraftableNow, IReadOnlyList<DyeOption> Dyes);
+
+/// <summary>A colored recipe as read from the production table, before the house's dye is counted.</summary>
+internal sealed record DyedVariant(Recipe Recipe, string Hex, string Color);
 
 /// <summary>
 /// The only code that reads the workbench. The game hands its window state to RefreshRecipeList whenever the recipe
@@ -37,6 +40,8 @@ internal sealed class Workbench
 
     private readonly Action<string> _log;
     private readonly Dictionary<string, Recipe?> _recipes = new();
+    private readonly Dictionary<string, IReadOnlyList<DyedVariant>> _variants = new();
+    private bool _hasLoggedVariantFailure;
     private readonly Dictionary<int, string> _itemNames = new();
     private bool _hasLoggedYield;
     private StaminaRead? _stamina;
@@ -94,6 +99,7 @@ internal sealed class Workbench
 
         var recipes = new List<Recipe>(state.RecipeList.Count);
         var craftable = new HashSet<string>();
+        var colored = new List<(Recipe Base, DyedVariant Variant)>();
 
         for (var i = 0; i < state.RecipeList.Count; i++)
         {
@@ -102,17 +108,100 @@ internal sealed class Workbench
 
             if (row == null || string.IsNullOrEmpty(key) || ConfigRecipe(key) is not { } recipe) continue;
 
-            recipes.Add(recipe with { Name = row.Name?.Value ?? recipe.Name, IsLocked = row.CraftLocked?.Value == true });
+            var listed = recipe with { Name = row.Name?.Value ?? recipe.Name, IsLocked = row.CraftLocked?.Value == true };
+
+            recipes.Add(listed);
 
             if (row.CanCraft?.Value == true) craftable.Add(key);
+
+            if (row.Dyeable?.Value == true) colored.AddRange(Variants(key, listed).Select(variant => (listed, variant)));
         }
 
-        var book = new RecipeBook(recipes);
+        // Base recipes go in first, so a product both make is planned from the plain recipe.
+        var book = new RecipeBook(recipes.Concat(colored.Select(pair => pair.Variant.Recipe)));
 
         LogYieldOnce(book);
 
-        return new BenchRead(book, Stock(state, items, book.MaterialIds), craftable);
+        var stock = Stock(state, items, book.MaterialIds);
+        var dyes = new List<DyeOption>(colored.Count);
+
+        foreach (var (plain, variant) in colored)
+        {
+            var recipe = variant.Recipe;
+            var need = recipe.Materials.GetValueOrDefault(recipe.DyeId);
+            var have = stock.GetValueOrDefault(recipe.DyeId);
+
+            dyes.Add(new DyeOption(plain.Key, recipe.Key, recipe.DyeId, variant.Hex, variant.Color, need, have));
+
+            // The game only says whether the plain recipe can be made; the colored one also takes its dye.
+            if (craftable.Contains(plain.Key) && have >= need) craftable.Add(recipe.Key);
+        }
+
+        return new BenchRead(book, stock, craftable, dyes);
     }
+
+    /// <summary>
+    /// The colors a dyeable recipe comes in, as the game's own dye bar lists them. The game keeps these recipes off its
+    /// list, so they are read from the production table once per base and fill the bench by their own key.
+    /// </summary>
+    private IReadOnlyList<DyedVariant> Variants(string baseKey, Recipe plain)
+    {
+        if (!_variants.TryGetValue(baseKey, out var cached)) cached = _variants[baseKey] = ReadVariants(baseKey);
+
+        return cached.Select(variant => variant with { Recipe = variant.Recipe with { IsLocked = plain.IsLocked, Name = ColoredName(plain.Name, variant) } }).ToList();
+    }
+
+    private IReadOnlyList<DyedVariant> ReadVariants(string baseKey)
+    {
+        var found = new List<DyedVariant>();
+
+        try
+        {
+            var config = GameSingleton.Existing<ConfigManager>();
+            var map = config?.GetAllProductionListMap();
+
+            if (config == null || map == null || !map.TryGetValue(baseKey, out var production) || production == null) return found;
+
+            // Handed back as a read-only view, but the object is the game's own list.
+            var dyed = config.GetDyedVariants(production.ID)?.TryCast<Il2CppSystem.Collections.Generic.List<Config_ProductionList>>();
+
+            for (var i = 0; dyed != null && i < dyed.Count; i++)
+            {
+                var variant = dyed[i];
+                var dyeId = variant == null ? 0 : config.GetDyedRecipeDyeItemId(variant.ID);
+
+                if (variant?.ProductID is not { Count: > 0 } products || variant.MaterialList is not { Count: > 0 } list || dyeId <= 0) continue;
+
+                var materialIds = new List<int>(list.Count);
+
+                for (var m = 0; m < list.Count; m++) materialIds.Add(list[m]);
+
+                var productId = products[0];
+                var yield = 0;
+
+                for (var p = 0; p < products.Count; p++) yield += products[p] == productId ? 1 : 0;
+
+                var materials = materialIds.GroupBy(id => id).ToDictionary(group => group.Key, group => group.Count());
+                var recipe = new Recipe(RecipeBook.KeyOf(materialIds), ItemName(productId), productId, yield, materials, IsLocked: false, BaseKey: baseKey, DyeId: dyeId);
+
+                found.Add(new DyedVariant(recipe, NonEmpty(DyePaletteRules.GetDyeHex(dyeId)) ?? "#888888", NonEmpty(GameKey.GetDyeColorName(dyeId)) ?? ItemName(dyeId)));
+            }
+        }
+        catch (Exception ex)
+        {
+            if (!_hasLoggedVariantFailure) _log($"could not read the colors of recipe {baseKey}, it is offered plain only: " + ex.Message);
+
+            _hasLoggedVariantFailure = true;
+        }
+
+        return found;
+    }
+
+    /// <summary>The colored item's own name when the game gives it one, else the plain name with the color after it.</summary>
+    private static string ColoredName(string plainName, DyedVariant variant) =>
+        variant.Recipe.Name.Length > 0 && variant.Recipe.Name != plainName && !variant.Recipe.Name.StartsWith("Item ", StringComparison.Ordinal)
+            ? variant.Recipe.Name
+            : $"{plainName} ({variant.Color})";
 
     public BenchView View()
     {

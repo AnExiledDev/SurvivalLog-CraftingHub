@@ -166,6 +166,8 @@ public static class Texts
         ("showAll", new("show all {0}", "显示全部 {0}")),
         ("materialsTip", new("Show or hide every material the queue uses", "显示或隐藏队列用到的所有材料")),
         ("amountTip", new("How many crafts Add puts in the queue", "点「添加」时加入队列的制作次数")),
+        ("plainTip", new("Plain, no dye", "原色，不染色")),
+        ("dyeTip", new("{0}: takes {1} dye per craft, you have {2}", "{0}：每次制作用 {1} 份染料，你有 {2} 份")),
     };
 
     public static IReadOnlyList<Phrase> All { get; } = Collect();
