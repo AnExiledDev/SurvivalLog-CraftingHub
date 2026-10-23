@@ -90,7 +90,7 @@ Kept counts belong to the save you are playing. They are stored in `BepInEx\conf
 
 ## Requirements
 
-- Survival Log 1.1.19131. Built and tested on this version; a game update can break it until the mod is updated.
+- Survival Log 1.1.19611. Built and tested on this version; a game update can break it until the mod is updated.
 - The [BepInEx Pack for Survival Log](https://www.nexusmods.com/survivallog/mods/12), the BepInEx 6 (IL2CPP) build for the game.
 - Not together with BetterCrafting. Both change which storages a workbench uses; remove BetterCrafting before installing this. While BetterCrafting is installed, BepInEx does not load Crafting Hub, and the Mod Manager lists BetterCrafting under DOES NOT WORK WITH.
 - Optional: [Exiled's Toolkit](https://github.com/AnExiledDev/SurvivalLog-ExiledToolkit) 0.4.0 or newer. With it, settings changed on the Mod Manager's Mods screen take effect without restarting the game. Without it, they take effect at the next game start.
@@ -115,9 +115,9 @@ Settings live in `BepInEx\config\com.dev.survivallog.craftinghub.cfg`, created t
 
 ## Troubleshooting
 
-Tested on Survival Log 1.1.19131 with BepInEx `6.0.0-be.788`.
+Tested on Survival Log 1.1.19611 with BepInEx `6.0.0-be.788`.
 
-Check `BepInEx\LogOutput.log` for `===== Crafting Hub 0.9.7 started`, followed by `workbenches use every home storage` and `intermediates up to 4 deep, marks on, keep stocked on, auto start on, resume on reopen on, other workbenches on` (the words change with your settings, and a setting changed on the Mods screen writes them again). The same lines, plus every step of every run and why it stopped, is in `BepInEx\crafting-hub.log`, which survives restarts. When that file passes 1 MB, it is cut down to its newest part at the next game start.
+Check `BepInEx\LogOutput.log` for `===== Crafting Hub 0.9.8 started`, followed by `workbenches use every home storage` and `intermediates up to 4 deep, marks on, keep stocked on, auto start on, resume on reopen on, other workbenches on` (the words change with your settings, and a setting changed on the Mods screen writes them again). The same lines, plus every step of every run and why it stopped, is in `BepInEx\crafting-hub.log`, which survives restarts. When that file passes 1 MB, it is cut down to its newest part at the next game start.
 
 If the workbench looks like the game's own, check that BetterCrafting is not in `BepInEx\plugins`: BepInEx skips Crafting Hub while it is there, and `LogOutput.log` says so.
 

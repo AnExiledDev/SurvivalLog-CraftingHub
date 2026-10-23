@@ -825,6 +825,10 @@
   // What the page itself reads from each recipe (getMaterials): per material its icon, name, need and have for one
   // craft, hasEnough, and sub, the key of the recipe that makes it.
   function parseMaterials(r) {
+    // The page now joins a recipe's fixed list (materialsJson, which holds no counts) with the counts it sends apart,
+    // into _mats; only that joined list has have and hasEnough.
+    if (Array.isArray(r._mats)) return r._mats;
+
     try {
       var mats = r.materialsJson ? JSON.parse(r.materialsJson) : [];
 

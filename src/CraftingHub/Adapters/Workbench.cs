@@ -100,6 +100,7 @@ internal sealed class Workbench
         var recipes = new List<Recipe>(state.RecipeList.Count);
         var craftable = new HashSet<string>();
         var colored = new List<(Recipe Base, DyedVariant Variant)>();
+        var fixedParts = FixedParts(state);
 
         for (var i = 0; i < state.RecipeList.Count; i++)
         {
@@ -108,13 +109,16 @@ internal sealed class Workbench
 
             if (row == null || string.IsNullOrEmpty(key) || ConfigRecipe(key) is not { } recipe) continue;
 
-            var listed = recipe with { Name = row.Name?.Value ?? recipe.Name, IsLocked = row.CraftLocked?.Value == true };
+            // The game sends a recipe's name and dye flag in a list of their own and leaves them empty on this row.
+            var fixedPart = fixedParts.GetValueOrDefault(key);
+            var name = fixedPart.Name ?? NonEmpty(row.Name?.Value) ?? recipe.Name;
+            var listed = recipe with { Name = name, IsLocked = row.CraftLocked?.Value == true };
 
             recipes.Add(listed);
 
             if (row.CanCraft?.Value == true) craftable.Add(key);
 
-            if (row.Dyeable?.Value == true) colored.AddRange(Variants(key, listed).Select(variant => (listed, variant)));
+            if (fixedPart.IsDyeable || row.Dyeable?.Value == true) colored.AddRange(Variants(key, listed).Select(variant => (listed, variant)));
         }
 
         // Base recipes go in first, so a product both make is planned from the plain recipe.
@@ -409,7 +413,7 @@ internal sealed class Workbench
 
             for (var i = 0; i < production.MaterialList.Count; i++) materials[production.MaterialList[i]] = materials.GetValueOrDefault(production.MaterialList[i]) + 1;
 
-            recipe = new Recipe(key, $"Recipe {key}", productId, yield, materials, IsLocked: false);
+            recipe = new Recipe(key, ItemName(productId), productId, yield, materials, IsLocked: false);
         }
         else
         {
@@ -432,6 +436,46 @@ internal sealed class Workbench
         var multi = book.All.Where(recipe => recipe.Yield > 1).Take(8).Select(recipe => $"{recipe.Name} ×{recipe.Yield}").ToList();
 
         _log(multi.Count == 0 ? "every recipe at this bench makes one item per craft" : "recipes read as making several per craft (check one in game): " + string.Join(", ", multi));
+    }
+
+    /// <summary>
+    /// Each recipe's name and dye flag by recipe key: from the list the game sends when the window opens or the recipes
+    /// shown change, then from the game's cache of it for a key the list lacks. Empty when neither reads, and names
+    /// then come from the item table.
+    /// </summary>
+    private static Dictionary<string, (string? Name, bool IsDyeable)> FixedParts(State_Web_ToolTable state)
+    {
+        var found = new Dictionary<string, (string? Name, bool IsDyeable)>();
+
+        try
+        {
+            var list = state.RecipeStaticList;
+
+            for (var i = 0; list != null && i < list.Count; i++)
+            {
+                var row = list[i];
+                var key = row?.RecipeKey?.Value;
+
+                if (row != null && !string.IsNullOrEmpty(key)) found[key] = (NonEmpty(row.Name?.Value), row.Dyeable?.Value == true);
+            }
+
+            var cache = state.RecipeStaticCache;
+
+            if (cache == null) return found;
+
+            foreach (var pair in cache)
+            {
+                if (string.IsNullOrEmpty(pair.Key) || pair.Value == null || found.TryGetValue(pair.Key, out var listed) && listed.Name != null) continue;
+
+                found[pair.Key] = (NonEmpty(pair.Value.Name), pair.Value.Dyeable);
+            }
+        }
+        catch (Exception)
+        {
+            // A layout this build does not know: names fall back to the item table.
+        }
+
+        return found;
     }
 
     private static string? NonEmpty(string? text) => string.IsNullOrWhiteSpace(text) ? null : text;

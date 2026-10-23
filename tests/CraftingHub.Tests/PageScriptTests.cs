@@ -133,6 +133,25 @@ public class PageScriptTests
     }
 
     [Fact]
+    public void A_card_counts_what_is_held_from_the_joined_material_list_when_the_fixed_list_carries_no_counts()
+    {
+        // The page joins the fixed list (materialsJson: no have, no hasEnough) with the counts sent apart into _mats.
+        var page = new PageScript();
+
+        page.OpenBench();
+        page.RecipeMsg("""[{ recipeKey: 'plank', name: 'Plank', canCraft: true, noteCategory: 1, materialsHave: '5', materialsJson: '[{"name":"Log","need":1}]', _mats: [{ name: 'Log', need: 1, have: 5, hasEnough: true }] }]""");
+        page.Show(View());
+
+        Assert.Equal("1/5", page.Text("cardPart('plank', '.cc-mat').textContent"));
+        Assert.Equal("Plank", page.Text("cardPart('plank', '.cc-card-name').textContent"));
+
+        page.RecipeMsg("""[{ recipeKey: 'plank', name: 'Plank', canCraft: false, noteCategory: 1, materialsHave: '0', materialsJson: '[{"name":"Log","need":1}]', _mats: [{ name: 'Log', need: 1, have: 0, hasEnough: false }] }]""");
+
+        Assert.Equal("1/0", page.Text("cardPart('plank', '.cc-mat').textContent"));
+        Assert.Equal("Short: Log 1", page.Text("cardPart('plank', '.cc-card-st').textContent"));
+    }
+
+    [Fact]
     public void With_Stacking_a_recipe_whose_materials_are_all_owned_can_be_made_even_when_the_game_says_not()
     {
         var page = BenchWithRecipes();

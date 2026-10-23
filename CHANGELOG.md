@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.8
+
+- Works with the 1.1.19611 workbench: recipes in the queue, on cards and in messages show their names again instead of numbers, and each material's count held is read correctly.
+- Made for Survival Log 1.1.19611.
+
 ## 0.9.7
 
 - Colors: a card for something that can be dyed has a row of color dots under its materials, the same colors the game's own dye bar offers, each with how much of that dye you have. Pick one and Add, the bell and a click on the card's picture or name use that color; the striped dot is the plain version.
