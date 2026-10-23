@@ -1550,6 +1550,20 @@ public class PageScriptTests
     }
 
     [Fact]
+    public void The_item_a_card_or_a_queue_order_makes_is_tagged_for_its_item_tooltip()
+    {
+        var page = BenchWithRecipes();
+
+        page.Show(View(TwoOrders, outlook: TwoOrdersOutlook));
+
+        Assert.Equal("Plank", page.Text("cardPart('plank', '.cc-card-ic').getAttribute('data-slip-name')"));
+        Assert.Equal("Plank", page.Text("cardPart('plank', '.cc-card-name').getAttribute('data-slip-name')"));
+        Assert.Equal("Plank", page.Text("cardPart('plank', '.cc-card-name').getAttribute('data-slip-tip')"));
+        Assert.Equal("Crate", page.Text("queueRow(0).querySelector('.cc-qname').getAttribute('data-slip-name')"));
+        Assert.Equal("Crate", page.Text("queueRow(0).querySelector('.cc-qic').getAttribute('data-slip-name')"));
+    }
+
+    [Fact]
     public void Without_Info_Pack_the_hub_shows_its_own_tooltip_after_a_short_wait_and_hides_it_when_the_mouse_moves_off()
     {
         var page = BenchWithRecipes();

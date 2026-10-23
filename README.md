@@ -21,7 +21,7 @@ A workbench in Survival Log only takes materials from the storages linked to it,
 - **Clear**: empties the queue (shown when the queue is not running).
 - **Closing the workbench pauses the queue**: the game cancels a craft when its window closes, so the queue waits instead. Open any workbench and, after about a second, it carries on there where it left off. You walk to the workbench yourself. Crafts the game finished before the close are counted, so they are not made twice.
 - **Keep in stock**: the bell on a card keeps 1 of what that recipe makes in your home, and you raise the count from there. A kept card's bell lights up and shows the count; press it again to stop keeping it. The Keep in stock tab beside the Queue tab shows every item this save keeps, how many your home holds against the count, - and + to change the count, and an x to stop keeping it.
-- **Tooltips**: point at a material on a card for its name, or at the bell, the amount, its - and +, or the stamina figures for what they do. With [Info Pack](https://www.nexusmods.com/survivallog/mods/81) 0.8.5 or newer installed, Info Pack draws these tooltips, and a material gets the full item tooltip.
+- **Tooltips**: point at a card's picture or name, a queued order, or a material on a card for the item's name, or at the bell, the amount, its - and +, or the stamina figures for what they do. With [Info Pack](https://www.nexusmods.com/survivallog/mods/81) 0.8.5 or newer installed, Info Pack draws these tooltips, and items get the full item tooltip.
 - **Topping up**: each time you open a workbench, it counts what your home holds of each kept item and queues the crafts that bring it back up to its count. With `AutoStart` on and nothing else in the queue, the queue starts by itself.
 - **Stamina**: the queue column shows how much stamina you have and how much the queued orders take ("queue needs 18"), with a bar of one against the other, and each card shows the stamina one craft of it takes. The queue's figure leaves out the intermediates made on the way, so the real cost can be higher. When you are out of stamina, a bar across the queue column says so and the count reads "(out)".
 - **Status line**: the queue column says what is crafting now, what was topped up, and why a run stopped.
@@ -93,7 +93,7 @@ Kept counts belong to the save you are playing. They are stored in `BepInEx\conf
 - The [BepInEx Pack for Survival Log](https://www.nexusmods.com/survivallog/mods/12), the BepInEx 6 (IL2CPP) build for the game.
 - Not together with BetterCrafting. Both change which storages a workbench uses; remove BetterCrafting before installing this. While BetterCrafting is installed, BepInEx does not load Crafting Hub, and the Mod Manager lists BetterCrafting under DOES NOT WORK WITH.
 - Optional: [Exiled's Toolkit](https://github.com/AnExiledDev/SurvivalLog-ExiledToolkit) 0.4.0 or newer. With it, settings changed on the Mod Manager's Mods screen take effect without restarting the game. Without it, they take effect at the next game start.
-- Optional: [Info Pack](https://www.nexusmods.com/survivallog/mods/81) 0.8.5 or newer. With it, a material on a card shows the full item tooltip. Without it, Crafting Hub shows the material's name in a tooltip of its own.
+- Optional: [Info Pack](https://www.nexusmods.com/survivallog/mods/81) 0.8.5 or newer. With it, recipes, queued orders and materials show the full item tooltip. Without it, Crafting Hub shows the item's name in a tooltip of its own.
 
 ## Install
 
@@ -116,7 +116,7 @@ Settings live in `BepInEx\config\com.dev.survivallog.craftinghub.cfg`, created t
 
 Tested on Survival Log 1.1.19131 with BepInEx `6.0.0-be.788`.
 
-Check `BepInEx\LogOutput.log` for `===== Crafting Hub 0.9.4 started`, followed by `workbenches use every home storage` and `intermediates up to 4 deep, marks on, keep stocked on, auto start on, resume on reopen on, other workbenches on` (the words change with your settings, and a setting changed on the Mods screen writes them again). The same lines, plus every step of every run and why it stopped, is in `BepInEx\crafting-hub.log`, which survives restarts. When that file passes 1 MB, it is cut down to its newest part at the next game start.
+Check `BepInEx\LogOutput.log` for `===== Crafting Hub 0.9.5 started`, followed by `workbenches use every home storage` and `intermediates up to 4 deep, marks on, keep stocked on, auto start on, resume on reopen on, other workbenches on` (the words change with your settings, and a setting changed on the Mods screen writes them again). The same lines, plus every step of every run and why it stopped, is in `BepInEx\crafting-hub.log`, which survives restarts. When that file passes 1 MB, it is cut down to its newest part at the next game start.
 
 If the workbench looks like the game's own, check that BetterCrafting is not in `BepInEx\plugins`: BepInEx skips Crafting Hub while it is there, and `LogOutput.log` says so.
 

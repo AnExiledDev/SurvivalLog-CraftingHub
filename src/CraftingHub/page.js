@@ -607,6 +607,14 @@
     return node;
   }
 
+  // An item: its name as the tip, and the name again for Info Pack to find the item by.
+  function itemTip(node, name) {
+    tip(node, name);
+    if (name) node.setAttribute('data-slip-name', name);
+
+    return node;
+  }
+
   function tipOf(node) {
     for (var element = node; element && element.getAttribute; element = element.parentElement) {
       if (element.hasAttribute('data-slip-tip')) return element;
@@ -1531,6 +1539,8 @@
     var costNode;
 
     node.setAttribute('data-key', key);
+    itemTip(icon, r.name);
+    itemTip(name, r.name);
     icon.appendChild(picture(doc, r.icon));
     if (yieldOf(key) > 1) icon.appendChild(el(doc, 'span', 'cc-yield', 'x' + yieldOf(key)));
     if (r.isNew) name.appendChild(el(doc, 'span', 'cc-new', 'NEW'));
@@ -1577,8 +1587,7 @@
     var isHit = hits.indexOf(m.name) >= 0;
     var node = el(doc, 'span', 'cc-mat ' + materialLook(m, amount, byKey) + (isHit ? ' hit' : ''));
 
-    tip(node, m.name);
-    if (m.name) node.setAttribute('data-slip-name', m.name);
+    itemTip(node, m.name);
     node.appendChild(picture(doc, m.icon));
     node.appendChild(el(doc, 'b', null, String((m.need || 0) * amount)));
     node.appendChild(el(doc, 'small', null, '/' + (m.have || 0)));
@@ -1788,6 +1797,7 @@
     var costNode = cost === null ? null : el(doc, 'span', 'cc-qcost', String(cost * crafts));
 
     row.setAttribute('data-index', index);
+    itemTip(name, order.name);
     tip(handle, say('dragTip'));
     handle.addEventListener('mousedown', function (e) {
       e.preventDefault();
@@ -1804,7 +1814,7 @@
     if (look) main.appendChild(el(doc, 'div', 'cc-qst cc-st-' + look, order.state === 'ready' ? say('ready') : order.note));
     if (isActive) main.appendChild(progressBar(win));
     row.appendChild(handle);
-    row.appendChild(picture(doc, icons.byKey[order.key], 'cc-qic'));
+    row.appendChild(itemTip(picture(doc, icons.byKey[order.key], 'cc-qic'), order.name));
     row.appendChild(main);
     // Counts from the last amount asked for, so a second click before the plugin's answer redraws the row still adds.
     row.appendChild(stepper(doc, crafts, function (step) {

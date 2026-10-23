@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.5
+
+- Point at a card's picture or name, or at an order in the queue, for a tooltip of the item it makes (the full item tooltip with Info Pack 0.8.5 or newer).
+- Made for Survival Log 1.1.19131.
+
 ## 0.9.4
 
 - Fixed: the stamina meter, the queue's stamina need and the stamina cost on cards never showed.
