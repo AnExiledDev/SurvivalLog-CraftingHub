@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.9.3
+
+The workbench screen has a new look in the gold style of the other hubs.
+
+- Recipe cards sit two to a row, with materials on their own line as need/have and the stamina a craft takes beside Add.
+- The bell on a card keeps that item in stock and shows the kept count. Kept items have their own tab beside the queue.
+- The queue column shows how much stamina the queued orders take against what you have. Each order shows its own stamina cost. Intermediates made on the way are not counted in this figure.
+- The materials list folds to a line of what is short; click it to see the whole list.
+- The up and down arrows on queue orders are gone; drag an order by its handle to move it.
+- Shorter filter names: Can make, Parts first, Kept.
+- Made for Survival Log 1.1.19131.
+
 ## 0.9.2
 
 An order in the craft queue counts down by one as each craft of a batch finishes, and leaves the queue with its last craft. Before, it kept its full count until the whole batch was done, so "Materials for the whole queue" showed you short of materials the batch had already used. Crafts finished before you press Stop now come off the order too.

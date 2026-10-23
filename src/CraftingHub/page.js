@@ -31,8 +31,6 @@
   var GLYPH = {
     open: String.fromCharCode(0x25bc),
     closed: String.fromCharCode(0x25b6),
-    up: String.fromCharCode(0x25b2),
-    down: String.fromCharCode(0x25bc),
     handle: String.fromCharCode(0x2630),
     minus: String.fromCharCode(0x2212),
     times: String.fromCharCode(0xd7),
@@ -52,10 +50,10 @@
   // each call.
   var ENGLISH = {
     filterAll: 'All',
-    filterNow: 'Can make now',
-    filterVia: 'Needs parts first',
+    filterNow: 'Can make',
+    filterVia: 'Parts first',
     filterShort: 'Short',
-    filterKept: 'Kept in stock',
+    filterKept: 'Kept',
     oneLess: 'One less',
     oneMore: 'One more',
     locked: 'Locked',
@@ -69,7 +67,7 @@
     keepInStock: 'Keep in stock',
     keepInStockAside: 'topped up when you open a workbench',
     craftQueue: 'Craft queue',
-    materials: 'Materials for the whole queue',
+    materials: 'Materials',
     materialsAside: 'need / you have',
     countOf: '{0} of {1}',
     noMatch: 'No recipes match "{0}".',
@@ -79,8 +77,6 @@
     staminaCost: '{0} stamina',
     add: 'Add',
     addTip: 'Add this many crafts to the queue',
-    keep: 'Keep',
-    keepN: 'Keep {0}',
     keepTip: 'Keep {0} of this in your home; opening any workbench queues the crafts to top it back up',
     keepStopTip: 'Stop keeping this in stock',
     queueEmptyHint: 'The queue is empty. Use Add on any recipe.',
@@ -92,8 +88,6 @@
     staminaOut: '{0} (out)',
     dragTip: 'Drag to change the order',
     ready: 'Ready',
-    moveUp: 'Move up',
-    moveDown: 'Move down',
     removeTip: 'Remove from the queue',
     craftOne: '{0} craft',
     craftMany: '{0} crafts',
@@ -115,10 +109,17 @@
     clearTip: 'Empty the queue',
     queueIsEmpty: 'Queue is empty',
     craftQueueTip: 'Craft everything in the queue, making intermediates as needed',
-    nothingKept: 'Nothing kept in stock. Use Keep on any recipe.',
+    nothingKept: 'Nothing kept in stock. Use the bell on any recipe.',
     unkeepTip: 'Stop keeping {0} in stock',
     craftChain: 'Craft with intermediates',
-    craftChainTip: 'Make the missing intermediates first, then this, using the amount set on its recipe card'
+    craftChainTip: 'Make the missing intermediates first, then this, using the amount set on its recipe card',
+    queueTab: 'Queue',
+    queueNeeds: 'queue needs {0}',
+    queueNeedsTip: 'Stamina the queued orders take, not counting the intermediates made on the way',
+    shortCount: '{0} short',
+    allCovered: 'All covered',
+    showAll: 'show all {0}',
+    materialsTip: 'Show or hide every material the queue uses'
   };
 
   // The plugin's order states, as the colours the list uses for the same meaning.
@@ -244,7 +245,9 @@
       recipesSig: null,
       recipeVersion: 0,
       mats: {},
-      icons: null
+      icons: null,
+      matsOpen: false,
+      queueTab: 'queue'
     };
     selectedKey = '';
     wrapRenderer(win);
@@ -389,7 +392,7 @@
       '.combined-panel.cc-hub .notes-section{display:none!important}',
       '.combined-panel.cc-hub:not(.no-notes){min-height:820px}',
       '.combined-panel.cc-hub.no-notes #cc-mid{display:none}',
-      '.combined-panel.cc-hub .workbench-section{border-right:1px solid rgba(255,193,7,.10)}',
+      '.combined-panel.cc-hub .workbench-section{border-right:1px solid rgba(220,188,120,.11)}',
       '.backpack-panel.cc-tabbed>.workbench-section{width:auto;align-self:stretch;border-right:none;border-radius:10px}',
       '.backpack-panel.cc-tabbed:not(.cc-bench-view)>.workbench-section{display:none}',
       '.backpack-panel.cc-tabbed>.workbench-section>h2{display:none}',
@@ -404,124 +407,163 @@
       '.backpack-panel.cc-bench-view .left-tab.active:not(#cc-tab-bench){color:var(--text-dim);background:rgba(8,8,10,.55);border-color:rgba(255,255,255,.10);box-shadow:none;cursor:pointer}',
       '.backpack-panel.cc-tabbed+.combined-panel #cc-mid{border-top-left-radius:14px;border-bottom-left-radius:14px}',
       '.backpack-panel.cc-tabbed+.combined-panel.no-notes #cc-queue{border-radius:14px}',
-      '.cc-col{display:flex;flex-direction:column;min-height:0;box-sizing:border-box;padding:14px 16px;font-size:13px;color:#ddd;overflow:hidden}',
-      '#cc-mid{width:660px;flex:none;border-right:1px solid rgba(255,193,7,.10);background:rgba(0,0,0,.18)}',
-      '#cc-queue{width:400px;flex:none;background:rgba(0,0,0,.12);border-top-right-radius:14px;border-bottom-right-radius:14px}',
+      '.cc-col{display:flex;flex-direction:column;min-height:0;box-sizing:border-box;padding:14px 16px;font-size:13px;color:#f0e8d8;overflow:hidden}',
+      '#cc-mid{width:680px;flex:none;border-right:1px solid rgba(220,188,120,.11);background:rgba(30,24,18,.45)}',
+      '#cc-queue{width:420px;flex:none;background:rgba(30,24,18,.38);border-top-right-radius:14px;border-bottom-right-radius:14px}',
       '.cc-col button{font-family:inherit}',
-      '.cc-title{display:flex;align-items:center;gap:8px;margin:0 0 10px;font-size:17px;font-weight:700;color:#ffe6a8;letter-spacing:.5px;flex:none}',
+      '.cc-title{display:flex;align-items:center;gap:10px;margin:0 0 12px;font-size:16px;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:#FFC83A;text-shadow:0 0 12px rgba(255,200,58,.35);flex:none}',
+      '.cc-title::before{content:"";width:4px;height:17px;background:#FFC83A;box-shadow:0 0 8px rgba(255,200,58,.35);flex:none}',
+      '.cc-title .cc-dim{margin-left:auto;letter-spacing:0;text-transform:none;text-shadow:none}',
       '.cc-grow{flex:1}',
-      '.cc-dim{color:#999;font-size:12px;font-weight:400}',
-      '.cc-search{display:flex;align-items:center;gap:8px;background:rgba(0,0,0,.45);border:1px solid rgba(255,193,7,.35);border-radius:9px;padding:0 12px;height:40px;flex:none}',
-      '.cc-search input{flex:1;min-width:0;background:transparent;border:0;outline:0;color:#fff;font-size:15px;font-family:inherit}',
-      '.cc-search input::placeholder{color:#888}',
-      '.cc-search-clear{border:0;background:transparent;color:#aaa;cursor:pointer;font-size:14px}',
+      '.cc-dim{color:#a89a82;font-size:12px;font-weight:400}',
+      '.cc-search{display:flex;align-items:center;gap:8px;background:rgba(20,14,8,.5);border:1px solid rgba(220,188,120,.20);border-radius:4px;padding:0 12px;height:36px;margin-top:10px;flex:none}',
+      '.cc-search:focus-within{border-color:rgba(255,200,58,.6)}',
+      '.cc-search::before{content:"";width:9px;height:9px;border:2px solid #a89a82;border-radius:50%;flex:none}',
+      '.cc-search input{flex:1;min-width:0;background:transparent;border:0;outline:0;color:#f0e8d8;font-size:14px;font-family:inherit}',
+      '.cc-search input::placeholder{color:#7a6e5a}',
+      '.cc-search-clear{border:0;background:transparent;color:#a89a82;cursor:pointer;font-size:14px}',
       '.cc-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;flex:none}',
       '.cc-chips.cc-slide{flex-wrap:nowrap;overflow-x:auto;overflow-y:hidden}',
       '.cc-slide::-webkit-scrollbar{height:3px}',
-      '.cc-slide::-webkit-scrollbar-thumb{background:rgba(255,193,7,.3);border-radius:2px}',
-      '.cc-fchip{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:16px;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.04);color:#ccc;cursor:pointer;font-size:12px;flex:none;white-space:nowrap}',
-      '.cc-fchip .n{font-size:11px;color:#1b1406;background:#ffc107;border-radius:9px;padding:0 6px;font-weight:700}',
-      '.cc-fchip .n.z{background:#444;color:#aaa}',
-      '.cc-fchip.on{background:linear-gradient(180deg,rgba(107,87,38,.9),rgba(72,56,26,.9));border-color:rgba(255,193,7,.6);color:#fff3cf}',
+      '.cc-slide::-webkit-scrollbar-thumb{background:rgba(255,200,58,.3);border-radius:2px}',
+      '.cc-fchip{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:4px;border:1px solid rgba(220,188,120,.20);background:rgba(255,240,210,.04);color:#cbbfa8;cursor:pointer;font-size:13px;flex:none;white-space:nowrap}',
+      '.cc-fchip:hover{border-color:rgba(255,200,58,.6);color:#fff}',
+      '.cc-fchip .n{font-size:11px;min-width:18px;text-align:center;padding:0 5px;border-radius:8px;background:rgba(255,240,210,.1);color:#cbbfa8}',
+      '.cc-fchip.on{color:#FFC83A;background:rgba(255,200,58,.13);border-color:#FFC83A;box-shadow:0 0 12px rgba(255,200,58,.16)}',
+      '.cc-fchip.on .n{background:#FFC83A;color:#2a1f10;font-weight:700}',
+      '.cc-fchip .n.z{opacity:.6}',
+      '#cc-filters{margin-top:0}',
+      '.cc-slide .cc-fchip{padding:3px 10px;font-size:12px;border-color:rgba(220,188,120,.11);background:transparent;color:#a89a82}',
+      '.cc-slide .cc-fchip .n{background:transparent;color:#7a6e5a;padding:0;min-width:0}',
+      '.cc-slide .cc-fchip.on{color:#FFC83A;border-color:rgba(255,200,58,.6);background:rgba(255,200,58,.08);box-shadow:none}',
+      '.cc-slide .cc-fchip.on .n{background:transparent;color:#FFC83A}',
       '.cc-list{flex:1;min-height:0;overflow-y:auto;margin-top:10px;padding-right:6px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 8px;align-content:start}',
-      '.cc-scroll::-webkit-scrollbar{width:6px}',
-      '.cc-scroll::-webkit-scrollbar-thumb{background:rgba(255,193,7,.3);border-radius:3px}',
-      '.cc-ghead{grid-column:1/-1;display:flex;align-items:center;gap:8px;padding:5px 10px;border-radius:6px;background:linear-gradient(90deg,#6b5726,#48381a);border-left:3px solid #ffc107;color:#fff3cf;font-weight:700;cursor:pointer;font-size:13px}',
-      '.cc-arrow{font-size:10px;opacity:.8;width:12px}',
-      '.cc-gcount{margin-left:auto;font-size:12px;font-weight:600;color:#ffe6a8}',
-      '.cc-card{display:grid;grid-template-columns:40px minmax(0,1fr);gap:5px 8px;align-items:start;align-content:space-between;padding:6px 8px;background:rgba(8,8,10,.55);border:1px solid rgba(255,255,255,.07);border-left:3px solid #7ce087;border-radius:8px;min-width:0}',
-      '.cc-card.cc-k-via{border-left-color:#e0b45a}',
-      '.cc-card.cc-k-short{border-left-color:#e08b6a}',
-      '.cc-card.cc-k-locked{border-left-color:#5f5f66;opacity:.7}',
+      '.cc-scroll::-webkit-scrollbar{width:5px}',
+      '.cc-scroll::-webkit-scrollbar-thumb{background:rgba(255,200,58,.3);border-radius:3px}',
+      '.cc-ghead{grid-column:1/-1;display:flex;align-items:center;gap:8px;padding:8px 2px 2px;color:#cbbfa8;font-weight:700;cursor:pointer;font-size:12px;letter-spacing:2px;text-transform:uppercase}',
+      '.cc-ghead:hover{color:#fff}',
+      '.cc-gline{flex:1;height:1px;background:linear-gradient(90deg,rgba(220,188,120,.20),transparent)}',
+      '.cc-arrow{font-size:9px;color:#7a6e5a;width:10px}',
+      '.cc-gcount{font-size:12px;font-weight:400;letter-spacing:0;text-transform:none;color:#7a6e5a}',
+      '.cc-card{display:grid;grid-template-columns:44px minmax(0,1fr);gap:6px 10px;align-items:center;align-content:space-between;padding:8px 10px;background:rgba(70,58,44,.55);border:1px solid rgba(220,188,120,.11);border-radius:4px;min-width:0}',
+      '.cc-card:hover{background:rgba(84,70,52,.7);border-color:rgba(255,200,58,.35)}',
+      '.cc-card.cc-k-locked{opacity:.55}',
       '.cc-card-ic,.cc-card-name{cursor:pointer}',
       '.cc-card.cc-k-locked .cc-card-ic,.cc-card.cc-k-locked .cc-card-name{cursor:default}',
-      '.cc-card.cc-sel{border-color:rgba(255,193,7,.6)}',
-      '.cc-card-ic{position:relative;width:38px;height:38px;background:linear-gradient(180deg,#131316,#1d1d20);border-radius:6px;display:flex;align-items:center;justify-content:center;border:1px solid #000}',
-      '.cc-card-ic img{width:32px;height:32px;object-fit:contain}',
-      '.cc-yield{position:absolute;right:-4px;bottom:-4px;background:#000;color:#ffe6a8;font-size:11px;font-weight:700;border-radius:4px;padding:0 4px;border:1px solid rgba(255,193,7,.4)}',
+      '.cc-card.cc-sel{border-color:#FFC83A;box-shadow:inset 0 0 0 1px rgba(255,200,58,.25)}',
+      '.cc-card-ic{position:relative;width:44px;height:44px;background:rgba(10,8,6,.55);border-radius:4px;display:flex;align-items:center;justify-content:center;border:1px solid rgba(0,0,0,.5)}',
+      '.cc-card-ic img{width:36px;height:36px;object-fit:contain}',
+      '.cc-yield{position:absolute;right:-4px;bottom:-4px;background:#FFC83A;color:#2a1f10;font-size:11px;font-weight:700;border-radius:3px;padding:0 4px}',
       '.cc-card-head{min-width:0}',
       '.cc-card-name{font-weight:700;font-size:14px;line-height:18px;color:#fff;overflow-wrap:break-word}',
-      '.cc-new{display:inline-block;font-size:10px;font-weight:700;color:#fff;background:linear-gradient(180deg,#ff6a3d,#e5382b);border-radius:4px;padding:1px 5px;margin-left:6px;vertical-align:2px}',
-      '.cc-card-sub{display:flex;align-items:center;gap:6px;min-height:20px;margin-top:2px}',
-      '.cc-card-st{flex:1;min-width:0;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
-      '.cc-st-now{color:#7ce087}.cc-st-via{color:#e0b45a}.cc-st-short{color:#e08b6a}.cc-st-locked{color:#8a8a92}',
-      '.cc-cost{flex:none;font-size:11px;color:#9fc7e8;white-space:nowrap}',
-      '.cc-mats{display:flex;flex-wrap:wrap;gap:4px}',
-      '.cc-mat{display:inline-flex;align-items:center;gap:3px;background:rgba(255,255,255,.05);border-radius:5px;padding:1px 6px 1px 2px;font-size:12px;font-weight:600}',
+      '.cc-new{display:inline-block;font-size:10px;font-weight:700;color:#2a1f10;background:#FFC83A;border-radius:3px;padding:0 5px;margin-left:6px;vertical-align:2px}',
+      '.cc-card-st{display:flex;align-items:center;gap:6px;min-width:0;margin-top:1px;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+      '.cc-card-st::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor;flex:none}',
+      '.cc-st-now{color:#8cc56a}.cc-st-via{color:#e9b955}.cc-st-short{color:#e0876a}.cc-st-locked{color:#a89a82}',
+      '.cc-cost{display:inline-flex;align-items:center;gap:3px;flex:none;font-size:12px;color:#a89a82;white-space:nowrap}',
+      '.cc-cost::before,.cc-qcost::before{content:"";width:12px;height:12px;background:#e9b955;-webkit-mask:url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27%3E%3Cpath d=%27M13 2 4 14h6l-1 8 9-12h-6z%27/%3E%3C/svg%3E") center/contain no-repeat;mask:url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27%3E%3Cpath d=%27M13 2 4 14h6l-1 8 9-12h-6z%27/%3E%3C/svg%3E") center/contain no-repeat;flex:none}',
+      '.cc-mats{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:4px 10px}',
+      '.cc-mats:empty{display:none}',
+      '.cc-mat{display:inline-flex;align-items:center;gap:3px;font-size:12px;color:#cbbfa8}',
       '.cc-mat img{width:20px;height:20px;object-fit:contain}',
-      '.cc-mat.ok{color:#7ce087}.cc-mat.via{color:#e0b45a}.cc-mat.no{color:#e08b6a}',
-      '.cc-mat.hit{box-shadow:0 0 0 1px #ffc107}',
-      '.cc-card-foot{grid-column:1/-1;display:flex;align-items:center;gap:6px;min-width:0}',
-      '.cc-card-foot .cc-mats{flex:1;min-width:0}',
-      '.cc-pin{border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.04);color:#aaa;border-radius:6px;font-size:11px;padding:2px 7px;cursor:pointer;flex:none;white-space:nowrap}',
-      '.cc-pin.on{border-color:rgba(255,193,7,.6);color:#ffd36b;background:rgba(255,193,7,.12)}',
-      '.cc-add{background:linear-gradient(180deg,rgba(168,118,28,.94),rgba(110,76,16,.96));border:1px solid rgba(255,214,120,.5);color:#fff4d6;font-weight:700;border-radius:7px;padding:4px 12px;cursor:pointer;font-size:12px}',
-      '.cc-add[disabled],.cc-pin[disabled]{filter:grayscale(1);opacity:.4;cursor:default}',
-      '.cc-stepper{display:inline-flex;align-items:center;border:1px solid rgba(255,193,7,.35);border-radius:7px;overflow:hidden;background:rgba(0,0,0,.35);flex:none}',
-      '.cc-stepper button{width:22px;height:22px;border:0;background:rgba(255,255,255,.06);color:#ffd36b;font-size:14px;cursor:pointer;line-height:1;padding:0}',
-      '.cc-stepper button:hover{background:rgba(255,193,7,.18)}',
-      '.cc-val{min-width:28px;text-align:center;font-weight:700;color:#fff;font-size:12px}',
-      '.cc-empty{grid-column:1/-1;text-align:center;color:#888;padding:30px}',
-      '.cc-pill{font-size:12px;padding:2px 10px;border-radius:20px;font-weight:600}',
-      '.cc-pill.idle{background:rgba(255,255,255,.08);color:#bbb}',
-      '.cc-pill.running{background:rgba(124,224,135,.16);color:#7ce087;border:1px solid rgba(124,224,135,.35)}',
-      '.cc-pill.paused{background:rgba(224,180,90,.16);color:#e0b45a;border:1px solid rgba(224,180,90,.4)}',
-      '.cc-banner{background:rgba(224,180,90,.12);border:1px solid rgba(224,180,90,.4);color:#f1d79b;border-radius:8px;padding:7px 10px;font-size:12px;margin-bottom:8px}',
-      '.cc-banner.bad{background:rgba(224,139,106,.12);border-color:rgba(224,139,106,.4);color:#f2c0ad}',
-      '.cc-outbar{flex:none;font-size:13px;font-weight:700}',
-      '.cc-stamina{font-size:12px;font-weight:600;color:#9fc7e8;white-space:nowrap}',
+      '.cc-mat b{font-weight:600;color:#f0e8d8}',
+      '.cc-mat small{color:#7a6e5a;font-size:11px}',
+      '.cc-mat.via b{color:#e9b955}.cc-mat.no b{color:#e0876a}',
+      '.cc-mat.hit{box-shadow:0 0 0 1px #FFC83A;border-radius:3px}',
+      '.cc-card-foot{grid-column:1/-1;display:flex;align-items:center;gap:6px;min-width:0;padding-top:6px;border-top:1px solid rgba(220,188,120,.11)}',
+      '.cc-pin{position:relative;width:28px;height:28px;display:flex;align-items:center;justify-content:center;border:1px solid rgba(220,188,120,.20);background:transparent;color:#7a6e5a;border-radius:4px;cursor:pointer;flex:none;padding:0}',
+      '.cc-pin i{width:14px;height:14px;background:currentColor;-webkit-mask:url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27%3E%3Cpath d=%27M12 2a6 6 0 0 0-6 6v4l-2 3v1h16v-1l-2-3V8a6 6 0 0 0-6-6zm-2 16a2 2 0 0 0 4 0z%27/%3E%3C/svg%3E") center/contain no-repeat;mask:url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27%3E%3Cpath d=%27M12 2a6 6 0 0 0-6 6v4l-2 3v1h16v-1l-2-3V8a6 6 0 0 0-6-6zm-2 16a2 2 0 0 0 4 0z%27/%3E%3C/svg%3E") center/contain no-repeat}',
+      '.cc-pin:hover{color:#f0e8d8}',
+      '.cc-pin.on{color:#FFC83A;border-color:rgba(255,200,58,.5)}',
+      '.cc-pin em{position:absolute;top:-7px;right:-7px;font-style:normal;font-size:10px;font-weight:700;padding:0 4px;border-radius:3px;background:#FFC83A;color:#2a1f10}',
+      '.cc-add{height:28px;padding:0 14px;border-radius:4px;border:1px solid rgba(255,200,58,.6);background:rgba(255,200,58,.12);color:#FFC83A;font-weight:700;font-size:13px;cursor:pointer}',
+      '.cc-add:hover{background:rgba(255,200,58,.22)}',
+      '.cc-add[disabled],.cc-pin[disabled]{filter:grayscale(1);opacity:.35;cursor:default}',
+      '.cc-stepper{display:inline-flex;align-items:center;height:28px;border:1px solid rgba(220,188,120,.20);border-radius:4px;overflow:hidden;background:rgba(20,14,8,.5);flex:none}',
+      '.cc-stepper button{width:24px;height:100%;border:0;background:rgba(255,240,210,.06);color:#cbbfa8;font-size:14px;cursor:pointer;line-height:1;padding:0}',
+      '.cc-stepper button:hover{background:rgba(255,200,58,.18);color:#FFC83A}',
+      '.cc-val{min-width:26px;text-align:center;font-weight:700;color:#fff;font-size:13px}',
+      '.cc-empty{grid-column:1/-1;text-align:center;color:#a89a82;padding:30px}',
+      '.cc-stat{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:4px;background:rgba(20,14,8,.45);border:1px solid rgba(220,188,120,.11);flex:none}',
+      '.cc-pill{font-size:12px;padding:2px 9px;border-radius:3px;font-weight:700;flex:none}',
+      '.cc-pill.idle{background:rgba(255,240,210,.1);color:#cbbfa8}',
+      '.cc-pill.running{background:#8cc56a;color:#1d2a12}',
+      '.cc-pill.paused{background:#e9b955;color:#2a1f10}',
+      '.cc-sta{flex:1;min-width:0}',
+      '.cc-sta-t{display:flex;align-items:center;gap:8px;font-size:12px;color:#a89a82}',
+      '.cc-stamina{font-size:12px;font-weight:600;color:#f0e8d8;white-space:nowrap}',
       '.cc-stamina:empty{display:none}',
-      '.cc-stamina.cc-warn{color:#ffd0c2;background:rgba(224,139,106,.25);border:1px solid #e08b6a;border-radius:6px;padding:1px 8px}',
-      '.cc-hint{font-size:12px;color:#888;margin:0 0 8px}',
+      '.cc-stamina.cc-warn{color:#ffd0c2;background:rgba(224,135,106,.25);border:1px solid #e0876a;border-radius:3px;padding:0 6px}',
+      '.cc-qneed{white-space:nowrap}',
+      '.cc-meter{position:relative;height:6px;margin-top:4px;border-radius:3px;background:rgba(255,240,210,.08);overflow:hidden}',
+      '.cc-meter i,.cc-meter u,.cc-meter b{position:absolute;top:0;bottom:0;left:0;width:0}',
+      '.cc-meter i{background:linear-gradient(90deg,#6f9c4f,#8cc56a);border-radius:3px}',
+      '.cc-meter u{background:repeating-linear-gradient(135deg,rgba(255,200,58,.85) 0 3px,rgba(255,200,58,.45) 3px 6px)}',
+      '.cc-meter b{background:#e0876a}',
+      '.cc-meter.out i{background:#e0876a}',
+      '.cc-banner{background:rgba(233,185,85,.10);border:1px solid rgba(233,185,85,.4);color:#f1d79b;border-radius:4px;padding:8px 12px;font-size:12px;margin-top:8px}',
+      '.cc-banner.bad{background:rgba(224,135,106,.12);border-color:rgba(224,135,106,.45);color:#f4c9b8}',
+      '.cc-outbar{flex:none;font-size:13px;font-weight:700}',
+      '.cc-hint{font-size:12px;color:#a89a82;margin:8px 0 0;padding:0 2px}',
       '.cc-notes{flex:none}',
-      '.cc-qlist{flex:1 1 auto;min-height:110px;overflow-y:auto;display:flex;flex-direction:column;gap:5px;padding-right:4px}',
-      '.cc-qrow{display:flex;align-items:center;gap:6px;background:rgba(8,8,10,.55);border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:6px 7px;flex:none}',
-      '.cc-qrow.topup{border-left:2px dashed #e0b45a}',
-      '.cc-qrow.active{border-color:rgba(124,224,135,.55)}',
-      '.cc-qrow.short{border-color:rgba(224,139,106,.45)}',
+      '.cc-qtabs{margin-top:12px}',
+      '.cc-pane{flex:1 1 auto;min-height:0;display:flex;flex-direction:column}',
+      '.cc-qlist{flex:1 1 auto;min-height:110px;overflow-y:auto;display:flex;flex-direction:column;gap:5px;padding-right:4px;margin-top:10px}',
+      '.cc-qrow{position:relative;display:flex;align-items:center;gap:8px;background:rgba(70,58,44,.55);border:1px solid rgba(220,188,120,.11);border-radius:4px;padding:7px 8px 7px 6px;flex:none}',
+      '.cc-qrow.topup{border-left:2px dashed #e9b955}',
+      '.cc-qrow.active{border-color:rgba(140,197,106,.55);box-shadow:inset 3px 0 0 #8cc56a}',
+      '.cc-qrow.short{border-color:rgba(224,135,106,.45)}',
       '.cc-qrow.drag{opacity:.4}',
-      '.cc-qrow.drop{box-shadow:0 -2px 0 #ffc107}',
-      '.cc-num{width:16px;text-align:center;color:#888;font-size:12px}',
-      '.cc-handle{cursor:grab;color:#777;font-size:15px;padding:0 2px}',
-      '.cc-qic{width:28px;height:28px;object-fit:contain;flex:none}',
+      '.cc-qrow.drop{box-shadow:0 -2px 0 #FFC83A}',
+      '.cc-handle{cursor:grab;color:#7a6e5a;font-size:14px;padding:0 2px}',
+      '.cc-qic{width:36px;height:36px;object-fit:contain;flex:none}',
       '.cc-qmain{flex:1;min-width:0}',
-      '.cc-qname{font-weight:700;color:#fff;font-size:13px;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;overflow-wrap:break-word}',
-      '.cc-tag{display:inline-block;font-size:10px;font-weight:700;color:#1b1406;background:#e0b45a;border-radius:4px;padding:1px 6px;margin-left:6px;vertical-align:1px}',
-      '.cc-qsub{font-size:12px;color:#aaa}',
+      '.cc-qname{font-weight:700;color:#fff;font-size:14px;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;overflow-wrap:break-word}',
+      '.cc-tag{display:inline-block;font-size:10px;font-weight:700;color:#FFC83A;border:1px solid rgba(255,200,58,.5);border-radius:3px;padding:0 5px;margin-left:6px;vertical-align:1px}',
+      '.cc-qsub{font-size:12px;color:#a89a82}',
+      '.cc-qcost{display:inline-flex;align-items:center;gap:2px;margin-left:8px}',
       '.cc-qst{font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
-      '.cc-prog{height:5px;background:rgba(255,255,255,.08);border-radius:3px;overflow:hidden;margin-top:3px}',
-      '.cc-prog i{display:block;height:100%;width:100%;transform-origin:0 50%;transform:scaleX(0);transition:transform .5s linear;background:linear-gradient(90deg,#c08a1e,#ffc107)}',
+      '.cc-prog{height:4px;background:rgba(255,240,210,.08);border-radius:2px;overflow:hidden;margin-top:4px}',
+      '.cc-prog i{display:block;height:100%;width:100%;transform-origin:0 50%;transform:scaleX(0);transition:transform .5s linear;background:linear-gradient(90deg,#c08a1e,#FFC83A)}',
       '.cc-prog.paused i{background:linear-gradient(90deg,#7a6a44,#a99560)}',
-      '.cc-qmove{display:flex;flex-direction:column;gap:2px}',
-      '.cc-qmove button,.cc-x{width:22px;height:17px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.05);color:#ccc;border-radius:4px;cursor:pointer;font-size:9px;line-height:1;padding:0}',
-      '.cc-qmove button[disabled]{opacity:.3;cursor:default}',
-      '.cc-x{height:24px;width:24px;font-size:12px;color:#e8a593;flex:none}',
-      '.cc-sect{margin-top:10px;border-top:1px solid rgba(255,255,255,.08);padding-top:8px;flex:none}',
-      '.cc-sect h4{margin:0 0 5px;font-size:13px;color:#ffe6a8;display:flex;align-items:center;gap:6px;font-weight:700}',
-      '.cc-totwrap{max-height:150px;overflow-y:auto}',
+      '.cc-x{height:24px;width:24px;border:0;background:transparent;color:#7a6e5a;border-radius:4px;cursor:pointer;font-size:12px;line-height:1;padding:0;flex:none}',
+      '.cc-x:hover{color:#e0876a;background:rgba(224,135,106,.12)}',
+      '.cc-sect{margin-top:10px;border-top:1px solid rgba(220,188,120,.11);padding-top:10px;flex:none}',
+      '.cc-sect h4{margin:0;font-size:12px;color:#cbbfa8;display:flex;align-items:center;gap:8px;font-weight:700;letter-spacing:2px;text-transform:uppercase}',
+      '.cc-sect h4 .cc-dim{letter-spacing:0;text-transform:none}',
+      '.cc-fold{cursor:pointer}',
+      '.cc-fold:hover{color:#fff}',
+      '.cc-shorts{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}',
+      '.cc-shorts:empty{display:none}',
+      '.cc-short{display:inline-flex;align-items:center;gap:4px;font-size:12px;padding:2px 8px 2px 3px;border-radius:3px;color:#e0876a;background:rgba(224,135,106,.1);border:1px solid rgba(224,135,106,.35)}',
+      '.cc-short img{width:20px;height:20px;object-fit:contain}',
+      '.cc-totwrap{max-height:150px;overflow-y:auto;margin-top:6px}',
       '.cc-tot{width:100%;border-collapse:collapse;font-size:12px}',
-      '.cc-tot td{padding:2px 4px;border-bottom:1px solid rgba(255,255,255,.04)}',
+      '.cc-tot td{padding:3px 4px;border-bottom:1px solid rgba(220,188,120,.11);color:#cbbfa8}',
       '.cc-tot td.r{text-align:right;font-weight:700;width:56px}',
-      '.cc-tot tr.no td{color:#e08b6a}',
-      '.cc-tot img{width:18px;height:18px;vertical-align:-4px;object-fit:contain;margin-right:4px}',
-      '.cc-actions{display:flex;align-items:center;gap:10px;margin-top:10px;flex:none}',
-      '.cc-btn{background:linear-gradient(180deg,rgba(58,58,60,.9),rgba(38,38,40,.92));border:1px solid rgba(255,255,255,.14);color:#e6e6e6;border-radius:8px;padding:6px 12px;cursor:pointer;font-size:13px}',
+      '.cc-tot tr.no td{color:#e0876a}',
+      '.cc-tot td.cc-st-now{color:#8cc56a}',
+      '.cc-tot img{width:18px;height:18px;vertical-align:-4px;object-fit:contain;margin-right:5px}',
+      '.cc-actions{display:flex;align-items:center;gap:8px;margin-top:12px;flex:none}',
+      '.cc-actions .cc-dim{flex:1}',
+      '.cc-btn{height:34px;padding:0 14px;border-radius:4px;border:1px solid rgba(220,188,120,.20);background:linear-gradient(180deg,rgba(92,78,60,.9),rgba(66,55,42,.92));color:#f0e8d8;cursor:pointer;font-size:13px}',
+      '.cc-btn:hover{border-color:#FFC83A}',
       '.cc-btn[disabled]{opacity:.4;cursor:default}',
-      '.cc-go{background:linear-gradient(180deg,rgba(168,118,28,.94),rgba(110,76,16,.96));border:1px solid rgba(255,214,120,.55);color:#fff4d6;font-size:15px;font-weight:700;padding:10px 24px;border-radius:10px;cursor:pointer;letter-spacing:1px}',
-      '.cc-go[disabled]{filter:grayscale(.8);opacity:.5;cursor:default}',
-      '.cc-stop{background:linear-gradient(180deg,rgba(120,44,36,.94),rgba(78,28,22,.96));border:1px solid rgba(255,140,120,.45);color:#ffe2dc;font-size:15px;font-weight:700;padding:10px 22px;border-radius:10px;cursor:pointer}',
-      '.cc-keeps{display:flex;flex-direction:column;gap:4px;max-height:140px;overflow-y:auto}',
-      '.cc-keep{display:flex;align-items:center;gap:8px;background:rgba(8,8,10,.45);border-radius:7px;padding:3px 8px;flex:none}',
-      '.cc-keep img{width:24px;height:24px;object-fit:contain}',
-      '.cc-kname{font-size:12px;font-weight:600;color:#fff;width:100px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
-      '.cc-kbar{flex:1;height:7px;background:rgba(255,255,255,.08);border-radius:4px;overflow:hidden}',
-      '.cc-kbar i{display:block;height:100%;background:#7ce087}',
-      '.cc-kbar i.low{background:#e0b45a}',
-      '.cc-kval{font-size:12px;color:#ccc;width:56px;text-align:right}',
+      '.cc-go{height:48px;padding:0 28px;border-radius:4px;border:1px solid #ffd36a;background:linear-gradient(180deg,#ffd25a,#e8a91c);color:#2a1f10;font-size:17px;font-weight:800;letter-spacing:2px;text-transform:uppercase;box-shadow:0 0 16px rgba(255,200,58,.25);cursor:pointer}',
+      '.cc-go[disabled]{filter:grayscale(.8);opacity:.5;cursor:default;box-shadow:none}',
+      '.cc-stop{height:48px;padding:0 28px;border-radius:4px;border:1px solid rgba(224,135,106,.7);background:rgba(224,135,106,.14);color:#f4c9b8;font-size:17px;font-weight:800;letter-spacing:2px;text-transform:uppercase;cursor:pointer}',
+      '.cc-keeps{flex:1 1 auto;min-height:110px;display:flex;flex-direction:column;gap:5px;overflow-y:auto;margin-top:10px;padding-right:4px}',
+      '.cc-keep{display:flex;align-items:center;gap:10px;background:rgba(70,58,44,.55);border:1px solid rgba(220,188,120,.11);border-radius:4px;padding:6px 8px;flex:none}',
+      '.cc-keep img{width:32px;height:32px;object-fit:contain;flex:none}',
+      '.cc-kname{font-size:14px;font-weight:700;color:#fff;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+      '.cc-kbar{width:70px;flex:none;height:6px;background:rgba(255,240,210,.08);border-radius:3px;overflow:hidden}',
+      '.cc-kbar i{display:block;height:100%;background:#8cc56a}',
+      '.cc-kbar i.low{background:#e9b955}',
+      '.cc-kval{font-size:13px;color:#cbbfa8;width:52px;text-align:right;flex:none}',
       '.cc-panel{display:flex;flex-direction:column;gap:8px;margin-top:12px;font-size:12px;width:100%}',
       '.cc-panel:empty{display:none}',
       '.cc-row{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:8px}',
-      '.cc-plan{color:#e0b45a;text-align:center}',
+      '.cc-plan{color:#e9b955;text-align:center}',
       '.cc-panel .btn{padding:5px 14px;font-size:12px}'
     ].join('');
     doc.head.appendChild(style);
@@ -607,7 +649,7 @@
     return window.__craftinghubWords || ENGLISH;
   }
 
-  // say('keepN', 3) fills {0} with 3; a key the plugin's words lack falls back to English.
+  // say('shortN', 3) fills {0} with 3; a key the plugin's words lack falls back to English.
   function say(key) {
     var args = arguments;
     var text = words()[key] || ENGLISH[key] || key;
@@ -1035,8 +1077,8 @@
     search.appendChild(input);
     search.appendChild(clear);
     mid.appendChild(title);
-    mid.appendChild(search);
     mid.appendChild(filters);
+    mid.appendChild(search);
     mid.appendChild(groups);
     mid.appendChild(list);
 
@@ -1073,55 +1115,106 @@
     var doc = win.document;
     var column = el(doc, 'div', 'cc-col');
     var title = el(doc, 'div', 'cc-title');
-    var pill = el(doc, 'span', 'cc-pill idle');
-    var stamina = el(doc, 'span', 'cc-stamina');
     var outOfStamina = el(doc, 'div', 'cc-banner bad cc-outbar', say('outOfStamina'));
     var notes = el(doc, 'div', 'cc-notes');
+    var tabs = el(doc, 'div', 'cc-chips cc-qtabs');
+    var queuePane = el(doc, 'div', 'cc-pane');
     var list = el(doc, 'div', 'cc-qlist cc-scroll');
-    var totals = el(doc, 'div', 'cc-totwrap cc-scroll');
     var actions = el(doc, 'div', 'cc-actions');
+    var keepPane = el(doc, 'div', 'cc-pane');
     var keeps = el(doc, 'div', 'cc-keeps cc-scroll');
-    var keepSection = section(doc, say('keepInStock'), say('keepInStockAside'), keeps);
 
     column.id = 'cc-queue';
-    pill.id = 'cc-pill';
-    stamina.id = 'cc-stamina';
     outOfStamina.id = 'cc-stamina-out';
     outOfStamina.style.display = 'none';
     notes.id = 'cc-notes';
+    tabs.id = 'cc-qtabs';
+    queuePane.id = 'cc-qpane';
     list.id = 'cc-qlist';
-    totals.id = 'cc-totals';
     actions.id = 'cc-actions';
+    keepPane.id = 'cc-keepsect';
+    keepPane.style.display = 'none';
     keeps.id = 'cc-keeps';
-    keepSection.id = 'cc-keepsect';
     column.addEventListener('mousedown', holdUntilReleased, true);
     list.addEventListener('mousemove', function (e) { dragOver(win, e.target); });
     title.appendChild(el(doc, 'span', null, say('craftQueue')));
-    title.appendChild(el(doc, 'span', 'cc-grow'));
-    title.appendChild(stamina);
-    title.appendChild(pill);
+    queuePane.appendChild(list);
+    queuePane.appendChild(materialsSection(win));
+    keepPane.appendChild(keeps);
+    keepPane.appendChild(el(doc, 'div', 'cc-hint', say('keepInStockAside')));
     column.appendChild(title);
+    column.appendChild(statBox(doc));
     column.appendChild(outOfStamina);
     column.appendChild(notes);
-    column.appendChild(list);
-    column.appendChild(section(doc, say('materials'), say('materialsAside'), totals));
+    column.appendChild(tabs);
+    column.appendChild(queuePane);
+    column.appendChild(keepPane);
     column.appendChild(actions);
-    column.appendChild(keepSection);
 
     return column;
   }
 
-  function section(doc, heading, aside, body) {
+  // The queue's state, the stamina the player has against what the queued orders take, and a meter of the two.
+  function statBox(doc) {
+    var box = el(doc, 'div', 'cc-stat');
+    var pill = el(doc, 'span', 'cc-pill idle');
+    var reading = el(doc, 'div', 'cc-sta');
+    var line = el(doc, 'div', 'cc-sta-t');
+    var stamina = el(doc, 'span', 'cc-stamina');
+    var need = el(doc, 'span', 'cc-qneed');
+    var meter = el(doc, 'div', 'cc-meter');
+
+    box.id = 'cc-stat';
+    pill.id = 'cc-pill';
+    reading.id = 'cc-sta';
+    stamina.id = 'cc-stamina';
+    need.id = 'cc-qneed';
+    need.title = say('queueNeedsTip');
+    meter.id = 'cc-meter';
+    reading.style.display = 'none';
+    line.appendChild(stamina);
+    line.appendChild(el(doc, 'span', 'cc-grow'));
+    line.appendChild(need);
+    meter.appendChild(el(doc, 'i'));
+    meter.appendChild(el(doc, 'u'));
+    meter.appendChild(el(doc, 'b'));
+    reading.appendChild(line);
+    reading.appendChild(meter);
+    box.appendChild(pill);
+    box.appendChild(reading);
+
+    return box;
+  }
+
+  // Folded, the materials show only what is short; the header opens the full list of need against have.
+  function materialsSection(win) {
+    var doc = win.document;
     var box = el(doc, 'div', 'cc-sect');
-    var title = el(doc, 'h4', null, heading);
+    var head = el(doc, 'h4', 'cc-fold');
+    var arrow = el(doc, 'span', 'cc-arrow', GLYPH.closed);
+    var summary = el(doc, 'span', 'cc-dim');
+    var shorts = el(doc, 'div', 'cc-shorts');
+    var totals = el(doc, 'div', 'cc-totwrap cc-scroll');
 
-    if (aside) {
-      title.appendChild(el(doc, 'span', 'cc-grow'));
-      title.appendChild(el(doc, 'span', 'cc-dim', aside));
-    }
-
-    box.appendChild(title);
-    box.appendChild(body);
+    box.id = 'cc-matsect';
+    head.id = 'cc-matfold';
+    head.title = say('materialsTip');
+    arrow.id = 'cc-matarrow';
+    summary.id = 'cc-matsum';
+    shorts.id = 'cc-shorts';
+    totals.id = 'cc-totals';
+    totals.style.display = 'none';
+    head.addEventListener('click', function () {
+      win.__ccUi.matsOpen = !win.__ccUi.matsOpen;
+      drawQueue(win);
+    });
+    head.appendChild(arrow);
+    head.appendChild(el(doc, 'span', null, say('materials')));
+    head.appendChild(el(doc, 'span', 'cc-grow'));
+    head.appendChild(summary);
+    box.appendChild(head);
+    box.appendChild(shorts);
+    box.appendChild(totals);
 
     return box;
   }
@@ -1305,6 +1398,7 @@
     header.setAttribute('data-group', meta.id);
     header.appendChild(el(doc, 'span', 'cc-arrow', isOpen ? GLYPH.open : GLYPH.closed));
     header.appendChild(el(doc, 'span', null, groupName(win, meta)));
+    header.appendChild(el(doc, 'span', 'cc-gline'));
     header.appendChild(el(doc, 'span', 'cc-gcount', say('canMakeCount', counts.canMake, counts.size)));
     header.addEventListener('click', function () { toggleGroup(win, meta.id); });
 
@@ -1326,8 +1420,9 @@
     drawList(win, false);
   }
 
-  // The name has the line beside the icon to itself and wraps rather than being cut short. The status line and Keep
-  // sit under it, and the materials, the amount and Add share one row across the bottom of the card.
+  // The name has the line beside the icon to itself and wraps rather than being cut short, with the status line under
+  // it. The materials take a row of their own across the card, and the bottom row holds the stamina one craft takes,
+  // the keep bell, the amount and Add.
   function card(win, entry, byKey) {
     var doc = win.document;
     var r = entry.recipe;
@@ -1338,22 +1433,30 @@
     var icon = el(doc, 'div', 'cc-card-ic');
     var head = el(doc, 'div', 'cc-card-head');
     var name = el(doc, 'div', 'cc-card-name', r.name || key);
-    var sub = el(doc, 'div', 'cc-card-sub');
+    var status = statusLine(entry);
+    var line = el(doc, 'div', 'cc-card-st cc-st-' + entry.kind, status);
     var foot = el(doc, 'div', 'cc-card-foot');
     var mats = el(doc, 'div', 'cc-mats');
     var cost = staminaCost(key);
+    var costNode;
 
     node.setAttribute('data-key', key);
     icon.appendChild(picture(doc, r.icon));
     if (yieldOf(key) > 1) icon.appendChild(el(doc, 'span', 'cc-yield', 'x' + yieldOf(key)));
     if (r.isNew) name.appendChild(el(doc, 'span', 'cc-new', 'NEW'));
-    sub.appendChild(el(doc, 'div', 'cc-card-st cc-st-' + entry.kind, statusLine(entry)));
-    if (cost !== null) sub.appendChild(el(doc, 'span', 'cc-cost', say('staminaCost', cost)));
-    if (view.keep.on) sub.appendChild(keepButton(doc, key, isLocked));
+    line.title = status;
     head.appendChild(name);
-    head.appendChild(sub);
+    head.appendChild(line);
     entry.mats.forEach(function (m) { mats.appendChild(materialChip(doc, m, amount, byKey, entry.hits)); });
-    foot.appendChild(mats);
+
+    if (cost !== null) {
+      costNode = el(doc, 'span', 'cc-cost', String(cost));
+      costNode.title = say('staminaCost', cost);
+      foot.appendChild(costNode);
+    }
+
+    foot.appendChild(el(doc, 'span', 'cc-grow'));
+    if (view.keep.on) foot.appendChild(keepButton(doc, key, isLocked));
     foot.appendChild(stepper(doc, amount, function (step) {
       win.__ccUi.amounts[key] = clamp(amount + step, 1, MAX_AMOUNT);
       drawList(win, false);
@@ -1363,6 +1466,7 @@
     }, isLocked));
     node.appendChild(icon);
     node.appendChild(head);
+    node.appendChild(mats);
     node.appendChild(foot);
     icon.addEventListener('click', function () { pickRecipe(win, key, isLocked); });
     name.addEventListener('click', function () { pickRecipe(win, key, isLocked); });
@@ -1385,18 +1489,24 @@
 
     node.title = m.name || '';
     node.appendChild(picture(doc, m.icon));
-    node.appendChild(el(doc, 'span', null, (m.have || 0) + '/' + (m.need || 0) * amount));
+    node.appendChild(el(doc, 'b', null, String((m.need || 0) * amount)));
+    node.appendChild(el(doc, 'small', null, '/' + (m.have || 0)));
 
     return node;
   }
 
+  // A bell, with the count kept on it once the recipe is kept.
   function keepButton(doc, key, isLocked) {
     var kept = keptFor(key);
     var title = kept ? say('keepStopTip') : say('keepTip', DEFAULT_KEEP);
-
-    return button(doc, 'cc-pin' + (kept ? ' on' : ''), kept ? say('keepN', kept) : say('keep'), title, function () {
+    var bell = button(doc, 'cc-pin' + (kept ? ' on' : ''), null, title, function () {
       post('keep|' + encodeURIComponent(key) + '|' + (kept ? 0 : DEFAULT_KEEP));
     }, isLocked);
+
+    bell.appendChild(el(doc, 'i'));
+    if (kept) bell.appendChild(el(doc, 'em', null, String(kept)));
+
+    return bell;
   }
 
   // ---------------------------------------------------------------- queue column
@@ -1409,16 +1519,70 @@
 
     if (!list) return;
 
-    var version = win.__ccUi.recipeVersion;
+    var ui = win.__ccUi;
+    var version = ui.recipeVersion;
     var icons = iconsOf(win);
+    var targets = view.keep.targets || [];
+
+    if (!view.keep.on) ui.queueTab = 'queue';
 
     drawPill(doc);
     drawStamina(doc);
     redraw(doc.getElementById('cc-notes'), [view.running, view.paused, view.headsUp, view.status], function () { drawNotes(doc); });
-    redraw(list, [view.queue, view.running, view.paused, view.activeId, view.yields, version], function () { drawOrders(win, list, icons); });
-    redraw(doc.getElementById('cc-totals'), [view.totals, view.queue.length, version], function () { drawTotals(doc, icons); });
+    redraw(doc.getElementById('cc-qtabs'), [ui.queueTab, view.queue.length, view.keep.on, targets.length], function () { drawTabs(win); });
+    setDisplay(doc.getElementById('cc-qpane'), ui.queueTab === 'queue');
+    setDisplay(doc.getElementById('cc-keepsect'), ui.queueTab === 'keep');
+    redraw(list, [view.queue, view.running, view.paused, view.activeId, view.yields, staminaCosts(), version], function () { drawOrders(win, list, icons); });
+    redraw(doc.getElementById('cc-matsect'), [view.totals, view.queue.length, ui.matsOpen, version], function () { drawMaterials(doc, icons, ui.matsOpen); });
     redraw(doc.getElementById('cc-actions'), [view.running, view.queue], function () { drawActions(doc); });
     redraw(doc.getElementById('cc-keeps'), [view.keep, version], function () { drawKeeps(doc, icons); });
+  }
+
+  function setDisplay(node, isShown) {
+    var display = isShown ? '' : 'none';
+
+    if (node && node.style.display !== display) node.style.display = display;
+  }
+
+  function setStyle(node, name, value) {
+    if (node.style[name] !== value) node.style[name] = value;
+  }
+
+  // Queue and Keep in stock, as tabs over the same space; with keeping off there is only the queue, and no tabs.
+  function drawTabs(win) {
+    var doc = win.document;
+    var row = doc.getElementById('cc-qtabs');
+    var ui = win.__ccUi;
+
+    row.innerHTML = '';
+    setDisplay(row, view.keep.on);
+
+    if (!view.keep.on) return;
+
+    [['queue', say('queueTab'), view.queue.length], ['keep', say('keepInStock'), (view.keep.targets || []).length]].forEach(function (tab) {
+      row.appendChild(chip(doc, tab[1], tab[2], ui.queueTab === tab[0], function () {
+        ui.queueTab = tab[0];
+        drawQueue(win);
+      }));
+    });
+  }
+
+  // The stamina the queued orders take: each order's crafts at its recipe's cost. Intermediates the run makes on the way
+  // are not orders and are not counted. null when no queued recipe has a known cost.
+  function queueStamina() {
+    var total = 0;
+    var isKnown = false;
+
+    view.queue.forEach(function (order) {
+      var cost = staminaCost(order.key);
+
+      if (cost === null) return;
+
+      total += cost * order.crafts;
+      isKnown = true;
+    });
+
+    return isKnown ? total : null;
   }
 
   function drawOrders(win, list, icons) {
@@ -1465,8 +1629,8 @@
     setText(pill, say({ idle: 'idle', running: 'crafting', paused: 'paused' }[state]));
   }
 
-  // The stamina the player has, beside the queue's state, and a bar across the column once it has run out; the
-  // readout then turns into a warning too, in words as well as colour.
+  // The stamina the player has, beside the queue's state, against what the queued orders take, and a bar across the
+  // column once it has run out; the readout then turns into a warning too, in words as well as colour.
   function drawStamina(doc) {
     var readout = doc.getElementById('cc-stamina');
     var bar = doc.getElementById('cc-stamina-out');
@@ -1476,12 +1640,35 @@
     var stamina = staminaOf();
     var isOut = !!stamina && stamina.out === true;
     var have = stamina && typeof stamina.have === 'number' ? say('staminaHave', stamina.have) : '';
-    var display = isOut ? '' : 'none';
+    var needed = stamina ? queueStamina() : null;
+    var need = doc.getElementById('cc-qneed');
 
     setText(readout, isOut ? say('staminaOut', have || say('stamina')) : have);
     setClass(readout, 'cc-stamina' + (isOut ? ' cc-warn' : ''));
+    setDisplay(bar, isOut);
+    setDisplay(doc.getElementById('cc-sta'), !!stamina);
+    setText(need, needed === null ? '' : say('queueNeeds', needed));
+    setDisplay(need, needed !== null);
+    drawMeter(doc.getElementById('cc-meter'), stamina && typeof stamina.have === 'number' ? stamina.have : 0, needed || 0, isOut);
+  }
 
-    if (bar.style.display !== display) bar.style.display = display;
+  // Green is the stamina the player has; the stripes are the part of it the queue takes, and red is what the queue
+  // takes beyond it. The meter spans whichever of the two is larger.
+  function drawMeter(meter, have, needed, isOut) {
+    var scale = Math.max(have, needed, 1);
+    var used = Math.min(needed, have);
+    var parts = meter.children;
+
+    setClass(meter, 'cc-meter' + (isOut ? ' out' : ''));
+    setStyle(parts[0], 'width', share(have, scale));
+    setStyle(parts[1], 'left', share(have - used, scale));
+    setStyle(parts[1], 'width', share(used, scale));
+    setStyle(parts[2], 'left', share(have, scale));
+    setStyle(parts[2], 'width', share(Math.max(0, needed - have), scale));
+  }
+
+  function share(part, whole) {
+    return Math.round(part * 1000 / whole) / 10 + '%';
   }
 
   // While paused the status is the run's own word on where it carries on, or why a button was refused, so it is shown
@@ -1501,13 +1688,13 @@
     var look = STATE_LOOK[order.state] || '';
     var isActive = view.running && order.id === view.activeId;
     var crafts = order.crafts;
-    var isLast = index === view.queue.length - 1;
     var row = el(doc, 'div', 'cc-qrow' + (order.topUp ? ' topup' : '') + (isActive ? ' active' : '') + (look === 'short' ? ' short' : ''));
     var handle = el(doc, 'span', 'cc-handle', GLYPH.handle);
     var main = el(doc, 'div', 'cc-qmain');
     var name = el(doc, 'div', 'cc-qname', order.name);
     var sub = el(doc, 'div', 'cc-qsub', craftsLine(order));
-    var moves = el(doc, 'div', 'cc-qmove');
+    var cost = staminaCost(order.key);
+    var costNode = cost === null ? null : el(doc, 'span', 'cc-qcost', String(cost * crafts));
 
     row.setAttribute('data-index', index);
     handle.title = say('dragTip');
@@ -1515,15 +1702,17 @@
       e.preventDefault();
       startDrag(win, row, order.id, index);
     });
+
+    if (costNode) {
+      costNode.title = say('staminaCost', cost * crafts);
+      sub.appendChild(costNode);
+    }
     if (order.topUp) sub.appendChild(el(doc, 'span', 'cc-tag', say('topUp')));
     main.appendChild(name);
     main.appendChild(sub);
     if (look) main.appendChild(el(doc, 'div', 'cc-qst cc-st-' + look, order.state === 'ready' ? say('ready') : order.note));
     if (isActive) main.appendChild(progressBar(win));
-    moves.appendChild(button(doc, 'cc-up', GLYPH.up, say('moveUp'), function () { post('move|' + order.id + '|' + (index - 1)); }, index === 0));
-    moves.appendChild(button(doc, 'cc-down', GLYPH.down, say('moveDown'), function () { post('move|' + order.id + '|' + (index + 1)); }, isLast));
     row.appendChild(handle);
-    row.appendChild(el(doc, 'span', 'cc-num', String(index + 1)));
     row.appendChild(picture(doc, icons.byKey[order.key], 'cc-qic'));
     row.appendChild(main);
     // Counts from the last amount asked for, so a second click before the plugin's answer redraws the row still adds.
@@ -1534,7 +1723,6 @@
       post('amount|' + order.id + '|' + crafts);
       awaitAnswer(row.parentElement);
     }));
-    row.appendChild(moves);
     row.appendChild(button(doc, 'cc-x', GLYPH.cross, say('removeTip'), function () { post('remove|' + order.id); }));
 
     return row;
@@ -1580,6 +1768,36 @@
     if (fill && fill.style.transform !== progress) fill.style.transform = progress;
   }
 
+  // Folded, the materials are a one-line count of what is short, with a chip for each short item; open, the full table.
+  function drawMaterials(doc, icons, isOpen) {
+    var totals = view.totals;
+    var short = totals.filter(function (total) { return total.short; });
+    var shorts = doc.getElementById('cc-shorts');
+    var summary = '';
+
+    setText(doc.getElementById('cc-matarrow'), isOpen ? GLYPH.open : GLYPH.closed);
+
+    if (totals.length) {
+      summary = (short.length ? say('shortCount', short.length) : say('allCovered')) + ' ' + String.fromCharCode(0xb7) + ' ' + (isOpen ? say('materialsAside') : say('showAll', totals.length));
+    }
+
+    setText(doc.getElementById('cc-matsum'), summary);
+    shorts.innerHTML = '';
+
+    if (!isOpen) {
+      short.forEach(function (total) {
+        var item = el(doc, 'span', 'cc-short');
+
+        item.appendChild(picture(doc, icons.byName[total.name]));
+        item.appendChild(el(doc, 'span', null, total.name + ' ' + say('shortN', total.short)));
+        shorts.appendChild(item);
+      });
+    }
+
+    setDisplay(doc.getElementById('cc-totals'), isOpen || !totals.length);
+    drawTotals(doc, icons);
+  }
+
   function drawTotals(doc, icons) {
     var box = doc.getElementById('cc-totals');
     var table = el(doc, 'table', 'cc-tot');
@@ -1616,24 +1834,20 @@
 
     if (view.running) {
       bar.appendChild(el(doc, 'span', 'cc-dim', say('craftingNow')));
-      bar.appendChild(el(doc, 'span', 'cc-grow'));
       bar.appendChild(button(doc, 'cc-stop', say('stop'), say('stopTip'), function () { post('stop'); }));
 
       return;
     }
 
-    bar.appendChild(button(doc, 'cc-btn cc-clear', say('clear'), say('clearTip'), function () { post('clear'); }, !orders));
-    bar.appendChild(el(doc, 'span', 'cc-grow'));
     bar.appendChild(el(doc, 'span', 'cc-dim', orders ? counted(orders, 'orderOne', 'orderMany') + say('listSep') + counted(crafts, 'craftOne', 'craftMany') : say('queueIsEmpty')));
+    bar.appendChild(button(doc, 'cc-btn cc-clear', say('clear'), say('clearTip'), function () { post('clear'); }, !orders));
     bar.appendChild(button(doc, 'cc-go', say('craftQueue'), say('craftQueueTip'), function () { post('start'); }, !orders));
   }
 
   function drawKeeps(doc, icons) {
-    var section = doc.getElementById('cc-keepsect');
     var box = doc.getElementById('cc-keeps');
     var targets = view.keep.targets || [];
 
-    section.style.display = view.keep.on ? '' : 'none';
     box.innerHTML = '';
 
     if (!targets.length) box.appendChild(el(doc, 'div', 'cc-hint', say('nothingKept')));

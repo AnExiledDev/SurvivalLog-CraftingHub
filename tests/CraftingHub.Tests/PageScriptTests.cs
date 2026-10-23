@@ -123,11 +123,11 @@ public class PageScriptTests
         page.RecipeMsg("""[{ recipeKey: 'plank', name: 'Plank', canCraft: true, noteCategory: 1, materialsJson: '[{"name":"Log","need":1,"have":5,"hasEnough":true}]' }]""");
         page.Show(View());
 
-        Assert.Equal("5/1", page.Text("cardPart('plank', '.cc-mat').textContent"));
+        Assert.Equal("1/5", page.Text("cardPart('plank', '.cc-mat').textContent"));
 
         page.RecipeMsg("""[{ recipeKey: 'plank', name: 'Plank', canCraft: false, noteCategory: 1, materialsJson: '[{"name":"Log","need":1,"have":0,"hasEnough":false}]' }]""");
 
-        Assert.Equal("0/1", page.Text("cardPart('plank', '.cc-mat').textContent"));
+        Assert.Equal("1/0", page.Text("cardPart('plank', '.cc-mat').textContent"));
         Assert.Equal("cc-mat no", page.Text("cardPart('plank', '.cc-mat').className"));
         Assert.Equal("Short: Log 1", page.Text("cardPart('plank', '.cc-card-st').textContent"));
     }
@@ -219,17 +219,17 @@ public class PageScriptTests
         var page = BenchWithRecipes();
 
         Assert.Equal("All 5", page.Text("filterChip('All').textContent"));
-        Assert.Equal("Can make now 2", page.Text("filterChip('Can make now').textContent"));
-        Assert.Equal("Needs parts first 1", page.Text("filterChip('Needs parts first').textContent"));
+        Assert.Equal("Can make 2", page.Text("filterChip('Can make').textContent"));
+        Assert.Equal("Parts first 1", page.Text("filterChip('Parts first').textContent"));
         Assert.Equal("Short 1", page.Text("filterChip('Short').textContent"));
-        Assert.True(page.Truth("filterChip('Kept in stock') === null"));
+        Assert.True(page.Truth("filterChip('Kept') === null"));
 
-        page.Press("filterChip('Can make now')");
+        page.Press("filterChip('Can make')");
 
         Assert.Equal("plank,torch", page.Text("cardKeys()"));
         Assert.Equal("2 of 5", page.Text("$('cc-count').textContent"));
 
-        page.Press("filterChip('Needs parts first')");
+        page.Press("filterChip('Parts first')");
 
         Assert.Equal("crate", page.Text("cardKeys()"));
 
@@ -245,7 +245,7 @@ public class PageScriptTests
         var keep = new KeepView(true, new[] { new KeepTarget(Bench.Rope, "rope", "Rope", 5) }, new Dictionary<string, int> { ["rope"] = 5 });
 
         page.Show(View(keep: keep));
-        page.Press("filterChip('Kept in stock')");
+        page.Press("filterChip('Kept')");
 
         Assert.Equal("rope", page.Text("cardKeys()"));
 
@@ -381,7 +381,7 @@ public class PageScriptTests
 
         for (var i = 0; i < 5; i++) page.Press("cardPart('plank', '.cc-more')");
 
-        Assert.Equal("5/6", page.Text("cardPart('plank', '.cc-mat').textContent"));
+        Assert.Equal("6/5", page.Text("cardPart('plank', '.cc-mat').textContent"));
         Assert.Equal("cc-mat no", page.Text("cardPart('plank', '.cc-mat').className"));
 
         page.Press("cardPart('plank', '.cc-add')");
@@ -484,7 +484,7 @@ public class PageScriptTests
     }
 
     [Fact]
-    public void Keep_on_a_card_keeps_one_and_pressed_again_stops_keeping()
+    public void The_bell_on_a_card_keeps_one_shows_the_kept_count_and_pressed_again_stops_keeping()
     {
         var page = BenchWithRecipes();
 
@@ -492,7 +492,9 @@ public class PageScriptTests
         page.Press("cardPart('plank', '.cc-pin')");
         page.Show(View(keep: new KeepView(true, new[] { new KeepTarget(Bench.Plank, "plank", "Plank", 1) }, new Dictionary<string, int> { ["plank"] = 1 })));
 
-        Assert.Equal("Keep 1", page.Text("cardPart('plank', '.cc-pin').textContent"));
+        Assert.Equal("1", page.Text("cardPart('plank', '.cc-pin').textContent"));
+        Assert.True(page.Truth("cardPart('plank', '.cc-pin').classList.contains('on')"));
+        Assert.Equal("", page.Text("cardPart('rope', '.cc-pin').textContent"));
 
         page.Press("cardPart('plank', '.cc-pin')");
 
@@ -514,19 +516,21 @@ public class PageScriptTests
     }
 
     [Fact]
-    public void A_cards_materials_amount_and_add_share_one_row_across_its_bottom_and_keep_sits_with_the_status()
+    public void A_cards_materials_have_their_own_row_and_cost_keep_amount_and_add_share_the_bottom_row()
     {
         var page = BenchWithRecipes();
 
-        page.Show(View(keep: new KeepView(true, Array.Empty<KeepTarget>(), new Dictionary<string, int>())));
+        page.Show(WithStamina(View(keep: new KeepView(true, Array.Empty<KeepTarget>(), new Dictionary<string, int>())), "{\"have\":42,\"out\":false,\"cost\":{\"plank\":3}}"));
         page.Run("var foot = cardPart('plank', '.cc-add').parentElement");
 
         Assert.True(page.Truth("foot.matches('.cc-card-foot')"));
         Assert.True(page.Truth("foot.parentElement === card('plank')"));
         Assert.True(page.Truth("cardPart('plank', '.cc-more').parentElement.parentElement === foot"));
-        Assert.True(page.Truth("cardPart('plank', '.cc-mat').parentElement.parentElement === foot"));
+        Assert.True(page.Truth("cardPart('plank', '.cc-pin').parentElement === foot"));
+        Assert.True(page.Truth("cardPart('plank', '.cc-cost').parentElement === foot"));
+        Assert.True(page.Truth("cardPart('plank', '.cc-mat').parentElement.parentElement === card('plank')"));
+        Assert.True(page.Truth("foot.querySelector('.cc-mat') === null"));
         Assert.True(page.Truth("foot.querySelector('.cc-card-name') === null"));
-        Assert.True(page.Truth("cardPart('plank', '.cc-pin').parentElement === cardPart('plank', '.cc-card-st').parentElement"));
         Assert.Contains("grid-column:1/-1", page.Text("cssRule('.cc-card-foot')"));
     }
 
@@ -581,17 +585,14 @@ public class PageScriptTests
     }
 
     [Fact]
-    public void Orders_move_up_and_down_by_id_but_not_past_the_ends()
+    public void An_order_row_has_no_number_or_arrows_only_the_drag_handle_to_move_it()
     {
         var page = BenchWithRecipes();
 
         page.Show(View(TwoOrders, outlook: TwoOrdersOutlook));
-        page.Press("queueRow(0).querySelector('.cc-up')");
-        page.Press("queueRow(0).querySelector('.cc-down')");
-        page.Press("queueRow(1).querySelector('.cc-up')");
-        page.Press("queueRow(1).querySelector('.cc-down')");
 
-        Assert.Equal(new PageCommand[] { new PageCommand.Move(4, 1), new PageCommand.Move(9, 0) }, Sent(page));
+        Assert.True(page.Truth("queueRow(0).querySelector('.cc-handle') !== null"));
+        Assert.Equal(0, page.Number("$('cc-qlist').querySelectorAll('.cc-up').length + $('cc-qlist').querySelectorAll('.cc-down').length + $('cc-qlist').querySelectorAll('.cc-num').length"));
     }
 
     [Fact]
@@ -1355,7 +1356,8 @@ public class PageScriptTests
         page.Show(WithStamina(View(), "{\"have\":42,\"out\":false,\"cost\":{}}"));
 
         Assert.Equal("Stamina 42", page.Text("$('cc-stamina').textContent"));
-        Assert.True(page.Truth("$('cc-queue').querySelector('.cc-title').contains($('cc-stamina'))"));
+        Assert.True(page.Truth("$('cc-stat').contains($('cc-stamina'))"));
+        Assert.Equal("", page.Text("$('cc-sta').style.display"));
         Assert.Equal("none", page.Text("$('cc-stamina-out').style.display"));
     }
 
@@ -1366,7 +1368,8 @@ public class PageScriptTests
 
         page.Show(WithStamina(View(), "{\"have\":42,\"out\":false,\"cost\":{\"crate\":8}}"));
 
-        Assert.Equal("8 stamina", page.Text("cardPart('crate', '.cc-cost').textContent"));
+        Assert.Equal("8", page.Text("cardPart('crate', '.cc-cost').textContent"));
+        Assert.Equal("8 stamina", page.Text("cardPart('crate', '.cc-cost').title"));
         Assert.True(page.Truth("cardPart('plank', '.cc-cost') === null"));
 
         page.Run("var crateCard = card('crate')");
@@ -1413,6 +1416,104 @@ public class PageScriptTests
         Assert.Equal("none", page.Text("$('cc-stamina-out').style.display"));
         Assert.Equal(0, page.Number("benchDoc().querySelectorAll('.cc-cost').length"));
         Assert.Empty(Diagnostics(page));
+    }
+
+    [Fact]
+    public void The_queue_says_how_much_stamina_its_orders_take_and_the_meter_shows_it_against_what_the_player_has()
+    {
+        var page = BenchWithRecipes();
+
+        // Crate: 2 crafts at 8 each; rope: 1 craft at 2.
+        page.Show(WithStamina(View(TwoOrders, outlook: TwoOrdersOutlook), "{\"have\":20,\"out\":false,\"cost\":{\"crate\":8,\"rope\":2}}"));
+
+        Assert.Equal("queue needs 18", page.Text("$('cc-qneed').textContent"));
+        Assert.Equal("16", page.Text("queueRow(0).querySelector('.cc-qcost').textContent"));
+        Assert.Equal("16 stamina", page.Text("queueRow(0).querySelector('.cc-qcost').title"));
+        Assert.Equal("100%", page.Text("$('cc-meter').children[0].style.width"));
+        Assert.Equal("10%", page.Text("$('cc-meter').children[1].style.left"));
+        Assert.Equal("90%", page.Text("$('cc-meter').children[1].style.width"));
+        Assert.Equal("0%", page.Text("$('cc-meter').children[2].style.width"));
+
+        page.Show(WithStamina(View(TwoOrders, outlook: TwoOrdersOutlook), "{\"have\":9,\"out\":false,\"cost\":{\"crate\":8,\"rope\":2}}"));
+
+        Assert.Equal("50%", page.Text("$('cc-meter').children[0].style.width"));
+        Assert.Equal("50%", page.Text("$('cc-meter').children[2].style.left"));
+        Assert.Equal("50%", page.Text("$('cc-meter').children[2].style.width"));
+    }
+
+    [Fact]
+    public void Without_a_cost_for_any_queued_recipe_the_queue_need_is_left_out()
+    {
+        var page = BenchWithRecipes();
+
+        page.Show(WithStamina(View(TwoOrders, outlook: TwoOrdersOutlook), "{\"have\":20,\"out\":false,\"cost\":{\"plank\":3}}"));
+
+        Assert.Equal("", page.Text("$('cc-qneed').textContent"));
+        Assert.Equal("none", page.Text("$('cc-qneed').style.display"));
+        Assert.Equal("Stamina 20", page.Text("$('cc-stamina').textContent"));
+        Assert.True(page.Truth("queueRow(0).querySelector('.cc-qcost') === null"));
+    }
+
+    [Fact]
+    public void The_materials_fold_to_the_short_ones_and_open_to_the_whole_table()
+    {
+        var page = BenchWithRecipes();
+
+        page.Show(View(TwoOrders, outlook: TwoOrdersOutlook));
+
+        Assert.Equal("none", page.Text("$('cc-totals').style.display"));
+        Assert.Equal("1 short · show all 2", page.Text("$('cc-matsum').textContent"));
+        Assert.Equal("Fibre short 2", page.Text("$('cc-shorts').textContent"));
+        Assert.Equal(1, page.Number("$('cc-shorts').querySelectorAll('.cc-short').length"));
+
+        page.Press("$('cc-matfold')");
+
+        Assert.Equal("", page.Text("$('cc-totals').style.display"));
+        Assert.Equal("1 short · need / you have", page.Text("$('cc-matsum').textContent"));
+        Assert.Equal("", page.Text("$('cc-shorts').textContent"));
+
+        page.Press("$('cc-matfold')");
+
+        Assert.Equal("none", page.Text("$('cc-totals').style.display"));
+    }
+
+    [Fact]
+    public void With_nothing_queued_the_materials_say_so_rather_than_fold_away()
+    {
+        var page = BenchWithRecipes();
+
+        Assert.Equal("", page.Text("$('cc-totals').style.display"));
+        Assert.Equal("", page.Text("$('cc-matsum').textContent"));
+        Assert.Contains("Nothing queued", page.Text("$('cc-totals').textContent"));
+    }
+
+    [Fact]
+    public void Keep_in_stock_is_a_tab_beside_the_queue_only_while_keeping_is_on()
+    {
+        var page = BenchWithRecipes();
+        var keep = new KeepView(true, new[] { new KeepTarget(Bench.Rope, "rope", "Rope", 5) }, new Dictionary<string, int> { ["rope"] = 5 });
+
+        page.Show(View(TwoOrders, outlook: TwoOrdersOutlook));
+
+        Assert.Equal("none", page.Text("$('cc-qtabs').style.display"));
+        Assert.Equal("none", page.Text("$('cc-keepsect').style.display"));
+
+        page.Show(View(TwoOrders, outlook: TwoOrdersOutlook, keep: keep));
+
+        Assert.Equal("Queue 2|Keep in stock 1", page.Text("$('cc-qtabs').children.map(function (tab) { return tab.textContent; }).join('|')"));
+        Assert.Equal("", page.Text("$('cc-qpane').style.display"));
+        Assert.Equal("none", page.Text("$('cc-keepsect').style.display"));
+
+        page.Press("$('cc-qtabs').children[1]");
+
+        Assert.Equal("none", page.Text("$('cc-qpane').style.display"));
+        Assert.Equal("", page.Text("$('cc-keepsect').style.display"));
+        Assert.True(page.Truth("$('cc-qtabs').children[1].classList.contains('on')"));
+
+        page.Show(View(TwoOrders, outlook: TwoOrdersOutlook));
+
+        Assert.Equal("", page.Text("$('cc-qpane').style.display"));
+        Assert.Equal("none", page.Text("$('cc-keepsect').style.display"));
     }
 
     /// <summary>A workbench open with the fixture's recipes listed and the chain marks shown, nothing queued.</summary>
