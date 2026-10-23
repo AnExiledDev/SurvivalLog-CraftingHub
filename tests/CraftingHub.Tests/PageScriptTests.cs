@@ -1481,14 +1481,14 @@ public class PageScriptTests
         page.Show(View(TwoOrders, outlook: TwoOrdersOutlook));
 
         Assert.Equal("none", page.Text("$('cc-totals').style.display"));
-        Assert.Equal("1 short · show all 2", page.Text("$('cc-matsum').textContent"));
+        Assert.Equal("1 short \u00b7 show all 2", page.Text("$('cc-matsum').textContent"));
         Assert.Equal("Fibre short 2", page.Text("$('cc-shorts').textContent"));
         Assert.Equal(1, page.Number("$('cc-shorts').querySelectorAll('.cc-short').length"));
 
         page.Press("$('cc-matfold')");
 
         Assert.Equal("", page.Text("$('cc-totals').style.display"));
-        Assert.Equal("1 short · need / you have", page.Text("$('cc-matsum').textContent"));
+        Assert.Equal("1 short \u00b7 need / you have", page.Text("$('cc-matsum').textContent"));
         Assert.Equal("", page.Text("$('cc-shorts').textContent"));
 
         page.Press("$('cc-matfold')");
