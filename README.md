@@ -117,7 +117,7 @@ Settings live in `BepInEx\config\com.dev.survivallog.craftinghub.cfg`, created t
 
 Tested on Survival Log 1.1.19611 with BepInEx `6.0.0-be.788`.
 
-Check `BepInEx\LogOutput.log` for `===== Crafting Hub 0.9.8 started`, followed by `workbenches use every home storage` and `intermediates up to 4 deep, marks on, keep stocked on, auto start on, resume on reopen on, other workbenches on` (the words change with your settings, and a setting changed on the Mods screen writes them again). The same lines, plus every step of every run and why it stopped, is in `BepInEx\crafting-hub.log`, which survives restarts. When that file passes 1 MB, it is cut down to its newest part at the next game start.
+Check `BepInEx\LogOutput.log` for `===== Crafting Hub 0.9.9 started`, followed by `workbenches use every home storage` and `intermediates up to 4 deep, marks on, keep stocked on, auto start on, resume on reopen on, other workbenches on` (the words change with your settings, and a setting changed on the Mods screen writes them again). The same lines, plus every step of every run and why it stopped, is in `BepInEx\crafting-hub.log`, which survives restarts. When that file passes 1 MB, it is cut down to its newest part at the next game start.
 
 If the workbench looks like the game's own, check that BetterCrafting is not in `BepInEx\plugins`: BepInEx skips Crafting Hub while it is there, and `LogOutput.log` says so.
 

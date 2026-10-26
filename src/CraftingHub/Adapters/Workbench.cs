@@ -7,7 +7,6 @@ using GameCore.HotUpdate.Battle.Logic;
 using GameCore.HotUpdate.ReduxUI;
 using HarmonyLib;
 using Il2CppInterop.Runtime;
-using Il2CppInterop.Runtime.InteropTypes.Arrays;
 
 namespace CraftingHub.Adapters;
 
@@ -37,10 +36,17 @@ internal sealed class Workbench
     private static bool _resultsProven;
     private static Action<string> _hookLog = _ => { };
     private static readonly Dictionary<long, ResultCount> ResultsByBench = new();
+    private static readonly IReadOnlyDictionary<int, int> NoContents = new Dictionary<int, int>();
+
+    // Asked for every tick; the game hands back a new wrapper each time it is asked.
+    private static Il2CppSystem.Type? _toolTableType;
+    private static Il2CppSystem.Type? _itemStateType;
 
     private readonly Action<string> _log;
+    private readonly CacheScope _scope = new();
     private readonly Dictionary<string, Recipe?> _recipes = new();
     private readonly Dictionary<string, IReadOnlyList<DyedVariant>> _variants = new();
+    private readonly Dictionary<string, NamedVariants> _namedVariants = new();
     private bool _hasLoggedVariantFailure;
     private readonly Dictionary<int, string> _itemNames = new();
     private bool _hasLoggedYield;
@@ -85,7 +91,7 @@ internal sealed class Workbench
         }
     }
 
-    public bool IsOpen => _state != null && GameSingleton.Existing<ReduxUISystem>()?.IsUIActive(Il2CppType.Of<WebUI_ToolTable>()) == true;
+    public bool IsOpen => _state != null && GameSingleton.Existing<ReduxUISystem>()?.IsUIActive(_toolTableType ??= Il2CppType.Of<WebUI_ToolTable>()) == true;
 
     public BenchRead? Read()
     {
@@ -96,6 +102,8 @@ internal sealed class Workbench
 
         // The kept state outlives its window, and after a quit to title it belongs to the old world.
         if (state?.RecipeList == null || items == null || !IsOpen) return null;
+
+        if (_scope.Follow(GameLanguage.IsChinese(), SaveSlot.CurrentKey())) ForgetNames();
 
         var recipes = new List<Recipe>(state.RecipeList.Count);
         var craftable = new HashSet<string>();
@@ -118,7 +126,9 @@ internal sealed class Workbench
 
             if (row.CanCraft?.Value == true) craftable.Add(key);
 
-            if (fixedPart.IsDyeable || row.Dyeable?.Value == true) colored.AddRange(Variants(key, listed).Select(variant => (listed, variant)));
+            if (!fixedPart.IsDyeable && row.Dyeable?.Value != true) continue;
+
+            foreach (var variant in Variants(key, listed)) colored.Add((listed, variant));
         }
 
         // Base recipes go in first, so a product both make is planned from the plain recipe.
@@ -150,9 +160,28 @@ internal sealed class Workbench
     /// </summary>
     private IReadOnlyList<DyedVariant> Variants(string baseKey, Recipe plain)
     {
+        // Named for the plain recipe's name and lock, which change far less often than the list is read.
+        if (_namedVariants.TryGetValue(baseKey, out var named) && named.Name == plain.Name && named.IsLocked == plain.IsLocked) return named.Variants;
+
         if (!_variants.TryGetValue(baseKey, out var cached)) cached = _variants[baseKey] = ReadVariants(baseKey);
 
-        return cached.Select(variant => variant with { Recipe = variant.Recipe with { IsLocked = plain.IsLocked, Name = ColoredName(plain.Name, variant) } }).ToList();
+        var variants = cached.Select(variant => variant with { Recipe = variant.Recipe with { IsLocked = plain.IsLocked, Name = ColoredName(plain.Name, variant) } }).ToList();
+
+        _namedVariants[baseKey] = new NamedVariants(plain.Name, plain.IsLocked, variants);
+
+        return variants;
+    }
+
+    private sealed record NamedVariants(string Name, bool IsLocked, IReadOnlyList<DyedVariant> Variants);
+
+    /// <summary>Names and recipes are read again after the language or the save changed.</summary>
+    private void ForgetNames()
+    {
+        _itemNames.Clear();
+        _recipes.Clear();
+        _variants.Clear();
+        _namedVariants.Clear();
+        _log("language or save changed; recipe and item names are read again");
     }
 
     private IReadOnlyList<DyedVariant> ReadVariants(string baseKey)
@@ -213,10 +242,10 @@ internal sealed class Workbench
 
         var state = _state;
 
-        if (state == null) return new BenchView(false, false, false, 0, new Dictionary<int, int>(), 0);
+        if (state == null) return new BenchView(false, false, false, 0, NoContents, 0);
 
         // A craft can finish in the moment before the window closes; the kept state still holds its count.
-        if (!IsOpen) return new BenchView(false, false, false, 0, new Dictionary<int, int>(), state.BatchDone, BatchActive: state.BatchActive, BatchSuccess: state.BatchSuccess, Results: Results(state.CurrentFurnitureId), ResultsProven: _resultsProven);
+        if (!IsOpen) return new BenchView(false, false, false, 0, NoContents, state.BatchDone, BatchActive: state.BatchActive, BatchSuccess: state.BatchSuccess, Results: Results(state.CurrentFurnitureId), ResultsProven: _resultsProven);
 
         var handState = (int)state.HandMadeState;
 
@@ -360,21 +389,34 @@ internal sealed class Workbench
         _hookLog("finished crafts are counted");
     }
 
-    private static State_Data_Item? ItemState() => GameSingleton.Existing<ReduxUISystem>()?.GetData<State_Data_Item>(Il2CppType.Of<State_Data_Item>());
+    private static State_Data_Item? ItemState() => GameSingleton.Existing<ReduxUISystem>()?.GetData<State_Data_Item>(_itemStateType ??= Il2CppType.Of<State_Data_Item>());
 
-    /// <summary>Counted the game's own way (it skips spoiled food) over the same storages it would craft from.</summary>
+    /// <summary>
+    /// Counted the game's own way (Reducer_Web_ToolTable.CountOwnedInPool) over the same storages it would craft from.
+    /// The game's count lists every storage's items again for each material; this lists each storage once and counts
+    /// every material in that one pass, through the same item lists.
+    /// </summary>
     private static Dictionary<int, int> Stock(State_Web_ToolTable state, State_Data_Item items, IEnumerable<int> materialIds)
     {
-        var owners = new HashSet<long> { state.WorkbenchOwnerId?.Value ?? 0 };
+        var owners = new List<long> { state.WorkbenchOwnerId?.Value ?? 0 };
         var linked = Reducer_Web_ToolTable.GetAllLinkedOwnerIds(state);
 
         for (var i = 0; linked != null && i < linked.Count; i++) owners.Add(linked[i]);
 
-        owners.Remove(0);
+        return HeldCount.Tally(materialIds, owners, owner => StacksIn(items, owner));
+    }
 
-        var pool = new Il2CppStructArray<long>(owners.ToArray());
+    /// <summary>The game's own list of an owner's items, which also files any item cached under the wrong owner back where it belongs.</summary>
+    private static IEnumerable<HeldStack> StacksIn(State_Data_Item items, long owner)
+    {
+        if (items.OwnerCache == null) yield break;
 
-        return materialIds.ToDictionary(id => id, id => Reducer_Web_ToolTable.CountOwnedInPool(items, id, pool));
+        var held = State_Extensions_Item.GetItemDataList(items, owner);
+
+        for (var i = 0; held != null && i < held.Count; i++)
+        {
+            if (held[i] is { } item) yield return new HeldStack(item.OwnerId, item.ItemConfigId, item.ItemCount);
+        }
     }
 
     private static Dictionary<int, int> Contents(long benchOwner)

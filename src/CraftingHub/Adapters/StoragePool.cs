@@ -20,6 +20,12 @@ internal static class StoragePool
     private const int MaxLoggedFailures = 3;
 
     private static readonly List<long> HomeCache = new();
+
+    // Reused by every ask; the hook runs on the main thread only.
+    private static readonly List<long> Linked = new();
+    private static readonly long[] Excluded = new long[2];
+    private static readonly HashSet<long> Seen = new();
+    private static readonly List<long> Added = new();
     private static int _cachedFrame = -1;
     private static Action<string> _log = _ => { };
     private static int _failures;
@@ -63,13 +69,14 @@ internal static class StoragePool
 
         try
         {
-            var linked = new List<long>(__result.Count);
+            Linked.Clear();
 
-            for (var i = 0; i < __result.Count; i++) linked.Add(__result[i]);
+            for (var i = 0; i < __result.Count; i++) Linked.Add(__result[i]);
 
-            var excluded = new[] { state.WorkbenchOwnerId?.Value ?? 0, state.CurrentFurnitureId };
+            Excluded[0] = state.WorkbenchOwnerId?.Value ?? 0;
+            Excluded[1] = state.CurrentFurnitureId;
 
-            foreach (var owner in HomeOwners.ToAdd(linked, HomeStorages(), excluded)) __result.Add(owner);
+            foreach (var owner in HomeOwners.ToAdd(Linked, HomeStorages(), Excluded, Seen, Added)) __result.Add(owner);
         }
         catch (Exception ex)
         {

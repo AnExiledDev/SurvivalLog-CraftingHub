@@ -45,10 +45,14 @@ internal sealed class HubSession
     private IReadOnlyDictionary<int, int>? _keepHave;
     private IReadOnlyDictionary<string, int> _yields = NoYields;
     private QueueOutlook _outlook = QueueOutlook.Empty;
-    private string _outlookFor = "";
+    private OutlookStamp? _outlookFor;
     private string _status = "";
     private bool _hasStoppedForStamina;
-    private string _shownView = "";
+    private readonly ViewGate _view = new();
+    private readonly Func<NextStep> _next;
+    private readonly Func<bool> _isIdle;
+    private readonly Func<int, string> _itemName;
+    private bool? _takesUnits;
     private string _pickedKey = "";
     private string _pickedName = "";
     private int _seenRefreshes = -1;
@@ -70,6 +74,11 @@ internal sealed class HubSession
         _logFileOnly = logFileOnly;
         _runner = new QueueRunner(settings.ResumeOnReopen, settings.ResumeAtOtherBenches, GameLanguage.IsChinese);
         _slot = new KeepSlot(keep.Store);
+
+        // Made once: a method passed as a callback is a new delegate each time.
+        _next = Next;
+        _isIdle = IsIdle;
+        _itemName = bench.ItemName;
     }
 
     /// <summary>Called on the main thread at start and after each change; the marks and the outlook are worked out again at the next tick.</summary>
@@ -78,7 +87,7 @@ internal sealed class HubSession
         _settings = settings;
         _runner.Use(settings.ResumeOnReopen, settings.ResumeAtOtherBenches);
         _seenRefreshes = -1;
-        _outlookFor = "";
+        _outlookFor = null;
     }
 
     public void Tick(float now)
@@ -96,7 +105,7 @@ internal sealed class HubSession
         if (isOpen && !_wasOpen)
         {
             _seenRefreshes = -1;
-            _outlookFor = "";
+            _outlookFor = null;
             LoadTargets();
         }
 
@@ -104,18 +113,18 @@ internal sealed class HubSession
 
         if (isOpen && _bench.Refreshes != _seenRefreshes)
         {
-            var timer = Stopwatch.StartNew();
+            var startedAt = Stopwatch.GetTimestamp();
             var read = ReadBench();
 
-            _recipeKeys = read?.Book.All.Select(recipe => recipe.Key).ToList() ?? NoRecipeKeys;
+            _recipeKeys = read != null ? KeysOf(read.Book) : NoRecipeKeys;
             _dyes = read?.Dyes ?? Array.Empty<DyeOption>();
-            RefreshMarks(read, timer);
+            RefreshMarks(read, startedAt);
             RefreshKeeps(read);
         }
 
-        if (_runner.IsRunning) Apply(_runner.Tick(_bench.View(), now, Next));
+        if (_runner.IsRunning) Apply(_runner.Tick(_bench.View(), now, _next));
 
-        if (_settings.KeepStocked && _topUps.IsDue(isOpen, now, IsIdle)) TopUp();
+        if (_settings.KeepStocked && _topUps.IsDue(isOpen, now, _isIdle)) TopUp();
 
         if (isOpen) RefreshOutlook();
 
@@ -162,7 +171,7 @@ internal sealed class HubSession
                 break;
             case PageCommand.Ready:
                 _log("page script running");
-                _shownView = "";
+                _view.Forget();
                 break;
             case PageCommand.NoScript:
                 _page.Install();
@@ -311,7 +320,7 @@ internal sealed class HubSession
     {
         if (ReadBench() is not { } read) return new NextStep.Wait(Texts.CouldNotReadBench.Pick(IsChinese));
 
-        return QueuePlanner.Next(_queue.Head, read.Book, read.Stock, _slot.Targets.All, _settings.MaxDepth, _bench.ItemName, IsChinese);
+        return QueuePlanner.Next(_queue.Head, read.Book, read.Stock, _slot.Targets.All, _settings.MaxDepth, _itemName, IsChinese);
     }
 
     /// <summary>Topping up waits for the bench to be free: no run, no craft in progress, no result on screen.</summary>
@@ -438,17 +447,41 @@ internal sealed class HubSession
     /// </summary>
     private void RefreshOutlook()
     {
-        var costedFor = $"{IsChinese}|{_bench.Refreshes}|{string.Join(",", _queue.Entries.Select(entry => $"{entry.Id}:{entry.Crafts}"))}|{string.Join(",", _slot.Targets.All.Select(target => $"{target.ItemId}:{target.Count}"))}";
+        var costedFor = new OutlookStamp(IsChinese, _bench.Refreshes, _queue.Version, _slot.Targets, _slot.Targets.Version);
 
-        if (costedFor == _outlookFor || ReadBench() is not { } read) return;
+        if (_outlookFor is { } costed && costed.Equals(costedFor) || ReadBench() is not { } read) return;
 
         _outlookFor = costedFor;
-        _outlook = QueueForecast.Plan(_queue.Entries, read.Book, read.Stock, _slot.Targets.All, _settings.MaxDepth, _bench.ItemName, IsChinese);
-        _yields = read.Book.All.Where(recipe => recipe.Yield > 1).ToDictionary(recipe => recipe.Key, recipe => recipe.Yield);
+        _outlook = QueueForecast.Plan(_queue.Entries, read.Book, read.Stock, _slot.Targets.All, _settings.MaxDepth, _itemName, IsChinese);
+        _yields = YieldsOf(read.Book);
     }
 
-    /// <summary>The timer started before the bench was read, so a slow read shows in the logged time too.</summary>
-    private void RefreshMarks(BenchRead? read, Stopwatch timer)
+    /// <summary>What the outlook was costed from: any change to one of these costs it again.</summary>
+    private readonly record struct OutlookStamp(bool IsChinese, int Refreshes, int QueueVersion, KeepTargets Targets, int TargetsVersion);
+
+    private static IReadOnlyList<string> KeysOf(RecipeBook book)
+    {
+        var keys = new List<string>();
+
+        foreach (var recipe in book.All) keys.Add(recipe.Key);
+
+        return keys;
+    }
+
+    private static IReadOnlyDictionary<string, int> YieldsOf(RecipeBook book)
+    {
+        var yields = new Dictionary<string, int>();
+
+        foreach (var recipe in book.All)
+        {
+            if (recipe.Yield > 1) yields.Add(recipe.Key, recipe.Yield);
+        }
+
+        return yields;
+    }
+
+    /// <summary>Timed from before the bench was read, so a slow read shows in the logged time too.</summary>
+    private void RefreshMarks(BenchRead? read, long startedAt)
     {
         _seenRefreshes = _bench.Refreshes;
 
@@ -461,7 +494,7 @@ internal sealed class HubSession
 
         _marks = read == null ? NoMarks : ChainMarks.Find(read.Book, read.Stock, read.CraftableNow, _settings.MaxDepth, IsChinese);
 
-        var elapsedMs = timer.Elapsed.TotalMilliseconds;
+        var elapsedMs = (Stopwatch.GetTimestamp() - startedAt) * 1000.0 / Stopwatch.Frequency;
 
         if (_marks.Count == _loggedMarkCount && elapsedMs <= SlowMarksMs) return;
 
@@ -485,15 +518,20 @@ internal sealed class HubSession
         return _read;
     }
 
+    /// <summary>
+    /// Sends the panel only when something it shows changed. Asking first whether anything changed costs a few field
+    /// compares, so a tick with nothing new, as with the bench closed, builds nothing.
+    /// </summary>
     private void Show()
     {
-        var keep = new KeepView(_settings.KeepStocked, _slot.Targets.All, _keepByKey, _keepHave);
-        var stamina = StaminaView.From(_bench.Stamina(), _recipeKeys, _queue.Head != null, _hasStoppedForStamina);
-        var view = HubView.Build(_marks, _queue.Entries, _runner.IsRunning, _status, keep, _runner.IsPaused, _outlook, _yields, ActiveOrderId(), stamina, _takesUnitsOffStacks(), _dyes);
+        var stamina = StaminaGist.Of(_bench.Stamina(), _queue.Head != null, _hasStoppedForStamina);
 
-        if (view == _shownView) return;
+        // Plugins have all loaded by the first tick, so whether Stacking is there no longer changes.
+        _takesUnits ??= _takesUnitsOffStacks();
 
-        _shownView = view;
-        _page.Show(view);
+        var inputs = new ViewInputs(_marks, _queue, _queue.Version, _runner.IsRunning, _runner.IsPaused, ActiveOrderId(), _status,
+            _settings.KeepStocked, _slot.Targets, _slot.Targets.Version, _keepByKey, _keepHave, _outlook, _yields, _recipeKeys, stamina, _takesUnits.Value, _dyes);
+
+        if (_view.Next(inputs) is { } view) _page.Show(view);
     }
 }

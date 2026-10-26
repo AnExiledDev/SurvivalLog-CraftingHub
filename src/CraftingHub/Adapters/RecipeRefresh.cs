@@ -27,6 +27,7 @@ internal static class RecipeRefresh
     private sealed record Storages(MaterialPool Pool, long[] Owners);
 
     private static readonly RefreshBatch<Rebuild> Batch = new();
+    private static readonly List<KeyValuePair<int, int>> NeededBuffer = new();
     private static Action<string> _log = _ => { };
     private static int _rebuildsRunning;
     private static Storages? _storages;
@@ -247,13 +248,14 @@ internal static class RecipeRefresh
         return stacks;
     }
 
+    /// <summary>One buffer for every recipe a rebuild checks; each answer is used before the next is read.</summary>
     private static List<KeyValuePair<int, int>> Needed(Il2CppNeeded needed)
     {
-        var materials = new List<KeyValuePair<int, int>>(needed.Count);
+        NeededBuffer.Clear();
 
-        foreach (var material in needed) materials.Add(new KeyValuePair<int, int>(material.Key, material.Value));
+        foreach (var material in needed) NeededBuffer.Add(new KeyValuePair<int, int>(material.Key, material.Value));
 
-        return materials;
+        return NeededBuffer;
     }
 
     private static void Fail(string what, Exception ex)

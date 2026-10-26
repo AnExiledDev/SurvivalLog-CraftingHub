@@ -1380,13 +1380,14 @@
       return entry.hits !== null && inFilter(ui.filter, entry) && (ui.group === ALL_GROUPS || entry.group === ui.group);
     });
     var isFlat = typed !== '' || ui.group !== ALL_GROUPS;
+    var drawn = cardsOf(list);
 
     drawFilters(win, entries);
     drawGroups(win, metas, groups);
     doc.getElementById('cc-count').textContent = say('countOf', shown.length, entries.length);
     list.innerHTML = '';
 
-    if (shown.length) drawCards(win, list, metas, shown, groups, isFlat);
+    if (shown.length) drawCards(win, list, metas, shown, groups, isFlat, drawn);
     else list.appendChild(el(doc, 'div', 'cc-empty', typed ? say('noMatch', typed) : say('noRecipes')));
 
     list.scrollTop = scrollTop;
@@ -1424,11 +1425,13 @@
     var list = win.document.getElementById('cc-list');
     var cards = list ? list.querySelectorAll('.cc-card') : [];
 
-    Array.prototype.forEach.call(cards, function (card) {
-      var isSelected = card.getAttribute('data-pick') === selectedKey;
+    Array.prototype.forEach.call(cards, markCard);
+  }
 
-      if (card.classList.contains('cc-sel') !== isSelected) card.classList.toggle('cc-sel', isSelected);
-    });
+  function markCard(card) {
+    var isSelected = card.getAttribute('data-pick') === selectedKey;
+
+    if (card.classList.contains('cc-sel') !== isSelected) card.classList.toggle('cc-sel', isSelected);
   }
 
   function drawFilters(win, entries) {
@@ -1490,7 +1493,7 @@
   }
 
   // In the game's group order. Flat (no headers) while searching or showing one group, as the game's own search is.
-  function drawCards(win, list, metas, shown, groups, isFlat) {
+  function drawCards(win, list, metas, shown, groups, isFlat, drawn) {
     var collapsed = isFlat ? null : pageValue(win, 'collapsedCats');
     var byKey = {};
 
@@ -1503,8 +1506,45 @@
 
       if (!isFlat) list.appendChild(groupHeader(win, meta, groups[meta.id], isOpen));
 
-      if (isOpen) lockedLast(members).forEach(function (entry) { list.appendChild(card(win, entry, byKey)); });
+      if (isOpen) lockedLast(members).forEach(function (entry) { list.appendChild(cardFor(win, entry, byKey, drawn)); });
     });
+  }
+
+  // The cards in the list by recipe key, so a redraw can put back the ones that show the same as before.
+  function cardsOf(list) {
+    var cards = {};
+
+    Array.prototype.forEach.call(list.children, function (node) {
+      if (node.__ccCardKey) cards[node.getAttribute('data-key')] = node;
+    });
+
+    return cards;
+  }
+
+  // The card drawn last time for this recipe when nothing on it changed, else a new one: a craft changes the counts of
+  // a few recipes, and building every card again for it made the list slow.
+  function cardFor(win, entry, byKey, drawn) {
+    var key = cardKey(win, entry, byKey);
+    var old = hasOwn(drawn, entry.recipe.recipeKey) ? drawn[entry.recipe.recipeKey] : null;
+    var node = old && old.__ccCardKey === key ? old : card(win, entry, byKey);
+
+    node.__ccCardKey = key;
+    markCard(node);
+
+    return node;
+  }
+
+  // Everything card() shows that can change under it. Which card is on the bench is left out: that is marked in place.
+  function cardKey(win, entry, byKey) {
+    var r = entry.recipe;
+    var plainKey = r.recipeKey;
+    var key = colorKeyFor(win, plainKey);
+    var amount = amountFor(win, plainKey);
+    var mats = entry.mats.map(function (m) { return [m.icon, m.name, m.need, m.have, materialLook(m, amount, byKey)]; });
+
+    // A word of the current language goes in the key, so a language change draws every card again.
+    return say('recipes') + JSON.stringify([key, entry.kind, r.name, r.icon, !!r.isNew, statusLine(entry), amount, entry.hits,
+      mats, dyesOf(plainKey), staminaCost(key), yieldOf(key), !!view.keep.on, keptFor(key)]);
   }
 
   function groupHeader(win, meta, counts, isOpen) {

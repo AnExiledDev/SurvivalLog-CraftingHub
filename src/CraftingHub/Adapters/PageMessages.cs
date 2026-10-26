@@ -13,6 +13,7 @@ namespace CraftingHub.Adapters;
 internal static class PageMessages
 {
     private static readonly ConcurrentQueue<PageCommand> Queue = new();
+    private static readonly PageCommand NoCommand = new PageCommand.Unknown("");
 
     public static void Apply(Harmony harmony, Action<string> log)
     {
@@ -36,7 +37,7 @@ internal static class PageMessages
             return true;
         }
 
-        command = new PageCommand.Unknown("");
+        command = NoCommand;
 
         return false;
     }

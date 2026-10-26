@@ -219,6 +219,18 @@ public class HomeOwnersTests
     {
         Assert.Empty(HomeOwners.ToAdd(new long[0], new long[] { 0 }, new long[0]));
     }
+
+    [Fact]
+    public void Reused_buffers_left_over_from_the_last_ask_do_not_change_the_answer()
+    {
+        var seen = new HashSet<long> { 12 };
+        var added = new List<long> { 99 };
+
+        var result = HomeOwners.ToAdd(new long[] { 10, 11 }, new long[] { 11, 12, 13, 12 }, new long[] { 13 }, seen, added);
+
+        Assert.Equal(new long[] { 12 }, result);
+        Assert.Same(added, result);
+    }
 }
 
 public class CraftQueueTests
@@ -1373,6 +1385,46 @@ public class HubViewTests
         Assert.Equal(System.Text.Json.JsonValueKind.Null, shown[1].GetProperty("have").ValueKind);
     }
 
+    /// <summary>
+    /// Every part of the view, written out by hand from what the page reads: keys in order, an uncosted order with no
+    /// state, yields of one and free stamina costs left out, an uncounted target as null, dyes grouped by plain key.
+    /// </summary>
+    [Fact]
+    public void The_whole_view_is_written_exactly_as_the_page_reads_it()
+    {
+        var marks = new Dictionary<string, string> { ["b"] = "y", ["a"] = "x" };
+        var queue = new[] { new QueueEntry("crate", "Crate", 2, Id: 4), new QueueEntry("rope", "Rope", 1, IsTopUp: true, Id: 9) };
+        var outlook = new QueueOutlook(new[] { new OrderOutlook(4, OrderState.Ready, "Ready") }, new[] { new MaterialTotal(Bench.Fibre, "Fibre", 3, 1, 2) }, "Heads up");
+        var keep = new KeepView(true, new[] { new KeepTarget(5, "plank", "Plank", 10), new KeepTarget(6, "rope", "Rope", 2) },
+            new Dictionary<string, int> { ["rope"] = 2, ["plank"] = 10 }, new Dictionary<int, int> { [5] = 3 });
+        var stamina = new StaminaView(3, false, new Dictionary<string, int> { ["rope"] = 0, ["plank"] = 8 });
+        var dyes = new[]
+        {
+            new DyeOption("chair", "chair_red", 11, "#ff0000", "Red", 1, 2),
+            new DyeOption("bed", "bed_blue", 12, "#0000ff", "Blue", 1, 0),
+            new DyeOption("chair", "chair_blue", 12, "#0000ff", "Blue", 1, 0),
+        };
+
+        var json = HubView.Build(marks, queue, true, "go", keep, isPaused: true, outlook, new Dictionary<string, int> { ["rope"] = 1, ["plank"] = 2 }, 4, stamina, takesUnitsOffStacks: true, dyes);
+
+        Assert.Equal(
+            """{"marks":{"a":"x","b":"y"},"queue":[{"id":4,"key":"crate","name":"Crate","crafts":2,"topUp":false,"state":"ready","note":"Ready"},{"id":9,"key":"rope","name":"Rope","crafts":1,"topUp":true,"state":"","note":""}],"running":true,"paused":true,"activeId":4,"status":"go","headsUp":"Heads up","totals":[{"item":3,"name":"Fibre","need":3,"have":1,"short":2}],"yields":{"plank":2},"keep":{"on":true,"targets":[{"item":5,"key":"plank","name":"Plank","count":10,"have":3},{"item":6,"key":"rope","name":"Rope","count":2,"have":null}],"byKey":{"plank":10,"rope":2}},"stamina":{"have":3,"out":false,"cost":{"plank":8}},"takesUnits":true,"dyes":{"bed":[{"key":"bed_blue","dye":12,"hex":"#0000ff","color":"Blue","need":1,"have":0}],"chair":[{"key":"chair_red","dye":11,"hex":"#ff0000","color":"Red","need":1,"have":2},{"key":"chair_blue","dye":12,"hex":"#0000ff","color":"Blue","need":1,"have":0}]}}""",
+            json);
+    }
+
+    [Fact]
+    public void A_small_view_built_after_a_big_one_carries_nothing_over()
+    {
+        var marks = new Dictionary<string, string> { ["crate"] = "Makes first: Plank x2" };
+
+        HubView.Build(marks, new[] { new QueueEntry("crate", "Crate", 2, Id: 4) }, true, "a long status line", NoKeep);
+        var json = HubView.Build(new Dictionary<string, string>(), Array.Empty<QueueEntry>(), false, "", NoKeep);
+
+        Assert.Equal(
+            """{"marks":{},"queue":[],"running":false,"paused":false,"activeId":0,"status":"","headsUp":"","totals":[],"yields":{},"keep":{"on":false,"targets":[],"byKey":{}},"stamina":null,"takesUnits":false,"dyes":{}}""",
+            json);
+    }
+
     private static readonly KeepView NoKeep = new(false, Array.Empty<KeepTarget>(), new Dictionary<string, int>());
 }
 
@@ -1681,6 +1733,269 @@ public class KeepTargetsTests
         targets.Remove(Bench.Rope);
 
         Assert.Equal(new[] { Bench.Plank }, targets.All.Select(target => target.ItemId));
+    }
+
+    [Fact]
+    public void Every_change_to_the_targets_moves_their_version_and_a_change_to_nothing_does_not()
+    {
+        var targets = new KeepTargets();
+        var seen = targets.Version;
+
+        void Moved(Action change)
+        {
+            change();
+            Assert.NotEqual(seen, targets.Version);
+            seen = targets.Version;
+        }
+
+        void Still(Action change)
+        {
+            change();
+            Assert.Equal(seen, targets.Version);
+        }
+
+        Moved(() => targets.Set(new KeepTarget(Bench.Rope, "rope", "Rope", 5)));
+        Moved(() => targets.Set(new KeepTarget(Bench.Rope, "rope", "Rope", 8)));
+        Moved(() => targets.Set(new KeepTarget(Bench.Rope, "rope", "Rope", 0)));
+        Still(() => targets.Set(new KeepTarget(Bench.Plank, "plank", "Plank", 0)));
+        Still(() => targets.Remove(Bench.Plank));
+        Moved(() => targets.Set(new KeepTarget(Bench.Plank, "plank", "Plank", 3)));
+        Moved(() => targets.Remove(Bench.Plank));
+    }
+}
+
+public class QueueVersionTests
+{
+    [Fact]
+    public void Every_change_to_the_queue_moves_its_version_and_a_change_to_nothing_does_not()
+    {
+        var queue = new CraftQueue();
+        var seen = queue.Version;
+
+        void Moved(Action change)
+        {
+            change();
+            Assert.NotEqual(seen, queue.Version);
+            seen = queue.Version;
+        }
+
+        void Still(Action change)
+        {
+            change();
+            Assert.Equal(seen, queue.Version);
+        }
+
+        Still(() => queue.Clear());
+        Still(() => queue.Add("plank", "Plank", 0));
+        Moved(() => queue.Add("plank", "Plank", 2));
+        Moved(() => queue.Add("plank", "Plank", 1));
+        Moved(() => queue.PushFront("rope", "Rope", 1));
+        Still(() => queue.PushFront("rope", "Rope", 0));
+
+        var plank = queue.Entries[1].Id;
+
+        Moved(() => queue.Move(plank, 0));
+        Still(() => queue.Move(999, 0));
+        Moved(() => queue.SetCrafts(plank, 5));
+        Still(() => queue.SetCrafts(plank, 0));
+        Still(() => queue.SetCrafts(999, 5));
+        Moved(() => queue.Progress(plank, 2));
+        Still(() => queue.Progress(999, 1));
+        Still(() => queue.Progress(plank, 0));
+        Still(() => queue.Remove(999));
+        Moved(() => queue.Remove(plank));
+        Moved(() => queue.Clear());
+    }
+
+    [Fact]
+    public void An_order_finished_by_its_last_crafts_moves_the_version_as_it_leaves()
+    {
+        var queue = new CraftQueue();
+
+        queue.Add("plank", "Plank", 2);
+
+        var before = queue.Version;
+
+        queue.Progress(queue.Entries[0].Id, 2);
+
+        Assert.Empty(queue.Entries);
+        Assert.NotEqual(before, queue.Version);
+    }
+}
+
+/// <summary>What the panel is drawn from, as HubSession gathers it each tick.</summary>
+internal static class Panel
+{
+    private static readonly IReadOnlyDictionary<string, string> NoMarks = new Dictionary<string, string>();
+    private static readonly IReadOnlyDictionary<string, int> NoCounts = new Dictionary<string, int>();
+    private static readonly IReadOnlyList<string> Keys = new[] { "plank", "rope" };
+
+    public static ViewInputs Of(
+        CraftQueue queue,
+        KeepTargets targets,
+        string status = "",
+        bool isRunning = false,
+        StaminaGist? stamina = null,
+        IReadOnlyDictionary<string, string>? marks = null,
+        IReadOnlyList<DyeOption>? dyes = null) =>
+        new(marks ?? NoMarks, queue, queue.Version, isRunning, false, queue.Head?.Id ?? 0, status, true, targets, targets.Version, NoCounts, null,
+            QueueOutlook.Empty, NoCounts, Keys, stamina, false, dyes ?? Array.Empty<DyeOption>());
+}
+
+public class ViewGateTests
+{
+    private readonly CraftQueue _queue = new();
+    private readonly KeepTargets _targets = new();
+    private readonly ViewGate _gate = new();
+
+    private string? Next(string status = "", StaminaGist? stamina = null, IReadOnlyDictionary<string, string>? marks = null, IReadOnlyList<DyeOption>? dyes = null) =>
+        _gate.Next(Panel.Of(_queue, _targets, status, stamina: stamina, marks: marks, dyes: dyes));
+
+    [Fact]
+    public void The_first_view_is_sent_and_the_same_one_after_it_is_not()
+    {
+        Assert.NotNull(Next());
+        Assert.Null(Next());
+        Assert.Null(Next());
+    }
+
+    /// <summary>
+    /// Proves equal inputs are not built at all, not just not sent: a list changed behind the gate's back would build a
+    /// different view, and none is sent.
+    /// </summary>
+    [Fact]
+    public void Equal_inputs_are_not_built_again()
+    {
+        var dyes = new List<DyeOption>();
+
+        Next(dyes: dyes);
+        dyes.Add(new DyeOption("chair", "chair_red", 11, "#ff0000", "Red", 1, 2));
+
+        Assert.Null(Next(dyes: dyes));
+    }
+
+    [Fact]
+    public void A_new_status_line_is_sent()
+    {
+        Next("Crafting Plank");
+
+        Assert.Contains("\"status\":\"Done\"", Next("Done"));
+    }
+
+    [Fact]
+    public void A_change_to_the_queue_in_place_is_sent()
+    {
+        Next();
+        _queue.Add("crate", "Crate", 2);
+
+        Assert.Contains("\"key\":\"crate\"", Next());
+
+        _queue.SetCrafts(_queue.Entries[0].Id, 5);
+
+        Assert.Contains("\"crafts\":5", Next());
+    }
+
+    [Fact]
+    public void A_new_keep_target_is_sent()
+    {
+        Next();
+        _targets.Set(new KeepTarget(Bench.Rope, "rope", "Rope", 5));
+
+        Assert.Contains("\"count\":5", Next());
+    }
+
+    [Fact]
+    public void Stamina_is_sent_when_its_whole_number_changes_and_not_for_a_fraction()
+    {
+        Next(stamina: StaminaGist.Of(new StaminaRead(20.2f, 8), hasQueue: false));
+
+        Assert.Null(Next(stamina: StaminaGist.Of(new StaminaRead(20.7f, 8), hasQueue: false)));
+        Assert.Contains("\"have\":21", Next(stamina: StaminaGist.Of(new StaminaRead(21.1f, 8), hasQueue: false)));
+    }
+
+    [Fact]
+    public void A_page_loaded_again_is_sent_the_same_view_again()
+    {
+        var first = Next("Ready");
+
+        _gate.Forget();
+
+        Assert.Equal(first, Next("Ready"));
+    }
+
+    [Fact]
+    public void The_same_view_from_new_but_equal_inputs_is_not_sent_again()
+    {
+        Next(marks: new Dictionary<string, string> { ["crate"] = "Makes first: Plank x2" });
+
+        Assert.Null(Next(marks: new Dictionary<string, string> { ["crate"] = "Makes first: Plank x2" }));
+    }
+
+    [Fact]
+    public void What_is_sent_is_the_view_the_inputs_describe()
+    {
+        _queue.Add("crate", "Crate", 2);
+        _targets.Set(new KeepTarget(Bench.Rope, "rope", "Rope", 5));
+
+        var marks = new Dictionary<string, string> { ["crate"] = "Makes first: Plank x2" };
+        var stamina = StaminaGist.Of(new StaminaRead(3, 8), hasQueue: true);
+        var expected = HubView.Build(marks, _queue.Entries, false, "Ready", new KeepView(true, _targets.All, new Dictionary<string, int>()), activeOrderId: _queue.Entries[0].Id,
+            stamina: StaminaView.From(new StaminaRead(3, 8), new[] { "plank", "rope" }, hasQueue: true), dyes: Array.Empty<DyeOption>());
+
+        Assert.Equal(expected, Next("Ready", stamina, marks));
+    }
+}
+
+public class CacheScopeTests
+{
+    [Fact]
+    public void The_first_language_and_save_are_not_a_move()
+    {
+        Assert.False(new CacheScope().Follow(false, "slot1"));
+    }
+
+    [Fact]
+    public void The_same_language_and_save_are_not_a_move()
+    {
+        var scope = new CacheScope();
+
+        scope.Follow(false, "slot1");
+
+        Assert.False(scope.Follow(false, "slot1"));
+    }
+
+    [Fact]
+    public void A_language_change_is_a_move_once()
+    {
+        var scope = new CacheScope();
+
+        scope.Follow(false, "slot1");
+
+        Assert.True(scope.Follow(true, "slot1"));
+        Assert.False(scope.Follow(true, "slot1"));
+    }
+
+    [Fact]
+    public void Loading_another_save_is_a_move_once()
+    {
+        var scope = new CacheScope();
+
+        scope.Follow(false, "slot1");
+
+        Assert.True(scope.Follow(false, "slot2"));
+        Assert.False(scope.Follow(false, "slot2"));
+    }
+
+    [Fact]
+    public void A_save_name_missing_for_a_moment_is_not_a_move_and_the_same_save_after_it_is_not_either()
+    {
+        var scope = new CacheScope();
+
+        scope.Follow(false, "slot1");
+
+        Assert.False(scope.Follow(false, null));
+        Assert.False(scope.Follow(false, "slot1"));
+        Assert.True(scope.Follow(false, "slot2"));
     }
 }
 

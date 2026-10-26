@@ -17,6 +17,9 @@ public sealed class CraftQueue
 
     public IReadOnlyList<QueueEntry> Entries => _entries;
 
+    /// <summary>Moves on every change to the queue, so a reader can tell it is unchanged without comparing its orders.</summary>
+    public int Version { get; private set; }
+
     public QueueEntry? Head => _entries.Count > 0 ? _entries[0] : null;
 
     /// <summary>
@@ -26,6 +29,8 @@ public sealed class CraftQueue
     public void Add(string key, string name, int crafts, bool isTopUp = false)
     {
         if (crafts <= 0) return;
+
+        Version++;
 
         if (_entries.Count > 0 && _entries[^1].Key == key && _entries[^1].IsTopUp == isTopUp)
         {
@@ -45,6 +50,8 @@ public sealed class CraftQueue
     {
         if (crafts <= 0) return;
 
+        Version++;
+
         var at = behindHead ? Math.Min(1, _entries.Count) : 0;
 
         if (at < _entries.Count && _entries[at].Key == key && !_entries[at].IsTopUp)
@@ -58,9 +65,18 @@ public sealed class CraftQueue
     }
 
     /// <summary>Takes an order off by its id, so a remove that lands after the queue changed takes the order the player meant.</summary>
-    public void Remove(long orderId) => _entries.RemoveAll(entry => entry.Id == orderId);
+    public void Remove(long orderId)
+    {
+        if (_entries.RemoveAll(entry => entry.Id == orderId) > 0) Version++;
+    }
 
-    public void Clear() => _entries.Clear();
+    public void Clear()
+    {
+        if (_entries.Count == 0) return;
+
+        _entries.Clear();
+        Version++;
+    }
 
     /// <summary>
     /// Moves an order to a new place in the queue, by its id so a drag that lands after the queue changed still moves
@@ -71,6 +87,8 @@ public sealed class CraftQueue
         var from = _entries.FindIndex(entry => entry.Id == orderId);
 
         if (from < 0) return;
+
+        Version++;
 
         var entry = _entries[from];
         _entries.RemoveAt(from);
@@ -84,6 +102,8 @@ public sealed class CraftQueue
 
         if (index < 0 || crafts <= 0) return;
 
+        Version++;
+
         _entries[index] = _entries[index] with { Crafts = crafts };
     }
 
@@ -96,6 +116,8 @@ public sealed class CraftQueue
         var index = _entries.FindIndex(entry => entry.Id == orderId);
 
         if (index < 0 || crafts <= 0) return;
+
+        Version++;
 
         var left = _entries[index].Crafts - crafts;
 

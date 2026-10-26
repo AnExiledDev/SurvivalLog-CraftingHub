@@ -26,6 +26,9 @@ public sealed class KeepTargets
 
     public IReadOnlyList<KeepTarget> All => _targets;
 
+    /// <summary>Moves on every change to the targets, so a reader can tell they are unchanged without comparing them.</summary>
+    public int Version { get; private set; }
+
     /// <summary>Adds or replaces the item's target. A count of zero or less removes it.</summary>
     public void Set(KeepTarget target)
     {
@@ -33,7 +36,10 @@ public sealed class KeepTargets
 
         if (target.Count <= 0)
         {
-            if (index >= 0) _targets.RemoveAt(index);
+            if (index < 0) return;
+
+            _targets.RemoveAt(index);
+            Version++;
 
             return;
         }
@@ -42,9 +48,14 @@ public sealed class KeepTargets
 
         if (index >= 0) _targets[index] = capped;
         else _targets.Add(capped);
+
+        Version++;
     }
 
-    public void Remove(int itemId) => _targets.RemoveAll(target => target.ItemId == itemId);
+    public void Remove(int itemId)
+    {
+        if (_targets.RemoveAll(target => target.ItemId == itemId) > 0) Version++;
+    }
 
     /// <summary>Recipe key to target count, for every recipe in the book whose product has a target.</summary>
     public IReadOnlyDictionary<string, int> ByRecipe(RecipeBook book)

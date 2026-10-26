@@ -1336,6 +1336,36 @@ public class PageScriptTests
     }
 
     [Fact]
+    public void New_counts_for_one_recipe_rebuild_only_that_card()
+    {
+        var page = BenchWithRecipes();
+
+        page.Press("cardPart('plank', '.cc-card-name')");
+        page.Run("var plankCard = card('plank'); var ropeCard = card('rope'); var crateCard = card('crate'); var torchCard = card('torch')");
+        page.RecipeMsg(Recipes.Replace("\"need\":3,\"have\":1", "\"need\":3,\"have\":2"));
+
+        Assert.True(page.Truth("card('plank') === plankCard && card('crate') === crateCard && card('torch') === torchCard"));
+        Assert.False(page.Truth("card('rope') === ropeCard"));
+        Assert.Equal("Short: Fibre 1", page.Text("cardPart('rope', '.cc-card-st').textContent"));
+        Assert.Equal("3/2", page.Text("cardPart('rope', '.cc-mat').textContent"));
+        Assert.Equal("plank,rope,crate,shirt,torch", page.Text("cardKeys()"));
+        Assert.True(page.Truth("card('plank').classList.contains('cc-sel')"));
+    }
+
+    [Fact]
+    public void A_new_mark_on_one_recipe_rebuilds_only_that_card()
+    {
+        var page = BenchWithRecipes();
+
+        page.Run("var plankCard = card('plank'); var ropeCard = card('rope'); var crateCard = card('crate')");
+        page.Show(View(marks: new Dictionary<string, string> { ["crate"] = "Makes first: Plank ×2", ["rope"] = "Makes first: Fibre ×3" }));
+
+        Assert.True(page.Truth("card('plank') === plankCard && card('crate') === crateCard"));
+        Assert.False(page.Truth("card('rope') === ropeCard"));
+        Assert.Equal("Makes first: Fibre x3", page.Text("cardPart('rope', '.cc-card-st').textContent"));
+    }
+
+    [Fact]
     public void Picking_a_recipe_moves_the_highlight_without_rebuilding_the_list()
     {
         var page = BenchWithRecipes();
@@ -1731,8 +1761,9 @@ public class PageScriptTests
         string status = "",
         long activeOrderId = 0,
         bool takesUnits = false,
-        IReadOnlyList<DyeOption>? dyes = null) =>
-        HubView.Build(Marks, queue ?? Array.Empty<QueueEntry>(), isRunning, status, keep ?? NoKeep, isPaused, outlook, yields, activeOrderId, takesUnitsOffStacks: takesUnits, dyes: dyes);
+        IReadOnlyList<DyeOption>? dyes = null,
+        IReadOnlyDictionary<string, string>? marks = null) =>
+        HubView.Build(marks ?? Marks, queue ?? Array.Empty<QueueEntry>(), isRunning, status, keep ?? NoKeep, isPaused, outlook, yields, activeOrderId, takesUnitsOffStacks: takesUnits, dyes: dyes);
 
     /// <summary>The plugin's view with its stamina reading, which the plugin sends as the view's last field.</summary>
     private static string WithStamina(string view, string stamina) => view[..^1] + ",\"stamina\":" + stamina + "}";

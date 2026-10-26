@@ -105,7 +105,11 @@ public abstract record RunnerCommand
     {
     }
 
-    public sealed record None : RunnerCommand;
+    public sealed record None : RunnerCommand
+    {
+        /// <summary>Nothing to do is most ticks' answer, so it is one shared value.</summary>
+        public static readonly None Instance = new();
+    }
 
     public sealed record ClickRecipe(string Key) : RunnerCommand;
 
@@ -305,7 +309,7 @@ public sealed class QueueRunner
 
     public RunnerCommand Tick(BenchView bench, double now, Func<NextStep> next)
     {
-        if (_stage == Stage.Idle) return new RunnerCommand.None();
+        if (_stage == Stage.Idle) return RunnerCommand.None.Instance;
 
         // The busy clock only runs while the run waits to pick its next step.
         if (_stage != Stage.Ready) _busyWith = null;
@@ -325,7 +329,7 @@ public sealed class QueueRunner
             Stage.Filling => CraftWhenLaidOut(bench, now),
             Stage.Crafting => WaitForResult(bench, now),
             Stage.Collecting => WaitForCollect(bench, now),
-            _ => new RunnerCommand.None(),
+            _ => RunnerCommand.None.Instance,
         };
     }
 
@@ -363,7 +367,7 @@ public sealed class QueueRunner
 
         _heldSince = null;
 
-        if (IsAwaitingRefresh(bench, now)) return new RunnerCommand.None();
+        if (IsAwaitingRefresh(bench, now)) return RunnerCommand.None.Instance;
 
         var step = next();
 
@@ -404,7 +408,7 @@ public sealed class QueueRunner
 
         var limit = _isBatchStale ? 0 : HeldHandSeconds;
 
-        return now - _heldSince >= limit ? StuckHand() : new RunnerCommand.None();
+        return now - _heldSince >= limit ? StuckHand() : RunnerCommand.None.Instance;
     }
 
     private RunnerCommand StuckHand()
@@ -426,7 +430,7 @@ public sealed class QueueRunner
     {
         _waitingSince ??= now;
 
-        return now - _waitingSince >= WaitLimitSeconds ? Stop(reason) : new RunnerCommand.None();
+        return now - _waitingSince >= WaitLimitSeconds ? Stop(reason) : RunnerCommand.None.Instance;
     }
 
     /// <summary>
@@ -441,7 +445,7 @@ public sealed class QueueRunner
         _recheckSince = now;
         _recheckRefreshes = bench.Refreshes;
 
-        return new RunnerCommand.None();
+        return RunnerCommand.None.Instance;
     }
 
     /// <summary>A recheck holds the plan until the game rebuilds its recipe list, or a short while has passed.</summary>
@@ -482,7 +486,7 @@ public sealed class QueueRunner
             return new RunnerCommand.Notice(Texts.StaleBatch.Pick(IsChinese));
         }
 
-        if (_hasToldBusy || now - _busySince < BusyNoticeSeconds) return new RunnerCommand.None();
+        if (_hasToldBusy || now - _busySince < BusyNoticeSeconds) return RunnerCommand.None.Instance;
 
         _hasToldBusy = true;
 
@@ -510,13 +514,13 @@ public sealed class QueueRunner
 
             if (now - _stageSince > FillTimeoutSeconds) return Stop(FillFailure(bench, step.Recipe));
 
-            return IsBusy(bench) || holdsOneCraft ? new RunnerCommand.None() : ClickAgain(step.Recipe.Key, now);
+            return IsBusy(bench) || holdsOneCraft ? RunnerCommand.None.Instance : ClickAgain(step.Recipe.Key, now);
         }
 
         // The game fills the bench over a frame or two and then recounts what it allows; let that settle.
         _settledSince ??= now;
 
-        if (now - _settledSince < SettleSeconds) return new RunnerCommand.None();
+        if (now - _settledSince < SettleSeconds) return RunnerCommand.None.Instance;
 
         _sentQuantity = Math.Min(step.Crafts, bench.MaxCrafts);
         _batchDone = 0;
@@ -560,7 +564,7 @@ public sealed class QueueRunner
 
         _settledSince ??= now;
 
-        if (now - _settledSince < SettleSeconds) return new RunnerCommand.None();
+        if (now - _settledSince < SettleSeconds) return RunnerCommand.None.Instance;
 
         if (bench.CraftLocked) return Stop(bench.LockText.Length > 0 ? Texts.LockedBecause.Say(IsChinese, recipe.Name, bench.LockText) : Texts.Locked.Say(IsChinese, recipe.Name));
 
@@ -589,7 +593,7 @@ public sealed class QueueRunner
     /// </summary>
     private RunnerCommand ClickAgain(string recipeKey, double now)
     {
-        if (now - _clickedAt < RecipeClickRetrySeconds) return new RunnerCommand.None();
+        if (now - _clickedAt < RecipeClickRetrySeconds) return RunnerCommand.None.Instance;
 
         _clickedAt = now;
 
@@ -605,7 +609,7 @@ public sealed class QueueRunner
 
         if (isActive) _hasStarted = true;
 
-        if (!_hasStarted) return now - _stageSince > StartTimeoutSeconds ? Stop(Texts.DidNotStart.Say(IsChinese, Current.Step.Recipe.Name)) : new RunnerCommand.None();
+        if (!_hasStarted) return now - _stageSince > StartTimeoutSeconds ? Stop(Texts.DidNotStart.Say(IsChinese, Current.Step.Recipe.Name)) : RunnerCommand.None.Instance;
 
         if (bench.HasResult && !bench.IsBusy)
         {
@@ -635,7 +639,7 @@ public sealed class QueueRunner
     {
         var counted = Counted(bench);
 
-        if (!Current.IsTarget || counted <= _credited) return new RunnerCommand.None();
+        if (!Current.IsTarget || counted <= _credited) return RunnerCommand.None.Instance;
 
         var fresh = counted - _credited;
         _credited = counted;
@@ -650,7 +654,7 @@ public sealed class QueueRunner
 
         if (!bench.HasResult) return FinishStep(bench, now);
 
-        return now - _stageSince > CollectTimeoutSeconds ? Stop(Texts.ResultStuck.Pick(IsChinese)) : new RunnerCommand.None();
+        return now - _stageSince > CollectTimeoutSeconds ? Stop(Texts.ResultStuck.Pick(IsChinese)) : RunnerCommand.None.Instance;
     }
 
     /// <summary>
@@ -746,11 +750,11 @@ public sealed class QueueRunner
             _hasToldElsewhere = false;
             _needsReopen = false;
 
-            return new RunnerCommand.None();
+            return RunnerCommand.None.Instance;
         }
 
         // Paused on a stuck hand: opening the workbench again clears it, or the game letting go of the hand by itself.
-        if (_needsReopen && bench.IsHandHeld) return new RunnerCommand.None();
+        if (_needsReopen && bench.IsHandHeld) return RunnerCommand.None.Instance;
 
         _needsReopen = false;
 
@@ -760,10 +764,10 @@ public sealed class QueueRunner
         {
             Enter(Stage.Resuming, now);
 
-            return new RunnerCommand.None();
+            return RunnerCommand.None.Instance;
         }
 
-        if (now - _stageSince < ResumeSettleSeconds) return new RunnerCommand.None();
+        if (now - _stageSince < ResumeSettleSeconds) return RunnerCommand.None.Instance;
 
         _stage = Stage.Ready;
 
@@ -774,7 +778,7 @@ public sealed class QueueRunner
     {
         _stage = Stage.Paused;
 
-        if (_hasToldElsewhere) return new RunnerCommand.None();
+        if (_hasToldElsewhere) return RunnerCommand.None.Instance;
 
         _hasToldElsewhere = true;
 

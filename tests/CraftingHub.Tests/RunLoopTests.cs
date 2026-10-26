@@ -437,6 +437,39 @@ public class RunLoopTests
         Assert.Equal(3, Assert.IsType<RunnerCommand.StepDone>(runner.Tick(closed, 1.1, PlankNext)).Crafts);
     }
 
+    /// <summary>
+    /// Skipping unchanged views must not skip a closed bench: the step that finishes there moves the queue, and the
+    /// panel is sent the queue it left behind.
+    /// </summary>
+    [Fact]
+    public void With_the_workbench_closed_a_finished_step_moves_the_queue_and_the_panel_is_sent_it()
+    {
+        var runner = new QueueRunner();
+        var queue = new CraftQueue();
+        var targets = new KeepTargets();
+        var gate = new ViewGate();
+
+        queue.Add("plank", "Plank", 5);
+        runner.Start();
+        runner.Tick(Idle() with { Results = new ResultCount(0, 0) }, 0, PlankNext);
+        runner.Tick(Idle(OneCraft, 3) with { Results = new ResultCount(0, 0) }, 0.1, PlankNext);
+        runner.Tick(Idle(OneCraft, 3) with { Results = new ResultCount(0, 0) }, 0.4, PlankNext);
+        runner.Tick(new BenchView(true, true, false, 0, Empty, 0, RunBench, BatchActive: true, IsCrafting: true, Results: new ResultCount(2, 2)), 1, PlankNext);
+        gate.Next(Panel.Of(queue, targets, isRunning: runner.IsRunning));
+
+        Assert.Null(gate.Next(Panel.Of(queue, targets, isRunning: runner.IsRunning)));
+
+        var closed = Closed with { Results = new ResultCount(3, 3), ResultsProven = true };
+        var done = Assert.IsType<RunnerCommand.StepDone>(runner.Tick(closed, 1.1, PlankNext));
+        queue.Progress(queue.Entries[0].Id, done.Crafts);
+
+        var sent = gate.Next(Panel.Of(queue, targets, isRunning: runner.IsRunning));
+
+        Assert.NotNull(sent);
+        using var parsed = System.Text.Json.JsonDocument.Parse(sent!);
+        Assert.Equal(2, parsed.RootElement.GetProperty("queue")[0].GetProperty("crafts").GetInt32());
+    }
+
     [Fact]
     public void While_the_result_counter_has_never_fired_a_step_with_nothing_counted_is_credited_as_sent_and_the_run_goes_on()
     {
