@@ -28,8 +28,7 @@
 
 ## 0.9.3
 
-The workbench screen has a new look in the gold style of the other hubs.
-
+- The workbench screen has a new look in the gold style of the other hubs.
 - Recipe cards sit two to a row, with materials on their own line as need/have and the stamina a craft takes beside Add.
 - The bell on a card keeps that item in stock and shows the kept count. Kept items have their own tab beside the queue.
 - The queue column shows how much stamina the queued orders take against what you have. Each order shows its own stamina cost. Intermediates made on the way are not counted in this figure.
@@ -40,25 +39,35 @@ The workbench screen has a new look in the gold style of the other hubs.
 
 ## 0.9.2
 
-An order in the craft queue counts down by one as each craft of a batch finishes, and leaves the queue with its last craft. Before, it kept its full count until the whole batch was done, so "Materials for the whole queue" showed you short of materials the batch had already used. Crafts finished before you press Stop now come off the order too.
-
-Your stamina shows beside the craft queue again, each recipe shows what a craft costs, and a bar says so when the queue cannot go on for lack of stamina. The game had been answering the stamina question with nothing, so none of this showed.
-
-- After a game update, a hook that can no longer be placed is logged as an error, so the Mod Manager can mark the mod as maybe needing an update.
+- "Materials for the whole queue" no longer shows you short of materials a batch has already used. An order in the craft queue counts down by one as each craft finishes, and leaves the queue with its last craft.
+- Crafts finished before you press Stop come off the order.
+- Your stamina shows beside the craft queue again, each recipe shows what a craft costs, and a bar says so when the queue cannot go on for lack of stamina.
+- After a game update, Mod Manager can tell you if this mod may need an update.
 - Made for Survival Log 1.1.19131.
 
 ## 0.9.1
 
-The bag panel beside the crafting columns is as wide as the tab shown. Before, it kept the width of your widest storage (a large rack), which squeezed the recipe list and queue even while the bag was open.
+- The recipe list and queue are no longer squeezed while the bag is open. The bag panel beside them is as wide as the tab shown, not your widest storage.
 
 ## 0.9.0
 
-Every setting can be changed on the Mod Manager's Mods screen without a restart. The Mods screen shows the mod's name, description, category and links, lists Stacking as a mod it works with and BetterCrafting as one it does not work with. While BetterCrafting is installed, Crafting Hub does not load. The Mods screen links this changelog, and `AutoStart` stays hidden there while `KeepStocked` is off. Exiled's Toolkit 0.4.0 or newer is optional. With it, settings changed on the Mods screen take effect without a restart; without it, at the next game start.
+- Mod Manager's Mods screen shows the mod's name, description, category and links, and links to this changelog.
+- The Mods screen lists Stacking as a mod it works with, and BetterCrafting as one it does not work with. While BetterCrafting is installed, Crafting Hub does not load.
+- `AutoStart` stays hidden on the Mods screen while `KeepStocked` is off.
+- Exiled's Toolkit 0.4.0 or newer is optional. With it, settings you change on the Mods screen take effect right away. Without it, they take effect the next time you start the game.
 
 ## 0.8.0
 
-Crafting is a lot smoother. The workbench rebuilt its whole recipe list after every item it moved, so pulling materials and finishing a craft froze the game for a moment each time. Those rebuilds now run once, and the check for what you can make reads your storages once per rebuild instead of once per recipe. Intermediate parts a recipe needs go into the queue as their own orders, ahead of the item that needs them, so the "Made on the way" list is gone. Cards say "Can make now" whenever you own enough of every material. Before, a material held in one stack bigger than the recipe needs (with the Stacking mod) made the card say "Cannot make now", even though the queue could take part of that stack. When the queue stops because your stamina is too low, a bar over the queue says so. Keep on a recipe card starts at 1 instead of 10. No setting changed.
+- Crafting is a lot smoother: pulling materials and finishing a craft no longer freeze the game for a moment each time.
+- Intermediate parts a recipe needs go into the queue as their own orders, ahead of the item that needs them, so the "Made on the way" list is gone.
+- Cards say "Can make now" whenever you own enough of every material. Before, with the Stacking mod, a material held in one stack bigger than the recipe needs made the card say "Cannot make now".
+- When the queue stops because your stamina is too low, a bar over the queue says so.
+- Keep on a recipe card starts at 1 instead of 10.
 
 ## 0.7.1
 
-First public release. A wider, searchable workbench screen with a craft queue. Workbenches use every storage in your home, make intermediate materials for you, and craft a queue of different recipes.
+- First release.
+- A wider workbench screen with a search box and a craft queue.
+- Workbenches use every storage in your home.
+- Intermediate materials are made for you.
+- The queue crafts different recipes one after another.
