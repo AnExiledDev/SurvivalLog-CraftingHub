@@ -1658,6 +1658,92 @@ public class PageScriptTests
         Assert.True(page.Truth("$('cc-tip') === null"));
     }
 
+    // ---------------------------------------------------------------- UI size
+
+    [Fact]
+    public void The_two_columns_follow_the_ui_size_as_far_as_the_whole_workbench_fits_at_the_pages_own_size()
+    {
+        var page = BenchWithToolkit();
+
+        Assert.Equal(2, page.Number("handed.length"));
+
+        foreach (var id in new[] { "cc-mid", "cc-queue" })
+        {
+            Assert.Equal(1, page.Number($"handedId('{id}').length"));
+            Assert.True(page.Truth($"handedId('{id}')[0].options.fit === benchDoc().querySelector('.ui-container')"));
+            Assert.True(page.Truth($"handedId('{id}')[0].options.pageFits === true"));
+        }
+    }
+
+    [Fact]
+    public void Columns_drawn_before_the_toolkit_loads_wait_for_it()
+    {
+        var page = BenchWithRecipes();
+
+        Assert.Equal(2, page.Number("window.__exiledUiWait.length"));
+        Assert.Equal("cc-mid,cc-queue", page.Text("window.__exiledUiWait.map(function (entry) { return entry[0].id; }).join(',')"));
+        Assert.True(page.Truth("window.__exiledUiWait[1][1].fit === benchDoc().querySelector('.ui-container')"));
+    }
+
+    [Fact]
+    public void A_new_zoom_fits_the_page_to_the_window_again_at_once_but_during_a_drag_only_once_the_item_is_dropped()
+    {
+        var page = BenchWithToolkit();
+        var fitsBefore = page.Number("bench().fits");
+
+        page.Run("handedId('cc-mid')[0].options.onZoom(1.3)");
+
+        Assert.Equal(fitsBefore + 1, page.Number("bench().fits"));
+
+        page.Run("gameDrag(true)");
+        page.Run("handedId('cc-queue')[0].options.onZoom(1.2)");
+        page.Poll();
+
+        Assert.Equal(fitsBefore + 1, page.Number("bench().fits"));
+
+        page.Run("gameDrag(false)");
+        page.Poll();
+
+        Assert.Equal(fitsBefore + 2, page.Number("bench().fits"));
+    }
+
+    [Fact]
+    public void A_tip_in_a_bigger_column_is_drawn_as_big_and_placed_by_the_pointer_on_screen()
+    {
+        var page = BenchWithToolkit();
+
+        page.Run("$('cc-mid').style.zoom = '1.5'");
+        page.Run("fire(cardPart('plank', '.cc-mat').querySelector('b'), 'mouseover', { clientX: 100, clientY: 50 })");
+        page.Advance(500);
+
+        Assert.Equal("1.5", page.Text("$('cc-tip').style.zoom"));
+        Assert.Equal("76px", page.Text("$('cc-tip').style.left"));
+        Assert.Equal("45px", page.Text("$('cc-tip').style.top"));
+
+        // Near the window's corner it flips to the other side of the pointer by its size on screen, 300 by 75.
+        page.Run("bench().innerWidth = 1920; bench().innerHeight = 1080; $('cc-tip').offsetWidth = 200; $('cc-tip').offsetHeight = 50");
+        page.Run("fire(card('plank'), 'mouseover', {})");
+        page.Run("fire(cardPart('plank', '.cc-mat').querySelector('b'), 'mouseover', { clientX: 1800, clientY: 1050 })");
+        page.Advance(500);
+
+        Assert.Equal("993px", page.Text("$('cc-tip').style.left"));
+        Assert.Equal("643px", page.Text("$('cc-tip').style.top"));
+    }
+
+    [Fact]
+    public void A_tip_on_a_workbench_the_game_drew_smaller_to_fit_the_window_still_shows_beside_the_pointer()
+    {
+        var page = BenchWithRecipes();
+
+        page.Run("benchDoc().body.style.zoom = '0.8'");
+        page.Run("fire(cardPart('plank', '.cc-mat').querySelector('b'), 'mouseover', { clientX: 100, clientY: 50 })");
+        page.Advance(500);
+
+        Assert.Equal("", page.Text("$('cc-tip').style.zoom"));
+        Assert.Equal("143px", page.Text("$('cc-tip').style.left"));
+        Assert.Equal("85px", page.Text("$('cc-tip').style.top"));
+    }
+
     // ---------------------------------------------------------------- colors
 
     // The game keeps colored recipes off its list; the plugin sends each dyeable recipe's colors by its plain key.
@@ -1736,6 +1822,18 @@ public class PageScriptTests
         page.OpenBench();
         page.RecipeMsg(Recipes);
         page.Show(View(keep: keep, dyes: ChairColors));
+
+        return page;
+    }
+
+    private static PageScript BenchWithToolkit()
+    {
+        var page = new PageScript();
+
+        page.Run("fakeToolkit()");
+        page.OpenBench();
+        page.RecipeMsg(Recipes);
+        page.Show(View());
 
         return page;
     }

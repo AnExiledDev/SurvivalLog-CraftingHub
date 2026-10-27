@@ -385,6 +385,31 @@ window.vuplex = {
   postMessage: function (message) { posted.push(message); }
 };
 
+// Exiled's Toolkit (ui.js) as far as the hub uses it, once a test loads it: what was handed to it, and the zoom it reads
+// off the style of a node and of each element around it.
+var handed = [];
+
+function fakeToolkit() {
+  window.ExiledUi = {
+    version: 1,
+    scale: 1,
+    size: function (el, options) { handed.push({ el: el, options: options }); },
+    zoomAt: function (el) {
+      var zoom = 1;
+
+      for (var node = el; node; node = node.parentElement) {
+        if (node.style && node.style.zoom) zoom *= Number(node.style.zoom);
+      }
+
+      return zoom;
+    }
+  };
+}
+
+function handedId(id) {
+  return handed.filter(function (entry) { return entry.el.id === id; });
+}
+
 // ---------------------------------------------------------------- the workbench page
 
 // The page's groups in its own order (NOTE_CAT_META, ToolTable.html:2946): 1 to 7, then 0 for everything else.

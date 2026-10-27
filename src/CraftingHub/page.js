@@ -667,13 +667,17 @@
     var y = e.clientY;
 
     setTimeout(function () {
-      if (ui.tipNode === target && win.document.contains(target)) showTip(win, target.getAttribute('data-slip-tip'), x, y);
+      if (ui.tipNode === target && win.document.contains(target)) showTip(win, target, x, y);
     }, TIP_DELAY_MS);
   }
 
-  function showTip(win, text, x, y) {
+  // Drawn at the size of the column its part is in. It is placed in screen pixels, then written in its own: the zoom
+  // the page sets on its body to fit the window and the tip's own zoom both scale its left and top.
+  function showTip(win, target, x, y) {
     var doc = win.document;
     var box = doc.getElementById('cc-tip');
+    var zoom = uiZoom(target);
+    var scale = pageZoom(doc) * zoom;
 
     if (!box) {
       box = el(doc, 'div', 'cc-tip');
@@ -681,17 +685,26 @@
       doc.body.appendChild(box);
     }
 
-    box.textContent = text;
+    box.textContent = target.getAttribute('data-slip-tip');
+    box.style.zoom = zoom === 1 ? '' : String(zoom);
     box.style.display = '';
-    box.style.left = (x + 14) + 'px';
-    box.style.top = (y + 18) + 'px';
+    placeTip(box, x + 14, y + 18, scale);
 
     // Kept inside the page: flipped to the other side of the pointer where it would run off.
-    var width = box.offsetWidth || 0;
-    var height = box.offsetHeight || 0;
+    var width = (box.offsetWidth || 0) * scale;
+    var height = (box.offsetHeight || 0) * scale;
+    var left = x + 14;
+    var top = y + 18;
 
-    if (win.innerWidth && x + 14 + width > win.innerWidth) box.style.left = Math.max(0, x - 10 - width) + 'px';
-    if (win.innerHeight && y + 18 + height > win.innerHeight) box.style.top = Math.max(0, y - 10 - height) + 'px';
+    if (win.innerWidth && left + width > win.innerWidth) left = Math.max(0, x - 10 - width);
+    if (win.innerHeight && top + height > win.innerHeight) top = Math.max(0, y - 10 - height);
+
+    placeTip(box, left, top, scale);
+  }
+
+  function placeTip(box, left, top, scale) {
+    box.style.left = Math.round(left / scale) + 'px';
+    box.style.top = Math.round(top / scale) + 'px';
   }
 
   function hideTip(win) {
@@ -940,6 +953,46 @@
     return win.__ccUi.amounts[key] || 1;
   }
 
+  // ---------------------------------------------------------------- UI size
+
+  // Exiled's Toolkit draws the panels a mod hands it at the player's UI size; one handed before its script runs waits.
+  function uiSize(node, options) {
+    var toolkit = window.ExiledUi;
+    if (toolkit) { toolkit.size(node, options); return; }
+    var waiting = window.__exiledUiWait = window.__exiledUiWait || [];
+    waiting.push([node, options]);
+    if (waiting.length > 32) waiting.shift();
+  }
+
+  // The zoom the Toolkit draws a node at, from the panels it sits in; 1 without the Toolkit.
+  function uiZoom(node) {
+    var toolkit = window.ExiledUi;
+    if (!toolkit || typeof toolkit.zoomAt !== 'function') return 1;
+    try { return Number(toolkit.zoomAt(node)) || 1; } catch (e) { return 1; }
+  }
+
+  // The zoom the workbench page sets on its body when its panels are too big for the window.
+  function pageZoom(doc) {
+    var zoom = Number(doc.body && doc.body.style.zoom);
+
+    return zoom > 0 ? zoom : 1;
+  }
+
+  // Drawn at the player's UI size as far as the whole workbench still fits the window at the page's own size, so the
+  // game never draws its own panels smaller for the hub. The Workbench tab and the chain under the Craft button keep
+  // the game's size. The page fits itself to the window again after each new zoom, or after the drop when one comes
+  // during a drag.
+  function sizeColumn(win, column, container) {
+    uiSize(column, {
+      fit: container,
+      pageFits: true,
+      onZoom: function () {
+        win.__ccLayout = null;
+        refit(win);
+      }
+    });
+  }
+
   // ---------------------------------------------------------------- layout
 
   // The hub's two columns go after the game's own list inside the bench panel, and the bench moves into the bag's
@@ -958,8 +1011,12 @@
     removeById(doc, 'cc-queue');
     panel.classList.add('cc-hub');
     if (panel.parentElement) panel.parentElement.classList.add('cc-wide');
-    panel.appendChild(buildMid(win));
-    panel.appendChild(buildQueue(win));
+    var mid = panel.appendChild(buildMid(win));
+    var queue = panel.appendChild(buildQueue(win));
+    var container = doc.querySelector('.ui-container') || panel;
+
+    sizeColumn(win, mid, container);
+    sizeColumn(win, queue, container);
 
     return true;
   }

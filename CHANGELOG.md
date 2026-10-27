@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.9.10
+
+- The recipe list and the craft queue on the workbench can be drawn bigger or smaller with the UI size setting of Exiled's Toolkit 0.10.0 or newer. A change shows at once, and they only grow as far as the whole workbench still fits the game's window, so the game's own panels keep their size.
+- Their tips take the same size and show beside the pointer.
+- Fixed: on a window too small for the whole workbench, where the game draws it smaller, the hub's tips showed away from the pointer.
+- Made for Survival Log 1.1.19611.
+
 ## 0.9.9
 
 - Smoother play: Crafting Hub no longer causes small stutters while you play, most of all with the workbench closed.
