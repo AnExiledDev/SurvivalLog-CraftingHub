@@ -2,6 +2,8 @@ Name: Crafting Hub
 Summary: Craft a whole queue of different recipes in one go, with materials from every storage in your home, not only the linked ones. Missing planks and parts get made first, by themselves. A wider, searchable workbench screen shows what you can make now, what you're short of and the stamina it costs, and Keep stocked tops up what you always want.
 
 Description (BBCode):
+[center][img]https://sldb.core-directive.com/media/save/1-save-safe.png[/img][/center]
+
 A workbench normally only uses its linked storages and makes one recipe at a time. Crafting Hub lets every workbench use every storage in your home, makes the planks and parts in between for you, and crafts a whole queue of recipes in order.
 
 [size=5]Main features[/size]
