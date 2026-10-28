@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.9.11
+
+- Fixed: a stutter the first time in a session that you open a workbench.
+- Fixed: shorter stutters when a workbench checks which recipes it can make through intermediates, most of all with many items in your storages.
+- Made for Survival Log 1.1.19611.
+
 ## 0.9.10
 
 - The recipe list and the craft queue on the workbench can be drawn bigger or smaller with the UI size setting of Exiled's Toolkit 0.10.0 or newer. A change shows at once, and they only grow as far as the whole workbench still fits the game's window, so the game's own panels keep their size.

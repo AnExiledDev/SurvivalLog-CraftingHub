@@ -160,6 +160,28 @@ public class CraftPlannerTests
         Assert.Equal(0, walk.Left[Bench.Log]);
     }
 
+    [Fact]
+    public void A_walk_leaves_the_callers_stock_alone_and_carries_unused_items_into_what_is_left()
+    {
+        var stock = Bench.Mats((Bench.Log, 3), (Bench.Fibre, 3), (Bench.Nail, 7));
+
+        var walk = CraftPlanner.Walk(Bench.Book(), stock, Bench.CrateRecipe, 1, maxDepth: 4);
+
+        Assert.Equal((7, 1, 1), (walk.Left[Bench.Nail], walk.Left[Bench.Log], walk.Left[Bench.Crate]));
+        Assert.Equal(new[] { (Bench.Log, 3), (Bench.Fibre, 3), (Bench.Nail, 7) }, stock.Select(pair => (pair.Key, pair.Value)));
+    }
+
+    [Fact]
+    public void A_count_the_plan_changed_is_read_back_from_the_plan_not_the_stock()
+    {
+        // The planks are made and then used up within the one plan, so how many there are after making them has to
+        // come from the plan itself: the stock it was given still says none.
+        var walk = CraftPlanner.Walk(Bench.Book(), Bench.Mats((Bench.Log, 23), (Bench.Rope, 10)), Bench.CrateRecipe, 10, maxDepth: 4);
+
+        Assert.Equal(new[] { ("plank", 20), ("crate", 10) }, walk.Steps.Select(step => (step.Recipe.Key, step.Crafts)));
+        Assert.Equal((3, 0, 0, 10), (walk.Left[Bench.Log], walk.Left[Bench.Plank], walk.Left[Bench.Rope], walk.Left[Bench.Crate]));
+    }
+
     private static (string, int)[] Steps(CraftPlan.Ready ready) => ready.Steps.Select(step => (step.Recipe.Key, step.Crafts)).ToArray();
 }
 

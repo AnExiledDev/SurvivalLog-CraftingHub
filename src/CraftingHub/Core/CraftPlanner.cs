@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 
 namespace CraftingHub.Core;
 
@@ -36,9 +35,11 @@ public static class CraftPlanner
     public static CraftPlan Plan(RecipeBook book, IReadOnlyDictionary<int, int> stock, Recipe target, int crafts, int maxDepth,
         IReadOnlyDictionary<int, int>? floor = null)
     {
-        var walk = Walk(book, stock, target, crafts, maxDepth, floor);
+        var run = new Run(book, stock, maxDepth, floor);
 
-        return walk.Missing.Count == 0 ? new CraftPlan.Ready(walk.Steps) : new CraftPlan.Short(walk.Missing);
+        run.Craft(target, Math.Max(1, crafts), depth: 0);
+
+        return run.Missing.Count == 0 ? new CraftPlan.Ready(run.Steps) : new CraftPlan.Short(run.Missing);
     }
 
     /// <summary>
@@ -52,20 +53,26 @@ public static class CraftPlanner
 
         run.Craft(target, Math.Max(1, crafts), depth: 0);
 
-        return new CraftWalk(run.Steps, run.Missing, run.Stock);
+        return new CraftWalk(run.Steps, run.Missing, run.Left());
     }
 
+    /// <summary>
+    /// One plan being built. Only the counts the plan changes are kept here; everything else is read from the stock it
+    /// was given, which is never written to. A bench with many items in its storages plans every recipe on its list in
+    /// one pass, so copying the whole stock for each plan would be most of the work.
+    /// </summary>
     private sealed class Run
     {
         private readonly RecipeBook _book;
-        private readonly Dictionary<int, int> _stock;
+        private readonly IReadOnlyDictionary<int, int> _stock;
+        private readonly Dictionary<int, int> _changed = new();
         private readonly int _maxDepth;
         private readonly IReadOnlyDictionary<int, int>? _floor;
 
         public Run(RecipeBook book, IReadOnlyDictionary<int, int> stock, int maxDepth, IReadOnlyDictionary<int, int>? floor)
         {
             _book = book;
-            _stock = stock.ToDictionary(pair => pair.Key, pair => pair.Value);
+            _stock = stock;
             _maxDepth = maxDepth;
             _floor = floor;
         }
@@ -74,21 +81,31 @@ public static class CraftPlanner
 
         public Dictionary<int, int> Missing { get; } = new();
 
-        public IReadOnlyDictionary<int, int> Stock => _stock;
+        /// <summary>The whole stock as the plan leaves it: what it was given, with the plan's changes on top.</summary>
+        public IReadOnlyDictionary<int, int> Left()
+        {
+            var left = new Dictionary<int, int>(_stock.Count + _changed.Count);
+
+            foreach (var (itemId, count) in _stock) left[itemId] = count;
+
+            foreach (var (itemId, count) in _changed) left[itemId] = count;
+
+            return left;
+        }
 
         public void Craft(Recipe recipe, int crafts, int depth)
         {
             foreach (var (itemId, perCraft) in recipe.Materials) Need(itemId, perCraft * crafts, depth);
 
             AddStep(recipe, crafts);
-            _stock[recipe.ProductId] = Owned(recipe.ProductId) + crafts * recipe.Yield;
+            _changed[recipe.ProductId] = Owned(recipe.ProductId) + crafts * recipe.Yield;
         }
 
         private void Need(int itemId, int amount, int depth)
         {
             var taken = Math.Min(Spare(itemId), amount);
             var rest = amount - taken;
-            _stock[itemId] = Owned(itemId) - taken;
+            _changed[itemId] = Owned(itemId) - taken;
 
             if (rest == 0) return;
 
@@ -105,7 +122,7 @@ public static class CraftPlanner
             var toMake = rest + BelowFloor(itemId);
 
             Craft(producer, crafts: (toMake + producer.Yield - 1) / producer.Yield, depth + 1);
-            _stock[itemId] = Owned(itemId) - rest;
+            _changed[itemId] = Owned(itemId) - rest;
         }
 
         private int Spare(int itemId) => Math.Max(0, Owned(itemId) - FloorOf(itemId));
@@ -126,6 +143,6 @@ public static class CraftPlanner
             Steps.Add(new CraftStep(recipe, crafts));
         }
 
-        private int Owned(int itemId) => _stock.GetValueOrDefault(itemId);
+        private int Owned(int itemId) => _changed.TryGetValue(itemId, out var count) ? count : _stock.GetValueOrDefault(itemId);
     }
 }
