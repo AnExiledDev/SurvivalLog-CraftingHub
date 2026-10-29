@@ -957,6 +957,7 @@
 
   // Exiled's Toolkit draws the panels a mod hands it at the player's UI size; one handed before its script runs waits.
   function uiSize(node, options) {
+    options = Object.assign({ mod: 'CraftingHub' }, options);
     var toolkit = window.ExiledUi;
     if (toolkit) { toolkit.size(node, options); return; }
     var waiting = window.__exiledUiWait = window.__exiledUiWait || [];

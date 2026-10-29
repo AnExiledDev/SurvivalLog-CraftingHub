@@ -44,3 +44,9 @@ The game cancels a craft when the workbench window closes, so the queue cannot k
 `OtherBenches` decides which workbench that can be. The game lists the same recipes at every workbench, so with `true` the queue carries on at whichever one you open, the same one or another. With `UseAllHomeStorages` set to `false`, another workbench plans from its own linked storages and can come up short; the queue then stops and says what it is short of. With `false`, the queue carries on only at the workbench it was running on: opening a different one leaves it waiting, and Stop, then Craft queue, runs it at the one you have open. `OtherBenches` does nothing when `ResumeOnReopen` is `false`.
 
 Either way, crafts the game finished before the close count against their order and are not made again. The one exception is a single craft that finishes in the same moment you close the workbench, which can be made once more.
+
+## Interface
+
+| Setting | Default | What it does |
+| --- | --- | --- |
+| `UiScale` | `0` | How big Crafting Hub's own windows, panels and messages are drawn, in percent, from 75 to 200. At `0` they follow the UI size set in Exiled's Toolkit (its `UiScale`). Needs Exiled's Toolkit 0.11.0 or newer. |

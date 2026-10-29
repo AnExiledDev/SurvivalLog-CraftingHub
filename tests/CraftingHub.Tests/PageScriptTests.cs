@@ -1666,6 +1666,7 @@ public class PageScriptTests
         var page = BenchWithToolkit();
 
         Assert.Equal(2, page.Number("handed.length"));
+        Assert.Equal(2, page.Number("handed.filter(function (h) { return h.options.mod === 'CraftingHub'; }).length"));
 
         foreach (var id in new[] { "cc-mid", "cc-queue" })
         {

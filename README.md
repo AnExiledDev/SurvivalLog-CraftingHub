@@ -93,7 +93,7 @@ Kept counts belong to the save you are playing. They are stored in `BepInEx\conf
 - Survival Log 1.1.19611. Built and tested on this version; a game update can break it until the mod is updated.
 - The [BepInEx Pack for Survival Log](https://www.nexusmods.com/survivallog/mods/12), the BepInEx 6 (IL2CPP) build for the game.
 - Not together with BetterCrafting. Both change which storages a workbench uses; remove BetterCrafting before installing this. While BetterCrafting is installed, BepInEx does not load Crafting Hub, and the Mod Manager lists BetterCrafting under DOES NOT WORK WITH.
-- Optional: [Exiled's Toolkit](https://github.com/AnExiledDev/SurvivalLog-ExiledToolkit) 0.4.0 or newer. With it, settings changed on the Mod Manager's Mods screen take effect without restarting the game. With 0.10.0 or newer, its UI size setting also draws the recipe list and the craft queue on the workbench bigger or smaller. Without it, settings take effect at the next game start.
+- Optional: [Exiled's Toolkit](https://github.com/AnExiledDev/SurvivalLog-ExiledToolkit) 0.4.0 or newer. With it, settings changed on the Mod Manager's Mods screen take effect without restarting the game. With 0.10.0 or newer, its UI size setting also draws the recipe list and the craft queue on the workbench bigger or smaller. With 0.11.0 or newer, Crafting Hub's own `UiScale` under Interface sets a size for this mod alone; at 0, the default, it follows the Toolkit's. Without it, settings take effect at the next game start.
 - Optional: [Info Pack](https://www.nexusmods.com/survivallog/mods/81) 0.8.5 or newer. With it, recipes, queued orders and materials show the full item tooltip. Without it, Crafting Hub shows the item's name in a tooltip of its own.
 
 ## Install

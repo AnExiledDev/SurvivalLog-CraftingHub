@@ -15,7 +15,7 @@ namespace CraftingHub;
 public sealed class Plugin : BasePlugin
 {
     private const string Guid = "com.dev.survivallog.craftinghub";
-    private const string Version = "0.9.11";
+    private const string Version = "0.10.0";
     private const string StackingGuid = "com.dev.survivallog.stacking";
 
     /// <summary>BetterCrafting also changes the workbench's storage list, so BepInEx loads only one of the two.</summary>
@@ -24,6 +24,8 @@ public sealed class Plugin : BasePlugin
     public override void Load()
     {
         if (!OptionalLive.IsToolkitInstalled) Log.LogInfo(OptionalLive.MissingNote);
+
+        OptionalUiSize.Bind(Config);
 
         var useAllHomeStorages = Config.Bind("Storage", "UseAllHomeStorages", true,
             "Workbenches use materials from every storage in your home, not only the storages linked to them. Off: only the linked storages, as in the base game.\n" +
