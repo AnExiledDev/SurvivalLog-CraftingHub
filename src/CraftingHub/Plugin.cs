@@ -9,13 +9,13 @@ using HarmonyLib;
 namespace CraftingHub;
 
 [BepInPlugin(Guid, "Crafting Hub", Version)]
-[BepInDependency(OptionalLive.ToolkitGuid, BepInDependency.DependencyFlags.SoftDependency)]
+[BepInDependency(OptionalLive.ToolkitGuid, OptionalLive.ToolkitVersion)]
 [BepInDependency(StackingGuid, BepInDependency.DependencyFlags.SoftDependency)]
 [BepInIncompatibility(BetterCraftingGuid)]
 public sealed class Plugin : BasePlugin
 {
     private const string Guid = "com.dev.survivallog.craftinghub";
-    private const string Version = "0.10.0";
+    private const string Version = "0.10.1";
     private const string StackingGuid = "com.dev.survivallog.stacking";
 
     /// <summary>BetterCrafting also changes the workbench's storage list, so BepInEx loads only one of the two.</summary>
@@ -23,8 +23,6 @@ public sealed class Plugin : BasePlugin
 
     public override void Load()
     {
-        if (!OptionalLive.IsToolkitInstalled) Log.LogInfo(OptionalLive.MissingNote);
-
         OptionalUiSize.Bind(Config);
 
         var useAllHomeStorages = Config.Bind("Storage", "UseAllHomeStorages", true,

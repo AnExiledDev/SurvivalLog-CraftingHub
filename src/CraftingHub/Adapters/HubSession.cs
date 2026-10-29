@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using CraftingHub.Core;
+using ExiledToolkit;
 
 namespace CraftingHub.Adapters;
 
@@ -271,6 +272,8 @@ internal sealed class HubSession
 
     private void Apply(RunnerCommand command)
     {
+        ToastIfClosed(command);
+
         switch (command)
         {
             case RunnerCommand.ClickRecipe click:
@@ -312,6 +315,21 @@ internal sealed class HubSession
                 _logFileOnly("queue: " + notice.Text);
                 break;
         }
+    }
+
+    /// <summary>The queue's news while the workbench is closed, where its status line cannot be seen.</summary>
+    private void ToastIfClosed(RunnerCommand command)
+    {
+        if (QueueToast.Of(command, _bench.IsOpen) is not { } toast) return;
+
+        var kind = toast.Tone switch
+        {
+            QueueToastTone.Done => ToastKind.Success,
+            QueueToastTone.Warning => ToastKind.Warning,
+            _ => ToastKind.Info,
+        };
+
+        Toasts.Show(new ToastRequest(Texts.Source.Pick(IsChinese), toast.Text) { Kind = kind });
     }
 
     private string ForHead() => _queue.Head is { } head && head.Key != _pickedKey ? Texts.ForOrder.Say(IsChinese, head.Name) : "";

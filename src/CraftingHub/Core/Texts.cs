@@ -18,6 +18,9 @@ public static class Texts
     private const string Log = "BepInEx/crafting-hub.log";
 
     // Why a run paused, carried on or stopped.
+    /// <summary>Who a toast is from, on its first line.</summary>
+    public static readonly Phrase Source = new("Crafting Hub", "制作中心");
+
     public static readonly Phrase Closed = new("the workbench closed; the queue is kept, press Craft queue to carry on", "工作台已关闭；队列已保留，点「制作队列」继续");
     public static readonly Phrase Paused = new("the workbench closed; the queue carries on when you open it again", "工作台已关闭；再次打开它时队列会继续");
     public static readonly Phrase PausedAnyBench = new("the workbench closed; the queue carries on when you open any workbench", "工作台已关闭；打开任意工作台时队列会继续");

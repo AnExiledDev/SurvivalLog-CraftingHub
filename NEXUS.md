@@ -48,7 +48,7 @@ Works in English and Chinese.
 [list]
 [*]Survival Log 1.1.19611. A game update can break it until the mod is updated.[/*]
 [*][url=https://www.nexusmods.com/survivallog/mods/12]BepInEx for Survival Log[/url]. Install it first.[/*]
-[*]Optional: [url=https://www.nexusmods.com/survivallog/mods/61]Exiled's Toolkit[/url] 0.4.0 or newer. With it, settings changed on the Mod Manager's Mods screen take effect without restarting the game. With 0.10.0 or newer, its UI size setting also draws the recipe list and the craft queue on the workbench bigger or smaller. With 0.11.0 or newer, Crafting Hub's own UiScale setting can set a size for this mod alone. Without it, settings take effect at the next game start.[/*]
+[*][url=https://www.nexusmods.com/survivallog/mods/61]Exiled's Toolkit[/url] 0.11.0 or newer. Crafting Hub does not load without it. It shows the queue's news as toasts while the workbench is closed, applies settings changed on the Mod Manager's Mods screen without a restart, and its UI size setting draws the recipe list and the craft queue on the workbench bigger or smaller. Crafting Hub's own UiScale setting can set a size for this mod alone.[/*]
 [*]Optional: [url=https://www.nexusmods.com/survivallog/mods/81]Info Pack[/url] 0.8.5 or newer. With it, recipes, queued orders and materials show the full item tooltip. Without it, Crafting Hub shows their names in a tooltip of its own.[/*]
 [*]Optional: [url=https://www.nexusmods.com/survivallog/mods/74]Stacking[/url]. With it, crafts can take part of a stack, so a material kept in one big stack still counts as ready to use.[/*]
 [*]Not together with BetterCrafting.[/*]
@@ -57,7 +57,7 @@ Works in English and Chinese.
 [size=5]Installation[/size]
 [list=1]
 [*]Install [url=https://www.nexusmods.com/survivallog/mods/12]BepInEx[/url] [i](if no other mods were installed before, start the game once so BepInEx finishes setup, then quit)[/i].[/*]
-[*]Optional, to change settings without a restart: install Exiled's Toolkit the same way. Download its zip and extract it into the game folder.[/*]
+[*]Install Exiled's Toolkit the same way. Download its zip and extract it into the game folder.[/*]
 [*]Download the zip from the Files tab.[/*]
 [*]Extract it into the game folder (the folder with [font=Courier New]SurvivalLog.exe[/font]). The zip holds a BepInEx folder, so the DLL lands in the right place. When asked, merge the folders. The result should be:
 [code]C:\Program Files (x86)\Steam\steamapps\common\Survival Log\BepInEx\plugins\CraftingHub.dll[/code][/*]
@@ -68,7 +68,7 @@ Works in English and Chinese.
 Delete [font=Courier New]CraftingHub.dll[/font] from the [font=Courier New]BepInEx\plugins[/font] folder.
 
 [size=5]Configuration[/size]
-To turn off the whole-house storage, change how deep intermediates go, hide the marks, turn off keep stocked or its auto start, have closing the workbench stop the queue instead of pausing it, or keep a paused queue to the workbench it was running on, edit [font=Courier New]BepInEx\config\com.dev.survivallog.craftinghub.cfg[/font] while the game is closed, or do it in game on the Mod Manager's Mods screen, where changes take effect at once (see [url=https://github.com/AnExiledDev/SurvivalLog-CraftingHub/blob/main/CONFIG.md]CONFIG.md[/url]; the cfg file explains each setting in English and Chinese). Without Exiled's Toolkit installed, changes made on the Mods screen take effect at the next game start instead.
+To turn off the whole-house storage, change how deep intermediates go, hide the marks, turn off keep stocked or its auto start, have closing the workbench stop the queue instead of pausing it, or keep a paused queue to the workbench it was running on, edit [font=Courier New]BepInEx\config\com.dev.survivallog.craftinghub.cfg[/font] while the game is closed, or do it in game on the Mod Manager's Mods screen, where changes take effect at once (see [url=https://github.com/AnExiledDev/SurvivalLog-CraftingHub/blob/main/CONFIG.md]CONFIG.md[/url]; the cfg file explains each setting in English and Chinese).
 
 [size=5]Feedback[/size]
 Found a bug or have an idea? Come say hi on the [url=https://discord.gg/trTsyxUFqg]Core Directive Discord[/url], or post in this page's Posts tab. For bugs, please include [font=Courier New]BepInEx\LogOutput.log[/font] and [font=Courier New]BepInEx\crafting-hub.log[/font].
@@ -121,7 +121,7 @@ Open source under MIT: [url=https://github.com/AnExiledDev/SurvivalLog-CraftingH
 [list]
 [*]Survival Log 1.1.19611。游戏更新后模组可能暂时失效，直到模组更新为止。[/*]
 [*][url=https://www.nexusmods.com/survivallog/mods/12]BepInEx for Survival Log[/url]，请先安装。[/*]
-[*]可选：[url=https://www.nexusmods.com/survivallog/mods/61]Exiled's Toolkit[/url] 0.4.0 或更新版本。装了它，在 Mod Manager 的「模组」界面改动的设置无需重启游戏即可生效；0.10.0 或更新版本还能用它的界面大小设置放大或缩小工作台上的配方列表和制作队列。0.11.0 或更新版本还可以用 Crafting Hub 自己的 UiScale 设置单独调整本模组的大小。没装的话，改动在下次启动游戏时生效。[/*]
+[*][url=https://www.nexusmods.com/survivallog/mods/61]Exiled's Toolkit[/url] 0.11.0 或更新版本。没有它本模组不会加载。工作台关闭时，它把队列的消息显示为弹出通知；它让在 Mod Manager 的「模组」界面改动的设置无需重启即可生效，它的界面大小设置还能放大或缩小工作台上的配方列表和制作队列。Crafting Hub 自己的 UiScale 设置可以单独调整本模组的大小。[/*]
 [*]可选：[url=https://www.nexusmods.com/survivallog/mods/81]Info Pack[/url] 0.8.5 或更新版本。装了它，配方、队列中的订单和材料会显示完整的物品提示框；没装的话，Crafting Hub 会用自己的提示框显示物品名称。[/*]
 [*]可选：[url=https://www.nexusmods.com/survivallog/mods/74]Stacking[/url]。装了它，制作时可以只取一叠中的一部分，所以放在一大叠里的材料也算作可用。[/*]
 [/list]
@@ -129,7 +129,7 @@ Open source under MIT: [url=https://github.com/AnExiledDev/SurvivalLog-CraftingH
 [size=5]安装[/size]
 [list=1]
 [*]安装 [url=https://www.nexusmods.com/survivallog/mods/12]BepInEx[/url] [i]（如果之前没有装过其他模组，先启动一次游戏，让 BepInEx 完成初始化，然后退出）[/i]。[/*]
-[*]可选（改动设置无需重启游戏）：用同样的方式安装 Exiled's Toolkit，下载它的压缩包并解压到游戏目录。[/*]
+[*]用同样的方式安装 Exiled's Toolkit，下载它的压缩包并解压到游戏目录。[/*]
 [*]在「文件」页下载压缩包。[/*]
 [*]把压缩包解压到游戏目录（[font=Courier New]SurvivalLog.exe[/font] 所在的文件夹）。压缩包里带有 BepInEx 文件夹，DLL 会自动放到正确位置。如果提示合并文件夹，选择合并。解压后应为：
 [code]C:\Program Files (x86)\Steam\steamapps\common\Survival Log\BepInEx\plugins\CraftingHub.dll[/code][/*]
@@ -139,7 +139,7 @@ Open source under MIT: [url=https://github.com/AnExiledDev/SurvivalLog-CraftingH
 从 [font=Courier New]BepInEx\plugins[/font] 文件夹中删除 [font=Courier New]CraftingHub.dll[/font]。工作台会恢复为只使用接入它的储物家具。
 
 [size=5]配置[/size]
-如需关闭全屋储物、修改中间材料的层数、隐藏标记、关闭保持库存或它的自动开始、让关掉工作台时停止队列而不是暂停，或让暂停的队列只在原来的工作台继续，可以在游戏内 Mod Manager 的「模组」界面修改（立即生效），也可以在游戏关闭时编辑 [font=Courier New]BepInEx\config\com.dev.survivallog.craftinghub.cfg[/font]。配置文件中每项设置都有中文说明，完整说明见 [url=https://github.com/AnExiledDev/SurvivalLog-CraftingHub/blob/main/CONFIG.md]CONFIG.md[/url]（英文）。没装 Exiled's Toolkit 的话，在「模组」界面的改动改为在下次启动游戏时生效。
+如需关闭全屋储物、修改中间材料的层数、隐藏标记、关闭保持库存或它的自动开始、让关掉工作台时停止队列而不是暂停，或让暂停的队列只在原来的工作台继续，可以在游戏内 Mod Manager 的「模组」界面修改（立即生效），也可以在游戏关闭时编辑 [font=Courier New]BepInEx\config\com.dev.survivallog.craftinghub.cfg[/font]。配置文件中每项设置都有中文说明，完整说明见 [url=https://github.com/AnExiledDev/SurvivalLog-CraftingHub/blob/main/CONFIG.md]CONFIG.md[/url]（英文）。
 
 [size=5]反馈[/size]
 发现 bug 或有好点子？欢迎来 [url=https://discord.gg/trTsyxUFqg]Core Directive Discord[/url] 打个招呼，或在本页的「Posts」标签里发帖。报告 bug 时，请附上 [font=Courier New]BepInEx\LogOutput.log[/font] 和 [font=Courier New]BepInEx\crafting-hub.log[/font]。
