@@ -132,7 +132,7 @@
 
   var STATE_LOOK = { ready: 'now', via: 'via', short: 'short', locked: 'short', unlisted: 'short' };
 
-  var view = { marks: {}, queue: [], running: false, paused: false, activeId: 0, status: '', headsUp: '', totals: [], yields: {}, keep: { on: false, targets: [], byKey: {} }, takesUnits: false, dyes: {} };
+  var view = { marks: {}, queue: [], running: false, paused: false, activeId: 0, status: '', headsUp: '', totals: [], yields: {}, keep: { on: false, targets: [], byKey: {} }, takesUnits: false, dyes: {}, craftSpeed: 0 };
   var selectedKey = '';
   // The plugin's last view as it was sent, so the same view sent again draws nothing.
   var lastViewText = '';
@@ -257,7 +257,8 @@
       icons: null,
       matsOpen: false,
       queueTab: 'queue',
-      tipNode: null
+      tipNode: null,
+      barMisses: 0
     };
     selectedKey = '';
     wrapRenderer(win);
@@ -2029,6 +2030,50 @@
     return game && game.style.transform ? game.style.transform : 'scaleX(0)';
   }
 
+  // A craft the plugin sees under way that the page has not started its own bar for, or started at no speed, as can
+  // happen to the first craft on a bench that has only just opened. After two polls in a row the page's own bar is
+  // started with the game's speed, from roughly where the craft has got to, and what the page held is reported once.
+  function resumeCraftBar(win) {
+    var ui = win.__ccUi;
+    var speed = Number(view.craftSpeed);
+    var result = win.document.getElementById('crafting-result-box');
+
+    if (!view.running || !isFinite(speed) || speed <= 0 || (result && result.style.display === 'block')) {
+      ui.barMisses = 0;
+
+      return;
+    }
+
+    var isCrafting = pageValue(win, 'lastCraftingState');
+    var pageSpeed = pageValue(win, 'currentCraftSpeed');
+    var animation = pageValue(win, 'craftAnimationId');
+
+    if (typeof isCrafting !== 'boolean') return;
+
+    if (isCrafting && pageSpeed > 0 && animation) {
+      ui.barMisses = 0;
+
+      return;
+    }
+
+    ui.barMisses += 1;
+
+    if (ui.barMisses === 1) ui.barMissSince = Date.now();
+
+    if (ui.barMisses < 2) return;
+
+    var progress = Math.min(0.95, Math.max(0, (Date.now() - ui.barMissSince) / 1000 * speed));
+
+    ui.barMisses = 0;
+    pageDiag(win, 'bar', 'started the game\'s craft bar for a craft the page missed: crafting ' + isCrafting + ', speed ' + pageSpeed + ', animating ' + !!animation + ', game speed ' + speed);
+
+    try {
+      win.eval('currentCraftSpeed = ' + speed + '; if (!lastCraftingState) { lastCraftingState = true; document.getElementById("crafting-overlay").style.display = "flex"; } if (currentProgress < ' + progress.toFixed(3) + ') currentProgress = ' + progress.toFixed(3) + '; if (!craftAnimationId) { lastFrameTime = performance.now(); startCraftAnimation(); }');
+    } catch (e) {
+      pageDiag(win, 'bar-start', 'cannot start the game\'s craft bar: ' + e);
+    }
+  }
+
   function mirrorProgress(win) {
     var fill = win.document.getElementById('cc-prog');
     var progress = gameProgress(win);
@@ -2450,6 +2495,7 @@
     if (!doc.getElementById('cc-mid') || !doc.getElementById('cc-panel')) renderOne(win);
 
     followCraftOverlay(win);
+    resumeCraftBar(win);
     mirrorProgress(win);
     refit(win);
   }

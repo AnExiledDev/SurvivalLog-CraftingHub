@@ -774,6 +774,84 @@ public class PageScriptTests
     }
 
     [Fact]
+    public void A_craft_the_page_missed_the_start_of_gets_the_games_own_bar_at_the_games_speed()
+    {
+        var page = BenchWithRecipes();
+
+        // The first queued craft on a bench that has just opened: the game is crafting, the page never started its bar.
+        page.Show(View(TwoOrders, isRunning: true, outlook: TwoOrdersOutlook, activeOrderId: 4, craftSpeed: 0.25f));
+        page.Poll();
+        Assert.Equal(0, page.Number("bench().barStarts"));
+        page.Poll();
+
+        Assert.Equal(1, page.Number("bench().barStarts"));
+        Assert.Equal(0.25, page.Number("bench().values.currentCraftSpeed"));
+        Assert.True(page.Truth("bench().values.lastCraftingState"));
+        Assert.Equal("flex", page.Text("$('crafting-overlay').style.display"));
+        Assert.Contains(Diagnostics(page), line => line.Text.Contains("crafting false, speed 0, animating false, game speed 0.25"));
+    }
+
+    [Fact]
+    public void A_craft_the_page_started_at_no_speed_carries_on_at_the_games_speed_without_starting_over()
+    {
+        var page = BenchWithRecipes();
+
+        page.Run("bench().values.lastCraftingState = true; bench().values.craftAnimationId = 7; bench().values.currentProgress = 0.4");
+        page.Show(View(TwoOrders, isRunning: true, outlook: TwoOrdersOutlook, activeOrderId: 4, craftSpeed: 0.5f));
+        page.Poll();
+        page.Poll();
+
+        Assert.Equal(0.5, page.Number("bench().values.currentCraftSpeed"));
+        Assert.Equal(0, page.Number("bench().barStarts"));
+        Assert.Equal(7, page.Number("bench().values.craftAnimationId"));
+        Assert.True(page.Number("bench().values.currentProgress") >= 0.4);
+    }
+
+    [Fact]
+    public void A_craft_the_page_is_already_drawing_is_left_alone()
+    {
+        var page = BenchWithRecipes();
+
+        page.Run("bench().values.lastCraftingState = true; bench().values.currentCraftSpeed = 0.25; bench().values.craftAnimationId = 3");
+        page.Show(View(TwoOrders, isRunning: true, outlook: TwoOrdersOutlook, activeOrderId: 4, craftSpeed: 0.25f));
+        page.Poll();
+        page.Poll();
+        page.Poll();
+
+        Assert.Equal(0, page.Number("bench().barStarts"));
+        Assert.Empty(Diagnostics(page));
+    }
+
+    [Fact]
+    public void A_finished_craft_showing_its_result_does_not_get_its_bar_started_again()
+    {
+        var page = BenchWithRecipes();
+
+        page.Show(View(TwoOrders, isRunning: true, outlook: TwoOrdersOutlook, activeOrderId: 4, craftSpeed: 0.25f));
+        page.Run("$('crafting-result-box').style.display = 'block'");
+        page.Poll();
+        page.Poll();
+        page.Poll();
+
+        Assert.Equal(0, page.Number("bench().barStarts"));
+        Assert.False(page.Truth("bench().values.lastCraftingState"));
+    }
+
+    [Fact]
+    public void Without_a_craft_under_way_the_pages_bar_is_left_alone()
+    {
+        var page = BenchWithRecipes();
+
+        page.Show(View(TwoOrders, isRunning: true, outlook: TwoOrdersOutlook, activeOrderId: 4));
+        page.Poll();
+        page.Poll();
+        page.Poll();
+
+        Assert.Equal(0, page.Number("bench().barStarts"));
+        Assert.Empty(Diagnostics(page));
+    }
+
+    [Fact]
     public void The_bar_stays_with_the_order_being_crafted_after_another_is_moved_above_it()
     {
         var page = BenchWithRecipes();
@@ -1861,8 +1939,9 @@ public class PageScriptTests
         long activeOrderId = 0,
         bool takesUnits = false,
         IReadOnlyList<DyeOption>? dyes = null,
-        IReadOnlyDictionary<string, string>? marks = null) =>
-        HubView.Build(marks ?? Marks, queue ?? Array.Empty<QueueEntry>(), isRunning, status, keep ?? NoKeep, isPaused, outlook, yields, activeOrderId, takesUnitsOffStacks: takesUnits, dyes: dyes);
+        IReadOnlyDictionary<string, string>? marks = null,
+        float craftSpeed = 0f) =>
+        HubView.Build(marks ?? Marks, queue ?? Array.Empty<QueueEntry>(), isRunning, status, keep ?? NoKeep, isPaused, outlook, yields, activeOrderId, takesUnitsOffStacks: takesUnits, dyes: dyes, craftSpeed: craftSpeed);
 
     /// <summary>The plugin's view with its stamina reading, which the plugin sends as the view's last field.</summary>
     private static string WithStamina(string view, string stamina) => view[..^1] + ",\"stamina\":" + stamina + "}";

@@ -1381,6 +1381,22 @@ public class HubViewTests
     }
 
     [Fact]
+    public void Only_a_running_queue_sends_the_games_craft_speed_and_never_a_speed_that_is_not_a_number()
+    {
+        static double SpeedOf(string json)
+        {
+            using var parsed = System.Text.Json.JsonDocument.Parse(json);
+
+            return parsed.RootElement.GetProperty("craftSpeed").GetDouble();
+        }
+
+        Assert.Equal(0.2, SpeedOf(HubView.Build(new Dictionary<string, string>(), Array.Empty<QueueEntry>(), true, "", NoKeep, craftSpeed: 0.2f)), 6);
+        Assert.Equal(0, SpeedOf(HubView.Build(new Dictionary<string, string>(), Array.Empty<QueueEntry>(), false, "", NoKeep, craftSpeed: 0.2f)));
+        Assert.Equal(0, SpeedOf(HubView.Build(new Dictionary<string, string>(), Array.Empty<QueueEntry>(), true, "", NoKeep, craftSpeed: float.NaN)));
+        Assert.Equal(0, SpeedOf(HubView.Build(new Dictionary<string, string>(), Array.Empty<QueueEntry>(), true, "", NoKeep, craftSpeed: float.PositiveInfinity)));
+    }
+
+    [Fact]
     public void Only_recipes_that_make_more_than_one_list_their_yield()
     {
         var yields = new Dictionary<string, int> { ["plank"] = 2, ["rope"] = 1 };
@@ -1427,10 +1443,10 @@ public class HubViewTests
             new DyeOption("chair", "chair_blue", 12, "#0000ff", "Blue", 1, 0),
         };
 
-        var json = HubView.Build(marks, queue, true, "go", keep, isPaused: true, outlook, new Dictionary<string, int> { ["rope"] = 1, ["plank"] = 2 }, 4, stamina, takesUnitsOffStacks: true, dyes);
+        var json = HubView.Build(marks, queue, true, "go", keep, isPaused: true, outlook, new Dictionary<string, int> { ["rope"] = 1, ["plank"] = 2 }, 4, stamina, takesUnitsOffStacks: true, dyes, craftSpeed: 0.25f);
 
         Assert.Equal(
-            """{"marks":{"a":"x","b":"y"},"queue":[{"id":4,"key":"crate","name":"Crate","crafts":2,"topUp":false,"state":"ready","note":"Ready"},{"id":9,"key":"rope","name":"Rope","crafts":1,"topUp":true,"state":"","note":""}],"running":true,"paused":true,"activeId":4,"status":"go","headsUp":"Heads up","totals":[{"item":3,"name":"Fibre","need":3,"have":1,"short":2}],"yields":{"plank":2},"keep":{"on":true,"targets":[{"item":5,"key":"plank","name":"Plank","count":10,"have":3},{"item":6,"key":"rope","name":"Rope","count":2,"have":null}],"byKey":{"plank":10,"rope":2}},"stamina":{"have":3,"out":false,"cost":{"plank":8}},"takesUnits":true,"dyes":{"bed":[{"key":"bed_blue","dye":12,"hex":"#0000ff","color":"Blue","need":1,"have":0}],"chair":[{"key":"chair_red","dye":11,"hex":"#ff0000","color":"Red","need":1,"have":2},{"key":"chair_blue","dye":12,"hex":"#0000ff","color":"Blue","need":1,"have":0}]}}""",
+            """{"marks":{"a":"x","b":"y"},"queue":[{"id":4,"key":"crate","name":"Crate","crafts":2,"topUp":false,"state":"ready","note":"Ready"},{"id":9,"key":"rope","name":"Rope","crafts":1,"topUp":true,"state":"","note":""}],"running":true,"paused":true,"activeId":4,"craftSpeed":0.25,"status":"go","headsUp":"Heads up","totals":[{"item":3,"name":"Fibre","need":3,"have":1,"short":2}],"yields":{"plank":2},"keep":{"on":true,"targets":[{"item":5,"key":"plank","name":"Plank","count":10,"have":3},{"item":6,"key":"rope","name":"Rope","count":2,"have":null}],"byKey":{"plank":10,"rope":2}},"stamina":{"have":3,"out":false,"cost":{"plank":8}},"takesUnits":true,"dyes":{"bed":[{"key":"bed_blue","dye":12,"hex":"#0000ff","color":"Blue","need":1,"have":0}],"chair":[{"key":"chair_red","dye":11,"hex":"#ff0000","color":"Red","need":1,"have":2},{"key":"chair_blue","dye":12,"hex":"#0000ff","color":"Blue","need":1,"have":0}]}}""",
             json);
     }
 
@@ -1439,11 +1455,11 @@ public class HubViewTests
     {
         var marks = new Dictionary<string, string> { ["crate"] = "Makes first: Plank x2" };
 
-        HubView.Build(marks, new[] { new QueueEntry("crate", "Crate", 2, Id: 4) }, true, "a long status line", NoKeep);
+        HubView.Build(marks, new[] { new QueueEntry("crate", "Crate", 2, Id: 4) }, true, "a long status line", NoKeep, craftSpeed: 0.5f);
         var json = HubView.Build(new Dictionary<string, string>(), Array.Empty<QueueEntry>(), false, "", NoKeep);
 
         Assert.Equal(
-            """{"marks":{},"queue":[],"running":false,"paused":false,"activeId":0,"status":"","headsUp":"","totals":[],"yields":{},"keep":{"on":false,"targets":[],"byKey":{}},"stamina":null,"takesUnits":false,"dyes":{}}""",
+            """{"marks":{},"queue":[],"running":false,"paused":false,"activeId":0,"craftSpeed":0,"status":"","headsUp":"","totals":[],"yields":{},"keep":{"on":false,"targets":[],"byKey":{}},"stamina":null,"takesUnits":false,"dyes":{}}""",
             json);
     }
 

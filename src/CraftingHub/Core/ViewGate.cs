@@ -50,9 +50,10 @@ public readonly record struct ViewInputs(
     IReadOnlyList<string> RecipeKeys,
     StaminaGist? Stamina,
     bool TakesUnits,
-    IReadOnlyList<DyeOption> Dyes)
+    IReadOnlyList<DyeOption> Dyes,
+    float CraftSpeed = 0f)
 {
-    public string Build() => HubView.Build(Marks, Queue.Entries, IsRunning, Status, new KeepView(KeepOn, Targets.All, KeepByKey, KeepHave), IsPaused, Outlook, Yields, ActiveOrderId, Stamina?.For(RecipeKeys), TakesUnits, Dyes);
+    public string Build() => HubView.Build(Marks, Queue.Entries, IsRunning, Status, new KeepView(KeepOn, Targets.All, KeepByKey, KeepHave), IsPaused, Outlook, Yields, ActiveOrderId, Stamina?.For(RecipeKeys), TakesUnits, Dyes, CraftSpeed);
 }
 
 /// <summary>

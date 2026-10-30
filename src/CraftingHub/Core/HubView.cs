@@ -55,7 +55,8 @@ public static class HubView
         long activeOrderId = 0,
         StaminaView? stamina = null,
         bool takesUnitsOffStacks = false,
-        IReadOnlyList<DyeOption>? dyes = null)
+        IReadOnlyList<DyeOption>? dyes = null,
+        float craftSpeed = 0f)
     {
         var forecast = outlook ?? QueueOutlook.Empty;
         var json = _json ??= new StringBuilder(4096);
@@ -82,7 +83,8 @@ public static class HubView
         json.Append("],\"running\":").Append(Bool(isRunning))
             .Append(",\"paused\":").Append(Bool(isRunning && isPaused))
             .Append(",\"activeId\":");
-        Num(json, isRunning ? activeOrderId : 0).Append(",\"status\":");
+        Num(json, isRunning ? activeOrderId : 0).Append(",\"craftSpeed\":");
+        Speed(json, isRunning ? craftSpeed : 0f).Append(",\"status\":");
         Str(json, status).Append(",\"headsUp\":");
         Str(json, forecast.HeadsUp).Append(",\"totals\":[");
         isFirst = true;
@@ -262,6 +264,10 @@ public static class HubView
     private static StringBuilder Num(StringBuilder json, long value) => json.Append(CultureInfo.InvariantCulture, $"{value}");
 
     private static string Bool(bool value) => value ? "true" : "false";
+
+    // The game's craft speed (share of a craft per second), to six decimal places; anything not a usable speed is 0.
+    private static StringBuilder Speed(StringBuilder json, float speed) =>
+        json.Append(CultureInfo.InvariantCulture, $"{(float.IsFinite(speed) && speed > 0f ? Math.Round(speed, 6) : 0d)}");
 
     /// <summary>A JavaScript string literal, safe to paste into a script.</summary>
     public static string Str(string? text) => Str(new StringBuilder((text?.Length ?? 0) + 2), text).ToString();

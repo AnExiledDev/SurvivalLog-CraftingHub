@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.10.2
+
+- Fixed: the first queued craft after you open a workbench showed an empty progress bar until it finished. It now fills like the rest.
+- Made for Survival Log 1.1.20151.
+
 ## 0.10.1
 
 - With the workbench closed, the queue now tells you when it finishes, stops or pauses, as an Exiled's Toolkit toast. Those toasts also go to the Notifications history.

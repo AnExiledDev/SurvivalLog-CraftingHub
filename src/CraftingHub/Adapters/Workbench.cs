@@ -273,6 +273,19 @@ internal sealed class Workbench
     }
 
     /// <summary>
+    /// The game's speed for the craft under way (share of a craft per second), or 0 when nothing is crafting or a
+    /// result is showing. The panel uses it to start the game's own progress bar when the page missed the start.
+    /// </summary>
+    public float CraftSpeed()
+    {
+        var state = _state;
+
+        if (state == null || !IsOpen || state.IsCrafting?.Value != true || state.ResultShow?.Value == true) return 0f;
+
+        return state.CraftSpeed?.Value ?? 0f;
+    }
+
+    /// <summary>
     /// The player's stamina and one craft's cost; null when the workbench is closed or the game does not answer. The
     /// first reading is logged, so a page without stamina can be told apart from a game that answered nothing.
     /// </summary>

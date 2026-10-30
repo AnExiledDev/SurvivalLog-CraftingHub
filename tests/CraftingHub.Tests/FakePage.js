@@ -491,7 +491,7 @@ function gridBag(doc, containerId) {
 
 // The page's top-level const and let values, which the script can only read through the page's eval.
 function benchWindow(doc) {
-  var win = { document: doc, location: { href: BENCH_URL }, listeners: [], sent: [], renders: 0, fits: 0, closes: 0 };
+  var win = { document: doc, location: { href: BENCH_URL }, listeners: [], sent: [], renders: 0, fits: 0, closes: 0, barStarts: 0 };
   var values = {
     core: { UnitySendEvent: function (action, data) { win.sent.push({ action: action, data: data }); } },
     NOTE_CAT_META: GROUPS,
@@ -500,6 +500,11 @@ function benchWindow(doc) {
     craftQty: 1,
     // How many of the laid recipe the bag's parts make; the page shows its quantity box only from 2 up.
     maxCraftCount: 999,
+    // The page's own craft bar (ToolTable.html): whether it saw the craft start, its speed, progress and animation.
+    lastCraftingState: false,
+    currentCraftSpeed: 0,
+    currentProgress: 0,
+    craftAnimationId: null,
     // The page's drag of its grid items (createBagDragCoordinator) and its bench grid (createGridBag).
     dragCoord: { dragging: false, isDragging: function () { return this.dragging; } },
     backpack: gridBag(doc, 'backpack-grid'),
@@ -507,10 +512,11 @@ function benchWindow(doc) {
   };
 
   win.values = values;
-  // Only the two statement shapes the script uses; anything else is a test failure.
+  // Only the three statement shapes the script uses; anything else is a test failure.
   win.eval = function (code) {
     var read = /^typeof (\w+) !== "undefined" \? (\w+) : null$/.exec(code);
     var qty = /^craftQty = clampQty\((\d+)\); renderQtyRow\(\);$/.exec(code);
+    var bar = /^currentCraftSpeed = ([0-9.e+-]+); if \(!lastCraftingState\) \{ lastCraftingState = true; document\.getElementById\("crafting-overlay"\)\.style\.display = "flex"; \} if \(currentProgress < ([0-9.]+)\) currentProgress = \2; if \(!craftAnimationId\) \{ lastFrameTime = performance\.now\(\); startCraftAnimation\(\); \}$/.exec(code);
 
     if (read && read[1] === read[2]) return Object.prototype.hasOwnProperty.call(values, read[1]) ? values[read[1]] : null;
 
@@ -520,6 +526,25 @@ function benchWindow(doc) {
       var asked = Math.max(1, parseInt(qty[1], 10));
 
       values.craftQty = values.maxCraftCount >= 2 ? Math.min(asked, values.maxCraftCount) : 1;
+
+      return undefined;
+    }
+
+    // The game's bar picks up the speed, shows its overlay, and startCraftAnimation runs only when none is running.
+    if (bar) {
+      values.currentCraftSpeed = parseFloat(bar[1]);
+
+      if (!values.lastCraftingState) {
+        values.lastCraftingState = true;
+        doc.getElementById('crafting-overlay').style.display = 'flex';
+      }
+
+      values.currentProgress = Math.max(values.currentProgress, parseFloat(bar[2]));
+
+      if (!values.craftAnimationId) {
+        values.craftAnimationId = 1;
+        win.barStarts += 1;
+      }
 
       return undefined;
     }

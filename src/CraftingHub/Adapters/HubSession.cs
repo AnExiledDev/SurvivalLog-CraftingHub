@@ -548,7 +548,8 @@ internal sealed class HubSession
         _takesUnits ??= _takesUnitsOffStacks();
 
         var inputs = new ViewInputs(_marks, _queue, _queue.Version, _runner.IsRunning, _runner.IsPaused, ActiveOrderId(), _status,
-            _settings.KeepStocked, _slot.Targets, _slot.Targets.Version, _keepByKey, _keepHave, _outlook, _yields, _recipeKeys, stamina, _takesUnits.Value, _dyes);
+            _settings.KeepStocked, _slot.Targets, _slot.Targets.Version, _keepByKey, _keepHave, _outlook, _yields, _recipeKeys, stamina, _takesUnits.Value, _dyes,
+            _runner.IsRunning ? _bench.CraftSpeed() : 0f);
 
         if (_view.Next(inputs) is { } view) _page.Show(view);
     }
