@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.10.3
+
+- Removed a harmless warning the mod logged when the game started.
+- Made for Survival Log 1.1.20151.
+
 ## 0.10.2
 
 - Fixed: the first queued craft after you open a workbench showed an empty progress bar until it finished. It now fills like the rest.

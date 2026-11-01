@@ -1,5 +1,6 @@
 using System;
 using CraftingHub.Core;
+using Il2CppInterop.Runtime.Attributes;
 using UnityEngine;
 
 namespace CraftingHub.Adapters;
@@ -43,6 +44,7 @@ public sealed class CraftTicker : MonoBehaviour
     /// <summary>A recipe list rebuild the game asked for this frame runs before the frame is drawn.</summary>
     private void LateUpdate() => RecipeRefresh.Flush();
 
+    [HideFromIl2Cpp]
     private void NoteFailure(Exception ex)
     {
         var line = _failures.Failed(Environment.TickCount64, ex.ToString(), StopSession);
