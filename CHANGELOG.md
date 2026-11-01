@@ -2,6 +2,7 @@
 
 ## 0.10.3
 
+- **Warning:** needs Exiled's Toolkit 0.11.0 or newer. Update the Toolkit first.
 - Removed a harmless warning the mod logged when the game started.
 - Made for Survival Log 1.1.20151.
 
