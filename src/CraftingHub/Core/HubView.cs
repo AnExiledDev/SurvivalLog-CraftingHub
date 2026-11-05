@@ -269,9 +269,10 @@ public static class HubView
     private static StringBuilder Speed(StringBuilder json, float speed) =>
         json.Append(CultureInfo.InvariantCulture, $"{(float.IsFinite(speed) && speed > 0f ? Math.Round(speed, 6) : 0d)}");
 
-    /// <summary>A JavaScript string literal, safe to paste into a script.</summary>
-    public static string Str(string? text) => Str(new StringBuilder((text?.Length ?? 0) + 2), text).ToString();
-
+    /// <summary>
+    /// A JavaScript string literal, escaped as Exiled's Toolkit's JsText.Literal does, written straight into the view
+    /// being built rather than made as a string of its own for every name in it.
+    /// </summary>
     private static StringBuilder Str(StringBuilder literal, string? text)
     {
         literal.Append('"');

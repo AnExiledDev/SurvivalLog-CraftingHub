@@ -1764,6 +1764,41 @@ public class PageScriptTests
         Assert.True(page.Truth("window.__exiledUiWait[1][1].fit === benchDoc().querySelector('.ui-container')"));
     }
 
+    /// <summary>The game may run Crafting Hub's script before the Toolkit's; nothing it says to the plugin is lost meanwhile.</summary>
+    [Fact]
+    public void With_the_hubs_script_first_its_hello_waits_for_the_toolkit_and_then_reaches_the_plugin()
+    {
+        var page = new PageScript(isToolkitFirst: false);
+
+        Assert.Empty(page.Posted);
+
+        page.LoadToolkit();
+
+        Assert.IsType<PageCommand.Ready>(Assert.Single(page.Posted));
+    }
+
+    /// <summary>A bench drawn before the Toolkit's script loads is drawn as usual, and gets its stylesheet and its UI size once it loads.</summary>
+    [Fact]
+    public void With_the_hubs_script_first_a_bench_drawn_early_is_styled_and_sized_once_the_toolkit_loads()
+    {
+        var page = new PageScript(isToolkitFirst: false);
+
+        page.Run("fakeToolkit()");
+        page.OpenBench();
+        page.RecipeMsg(Recipes);
+        page.Show(View());
+
+        Assert.Equal("plank,rope,crate,shirt,torch", page.Text("cardKeys()"));
+        Assert.True(page.Truth("$('cc-style') === null"));
+        Assert.Equal(0, page.Number("handed.length"));
+
+        page.LoadToolkit();
+
+        Assert.Contains(".combined-panel.cc-hub .notes-section{display:none!important}", page.Text("$('cc-style').textContent"));
+        Assert.Equal("cc-mid,cc-queue", page.Text("handed.map(function (h) { return h.el.id; }).join(',')"));
+        Assert.Equal(2, page.Number("handed.filter(function (h) { return h.options.mod === 'CraftingHub' && h.options.pageFits === true; }).length"));
+    }
+
     [Fact]
     public void A_new_zoom_fits_the_page_to_the_window_again_at_once_but_during_a_drag_only_once_the_item_is_dropped()
     {

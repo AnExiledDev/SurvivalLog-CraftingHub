@@ -6,16 +6,22 @@
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <ToolkitDll Condition="'$(ToolkitDll)' == ''">D:\devnew\game-mods\SurvivalLog\mods\sl-exiled-toolkit\src\ExiledToolkit\bin\Release\ExiledToolkit.dll</ToolkitDll>
+    <!-- Exiled's Toolkit's source folder, the one its built DLL sits two folders under (bin\Release). -->
+    <ToolkitSrc>$([System.IO.Path]::GetDirectoryName($([System.IO.Path]::GetDirectoryName($([System.IO.Path]::GetDirectoryName('$(ToolkitDll)'))))))</ToolkitSrc>
   </PropertyGroup>
 
-  <!-- The pure core is compiled straight in, so the tests need none of the game or BepInEx assemblies. -->
+  <!-- The pure core is compiled straight in, with the Toolkit's plain helpers it uses, so the tests need none of the game or BepInEx assemblies. -->
   <ItemGroup>
     <Compile Include="..\..\src\CraftingHub\Core\*.cs" Link="Core\%(Filename)%(Extension)" />
+    <Compile Include="$(ToolkitSrc)\Core\JsText.cs" Link="Toolkit\JsText.cs" />
+    <Compile Include="$(ToolkitSrc)\Core\Phrase.cs" Link="Toolkit\Phrase.cs" />
   </ItemGroup>
 
-  <!-- The page script, as the plugin ships it, run in Jint against a fake Root.html and workbench page. -->
+  <!-- The page script, as the plugin ships it, run in Jint with the Toolkit's page API against a fake Root.html and workbench page. -->
   <ItemGroup>
     <EmbeddedResource Include="..\..\src\CraftingHub\page.js" LogicalName="CraftingHub.page.js" Link="page.js" />
+    <EmbeddedResource Include="$(ToolkitSrc)\api.js" LogicalName="ExiledToolkit.api.js" Link="Toolkit\api.js" />
     <EmbeddedResource Include="FakePage.js" LogicalName="CraftingHub.Tests.FakePage.js" />
   </ItemGroup>
 

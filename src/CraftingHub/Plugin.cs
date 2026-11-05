@@ -4,26 +4,41 @@ using BepInEx;
 using BepInEx.Configuration;
 using BepInEx.Unity.IL2CPP;
 using CraftingHub.Adapters;
+using CraftingHub.Core;
+using ExiledToolkit;
+using ExiledToolkit.Game;
+using ExiledToolkit.Kit;
+using ExiledToolkit.Web;
 using HarmonyLib;
 
 namespace CraftingHub;
 
 [BepInPlugin(Guid, "Crafting Hub", Version)]
-[BepInDependency(OptionalLive.ToolkitGuid, OptionalLive.ToolkitVersion)]
+[BepInDependency(ToolkitGuid, ToolkitVersion)]
 [BepInDependency(StackingGuid, BepInDependency.DependencyFlags.SoftDependency)]
 [BepInIncompatibility(BetterCraftingGuid)]
 public sealed class Plugin : BasePlugin
 {
     private const string Guid = "com.dev.survivallog.craftinghub";
-    private const string Version = "0.10.3";
+    private const string Version = "0.10.4";
     private const string StackingGuid = "com.dev.survivallog.stacking";
+
+    /// <summary>The oldest Exiled's Toolkit the mod loads with: its shared helpers, toasts, live settings and UI size all come from it.</summary>
+    private const string ToolkitGuid = "com.dev.survivallog.exiledtoolkit";
+    private const string ToolkitVersion = ">=0.19.0";
+
+    /// <summary>Past this the log file is moved to crafting-hub.log.1 and started again.</summary>
+    private const long MaxLogBytes = 1024 * 1024;
+
+    /// <summary>The hooks that can fail every frame log this many failures of each kind.</summary>
+    private const int MaxLoggedHookFailures = 3;
 
     /// <summary>BetterCrafting also changes the workbench's storage list, so BepInEx loads only one of the two.</summary>
     private const string BetterCraftingGuid = "com.ivmakk.survivallog.bettercrafting";
 
     public override void Load()
     {
-        OptionalUiSize.Bind(Config);
+        ModUiSize.Bind(Config, "CraftingHub");
 
         var useAllHomeStorages = Config.Bind("Storage", "UseAllHomeStorages", true,
             "Workbenches use materials from every storage in your home, not only the storages linked to them. Off: only the linked storages, as in the base game.\n" +
@@ -47,22 +62,21 @@ public sealed class Plugin : BasePlugin
             "A paused queue carries on at whichever workbench you open next. Off: it waits for the workbench it was running on. Only matters when ResumeOnReopen is on.\n" +
             "暂停的队列会在你下一个打开的工作台继续，不一定是原来那台。关闭本选项后，只会在原来那台工作台继续。只在 ResumeOnReopen 开启时有用。");
 
-        var log = new HubLog(Log, Path.Combine(Paths.BepInExRootPath, "crafting-hub.log"));
-        var harmony = new Harmony(Guid);
+        var log = new ModLog(Log, "crafting-hub.log") { MaxFileBytes = MaxLogBytes };
+        var hooks = new PatchKit(new Harmony(Guid), log.Write, MaxLoggedHookFailures);
         var keep = new KeepPorts(new HomeStock(log.Write), new KeepStore(Path.Combine(Paths.ConfigPath, Guid + ".targets.txt"), log.Write), SaveSlot.CurrentKey);
 
-        log.TrimIfLarge();
         log.Write($"===== Crafting Hub {Version} started");
-        OptionalLive.Watch(useAllHomeStorages, isOn => StoragePool.Use(harmony, isOn, log.Write));
-        Workbench.Apply(harmony, log.Write);
-        RecipeRefresh.Apply(harmony, log.Write);
-        PageMessages.Apply(harmony, log.Write);
+        LiveSettings.Watch(useAllHomeStorages, isOn => StoragePool.Use(hooks, isOn, log.Write));
+        Workbench.Apply(hooks, log.Write);
+        RecipeRefresh.Apply(hooks, log.Write);
         CraftTicker.Log = log.Write;
         HubSettings ReadSettings() => new(Math.Max(0, maxDepth.Value), showMarks.Value, keepStocked.Value, autoStart.Value, resumeOnReopen.Value, otherBenches.Value);
 
-        var session = new HubSession(new Workbench(log.Write), new WorkbenchPage(log.Write), keep, ReadSettings(), IsStackingLoaded, log.Write, log.WriteFileOnly);
+        var inbox = PageInbox.Listen(PageCommand.Prefix);
+        var session = new HubSession(new Workbench(log.Write), new WorkbenchPage(log.Write), inbox, keep, ReadSettings(), IsStackingLoaded, log.Write, log.WriteFileOnly);
 
-        OptionalLive.Watch(() =>
+        LiveSettings.Watch(() =>
         {
             var settings = ReadSettings();
 

@@ -4,6 +4,8 @@ using System.Diagnostics;
 using System.Linq;
 using CraftingHub.Core;
 using ExiledToolkit;
+using ExiledToolkit.Game;
+using ExiledToolkit.Web;
 
 namespace CraftingHub.Adapters;
 
@@ -32,6 +34,7 @@ internal sealed class HubSession
 
     private readonly Workbench _bench;
     private readonly WorkbenchPage _page;
+    private readonly PageMailbox _inbox;
     private readonly KeepPorts _keep;
     private HubSettings _settings;
     private readonly Func<bool> _takesUnitsOffStacks;
@@ -64,10 +67,11 @@ internal sealed class HubSession
     private IReadOnlyList<string> _recipeKeys = NoRecipeKeys;
     private IReadOnlyList<DyeOption> _dyes = Array.Empty<DyeOption>();
 
-    public HubSession(Workbench bench, WorkbenchPage page, KeepPorts keep, HubSettings settings, Func<bool> takesUnitsOffStacks, Action<string> log, Action<string> logFileOnly)
+    public HubSession(Workbench bench, WorkbenchPage page, PageMailbox inbox, KeepPorts keep, HubSettings settings, Func<bool> takesUnitsOffStacks, Action<string> log, Action<string> logFileOnly)
     {
         _bench = bench;
         _page = page;
+        _inbox = inbox;
         _keep = keep;
         _settings = settings;
         _takesUnitsOffStacks = takesUnitsOffStacks;
@@ -100,7 +104,7 @@ internal sealed class HubSession
         _read = null;
         _page.KeepInstalled(now);
 
-        while (PageMessages.TryTake(out var command)) Handle(command);
+        while (_inbox.TryTake(out var message)) Handle(PageCommand.Parse(message));
 
         // A bench opened again may show the same refresh count as when it closed, so opening always recomputes.
         if (isOpen && !_wasOpen)
@@ -172,6 +176,7 @@ internal sealed class HubSession
                 break;
             case PageCommand.Ready:
                 _log("page script running");
+                _page.ForgetWords();
                 _view.Forget();
                 break;
             case PageCommand.NoScript:

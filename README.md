@@ -90,10 +90,10 @@ Kept counts belong to the save you are playing. They are stored in `BepInEx\conf
 
 ## Requirements
 
-- Survival Log 1.1.20151. Built and tested on this version; a game update can break it until the mod is updated.
+- Survival Log 1.1.20719. Built for this version; a game update can break it until the mod is updated.
 - The [BepInEx Pack for Survival Log](https://www.nexusmods.com/survivallog/mods/12), the BepInEx 6 (IL2CPP) build for the game.
 - Not together with BetterCrafting. Both change which storages a workbench uses; remove BetterCrafting before installing this. While BetterCrafting is installed, BepInEx does not load Crafting Hub, and the Mod Manager lists BetterCrafting under DOES NOT WORK WITH.
-- [Exiled's Toolkit](https://github.com/AnExiledDev/SurvivalLog-ExiledToolkit) 0.11.0 or newer. Crafting Hub does not load without it. It shows the queue's news as toasts while the workbench is closed, applies settings changed on the Mod Manager's Mods screen without a restart, and its UI size setting draws the recipe list and the craft queue on the workbench bigger or smaller. Crafting Hub's own `UiScale` under Interface sets a size for this mod alone; at 0, the default, it follows the Toolkit's.
+- [Exiled's Toolkit](https://github.com/AnExiledDev/SurvivalLog-ExiledToolkit) 0.19.0 or newer. Crafting Hub does not load without it. It shows the queue's news as toasts while the workbench is closed, applies settings changed on the Mod Manager's Mods screen without a restart, and its UI size setting draws the recipe list and the craft queue on the workbench bigger or smaller. Crafting Hub's own `UiScale` under Interface sets a size for this mod alone; at 0, the default, it follows the Toolkit's.
 - Optional: [Info Pack](https://www.nexusmods.com/survivallog/mods/81) 0.8.5 or newer. With it, recipes, queued orders and materials show the full item tooltip. Without it, Crafting Hub shows the item's name in a tooltip of its own.
 
 ## Install
@@ -107,7 +107,7 @@ Kept counts belong to the save you are playing. They are stored in `BepInEx\conf
 
 ## Uninstall
 
-Delete `CraftingHub.dll` from the `BepInEx\plugins` folder. For a clean slate, also delete `BepInEx\config\com.dev.survivallog.craftinghub.cfg`, `BepInEx\config\com.dev.survivallog.craftinghub.targets.txt` and `BepInEx\crafting-hub.log`.
+Delete `CraftingHub.dll` from the `BepInEx\plugins` folder. For a clean slate, also delete `BepInEx\config\com.dev.survivallog.craftinghub.cfg`, `BepInEx\config\com.dev.survivallog.craftinghub.targets.txt`, `BepInEx\crafting-hub.log` and `BepInEx\crafting-hub.log.1`.
 
 ## Configuration
 
@@ -115,9 +115,9 @@ Settings live in `BepInEx\config\com.dev.survivallog.craftinghub.cfg`, created t
 
 ## Troubleshooting
 
-Tested on Survival Log 1.1.20151 with BepInEx `6.0.0-be.788`.
+Built against BepInEx `6.0.0-be.788`.
 
-Check `BepInEx\LogOutput.log` for `===== Crafting Hub 0.9.11 started`, followed by `workbenches use every home storage` and `intermediates up to 4 deep, marks on, keep stocked on, auto start on, resume on reopen on, other workbenches on` (the words change with your settings, and a setting changed on the Mods screen writes them again). The same lines, plus every step of every run and why it stopped, is in `BepInEx\crafting-hub.log`, which survives restarts. When that file passes 1 MB, it is cut down to its newest part at the next game start.
+Check `BepInEx\LogOutput.log` for `===== Crafting Hub 0.9.11 started`, followed by `workbenches use every home storage` and `intermediates up to 4 deep, marks on, keep stocked on, auto start on, resume on reopen on, other workbenches on` (the words change with your settings, and a setting changed on the Mods screen writes them again). The same lines, plus every step of every run and why it stopped, is in `BepInEx\crafting-hub.log`, which survives restarts. When that file reaches 1 MB, it is moved to `crafting-hub.log.1` and a new one is started.
 
 If the workbench looks like the game's own, check that BetterCrafting is not in `BepInEx\plugins`: BepInEx skips Crafting Hub while it is there, and `LogOutput.log` says so.
 
@@ -133,7 +133,7 @@ If the workbench looks like the game's own, check that BetterCrafting is not in 
 
 ## Feedback and bug reports
 
-Found a bug, have an idea, or something feels off? Come say so on the Core Directive Discord: https://discord.gg/trTsyxUFqg . You can also post in the Posts tab of the mod's Nexus Mods page. When reporting a bug, attach `BepInEx\LogOutput.log` and `BepInEx\crafting-hub.log`.
+Found a bug, have an idea, or something feels off? Come say so on the Core Directive Discord: https://discord.gg/trTsyxUFqg . You can also post in the Posts tab of the mod's Nexus Mods page. When reporting a bug, attach `BepInEx\LogOutput.log`, `BepInEx\crafting-hub.log` and `BepInEx\crafting-hub.log.1`.
 
 To reach me directly, message `exiled.dev` on Discord; you can find me in the [official Survival Log Discord](https://discord.gg/MZGg4gQAUe). I'm also on X as [@AnExiledDev](https://x.com/AnExiledDev).
 

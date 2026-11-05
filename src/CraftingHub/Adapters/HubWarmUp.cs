@@ -20,7 +20,7 @@ internal static class HubWarmUp
     private static readonly Type[] Adapters =
     {
         typeof(HubSession), typeof(Workbench), typeof(WorkbenchPage), typeof(HomeStock), typeof(StoragePool), typeof(RecipeRefresh),
-        typeof(PageMessages), typeof(KeepStore), typeof(CraftTicker),
+        typeof(KeepStore), typeof(CraftTicker),
     };
 
     public static void Start(Action<string> logFileOnly) =>

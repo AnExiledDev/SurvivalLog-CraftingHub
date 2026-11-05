@@ -2,10 +2,10 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using CraftingHub.Core;
+using ExiledToolkit.Game;
 using GameCore.HotUpdate;
 using GameCore.HotUpdate.Battle.Logic;
 using GameCore.HotUpdate.ReduxUI;
-using HarmonyLib;
 using Il2CppInterop.Runtime;
 
 namespace CraftingHub.Adapters;
@@ -64,31 +64,16 @@ internal sealed class Workbench
     /// <summary>Goes up every time the game rebuilds the recipe list.</summary>
     public int Refreshes => _refreshes;
 
-    public static void Apply(Harmony harmony, Action<string> log)
+    public static void Apply(PatchKit hooks, Action<string> log)
     {
-        try
-        {
-            harmony.Patch(AccessTools.Method(typeof(Reducer_Web_ToolTable), nameof(Reducer_Web_ToolTable.RefreshRecipeList)),
-                postfix: new HarmonyMethod(typeof(Workbench), nameof(RememberState)));
-            log("watching the workbench recipe list");
-        }
-        catch (Exception ex)
-        {
-            log("could not hook the workbench recipe list, chain marks and the queue will not work: " + ex.Message);
-        }
+        hooks.Patch(typeof(Workbench), typeof(Reducer_Web_ToolTable), nameof(Reducer_Web_ToolTable.RefreshRecipeList), postfix: nameof(RememberState),
+            done: "watching the workbench recipe list", consequence: "chain marks and the queue will not work");
 
-        try
-        {
-            harmony.Patch(AccessTools.Method(typeof(LogicAdapter), "OnHandMadeResult"),
-                postfix: new HarmonyMethod(typeof(Workbench), nameof(CountResult)));
-            _countsResults = true;
-            _hookLog = log;
-            log("watching for finished crafts");
-        }
-        catch (Exception ex)
-        {
-            log("could not hook finished crafts, a step is credited from the batch count alone: " + ex.Message);
-        }
+        if (!hooks.Patch(typeof(Workbench), typeof(LogicAdapter), "OnHandMadeResult", postfix: nameof(CountResult),
+                done: "watching for finished crafts", consequence: "a step is credited from the batch count alone")) return;
+
+        _countsResults = true;
+        _hookLog = log;
     }
 
     public bool IsOpen => _state != null && GameSingleton.Existing<ReduxUISystem>()?.IsUIActive(_toolTableType ??= Il2CppType.Of<WebUI_ToolTable>()) == true;
@@ -119,7 +104,7 @@ internal sealed class Workbench
 
             // The game sends a recipe's name and dye flag in a list of their own and leaves them empty on this row.
             var fixedPart = fixedParts.GetValueOrDefault(key);
-            var name = fixedPart.Name ?? NonEmpty(row.Name?.Value) ?? recipe.Name;
+            var name = fixedPart.Name ?? GameNames.NonEmpty(row.Name?.Value) ?? recipe.Name;
             var listed = recipe with { Name = name, IsLocked = row.CraftLocked?.Value == true };
 
             recipes.Add(listed);
@@ -217,7 +202,7 @@ internal sealed class Workbench
                 var materials = materialIds.GroupBy(id => id).ToDictionary(group => group.Key, group => group.Count());
                 var recipe = new Recipe(RecipeBook.KeyOf(materialIds), ItemName(productId), productId, yield, materials, IsLocked: false, BaseKey: baseKey, DyeId: dyeId);
 
-                found.Add(new DyedVariant(recipe, NonEmpty(DyePaletteRules.GetDyeHex(dyeId)) ?? "#888888", NonEmpty(GameKey.GetDyeColorName(dyeId)) ?? ItemName(dyeId)));
+                found.Add(new DyedVariant(recipe, GameNames.NonEmpty(DyePaletteRules.GetDyeHex(dyeId)) ?? "#888888", GameNames.NonEmpty(GameKey.GetDyeColorName(dyeId)) ?? ItemName(dyeId)));
             }
         }
         catch (Exception ex)
@@ -354,9 +339,7 @@ internal sealed class Workbench
         if (_itemNames.TryGetValue(configId, out var cached)) return cached;
 
         var config = GameSingleton.Existing<ConfigManager>();
-        var item = config?.Get_Config_Item(configId);
-        var local = item == null || config == null || string.IsNullOrEmpty(item.ItemName) ? null : config.GetLocalTxt(item.ItemName);
-        var name = !string.IsNullOrEmpty(local) && local != item?.ItemName ? local : NonEmpty(item?.ItemName_Local) ?? NonEmpty(item?.ItemName) ?? $"Item {configId}";
+        var name = (config == null ? null : GameNames.ItemName(config, configId)) ?? $"Item {configId}";
 
         return _itemNames[configId] = name;
     }
@@ -511,7 +494,7 @@ internal sealed class Workbench
                 var row = list[i];
                 var key = row?.RecipeKey?.Value;
 
-                if (row != null && !string.IsNullOrEmpty(key)) found[key] = (NonEmpty(row.Name?.Value), row.Dyeable?.Value == true);
+                if (row != null && !string.IsNullOrEmpty(key)) found[key] = (GameNames.NonEmpty(row.Name?.Value), row.Dyeable?.Value == true);
             }
 
             var cache = state.RecipeStaticCache;
@@ -522,7 +505,7 @@ internal sealed class Workbench
             {
                 if (string.IsNullOrEmpty(pair.Key) || pair.Value == null || found.TryGetValue(pair.Key, out var listed) && listed.Name != null) continue;
 
-                found[pair.Key] = (NonEmpty(pair.Value.Name), pair.Value.Dyeable);
+                found[pair.Key] = (GameNames.NonEmpty(pair.Value.Name), pair.Value.Dyeable);
             }
         }
         catch (Exception)
@@ -532,6 +515,4 @@ internal sealed class Workbench
 
         return found;
     }
-
-    private static string? NonEmpty(string? text) => string.IsNullOrWhiteSpace(text) ? null : text;
 }

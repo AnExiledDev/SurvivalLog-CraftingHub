@@ -1,88 +1,52 @@
 using System;
 using System.Globalization;
-using System.IO;
 using CraftingHub.Core;
-using GameCore.HotUpdate;
-using GameCore.HotUpdate.ReduxUI;
+using ExiledToolkit.Game;
+using ExiledToolkit.Web;
 
 namespace CraftingHub.Adapters;
 
 /// <summary>
 /// page.js, run in the root document the game's pages sit in, the way Storage Hub and the ivmakk mods add their UI.
-/// The web view can reload at any time and lose the script, so it is checked for every couple of seconds and put
-/// back when the page says it is missing.
+/// The web view can reload at any time and lose the script, so Exiled's Toolkit checks for it every couple of seconds
+/// and the session puts it back when the page says it is missing.
 /// </summary>
 internal sealed class WorkbenchPage
 {
-    private const float CheckSeconds = 2f;
     private const string ScriptResource = "CraftingHub.page.js";
-    private const string NoScriptReply = "window.vuplex&&window.vuplex.postMessage('" + PageCommand.Prefix + "noscript')";
+    private const string Global = "window.__craftinghub";
 
-    private readonly Action<string> _log;
-    private string? _script;
-    private float _nextCheckAt;
-    private bool _hasReportedRunFailure;
+    private readonly WebPage _page;
 
     public WorkbenchPage(Action<string> log)
     {
-        _log = log;
+        // The words go with the first call after a load and again whenever the game's language changes, so the panel
+        // follows a language change in the game's settings.
+        _page = new WebPage(typeof(WorkbenchPage).Assembly, ScriptResource, Global, PageCommand.Prefix + "noscript", log)
+        {
+            Words = PageWords.Script,
+        };
     }
 
-    public void KeepInstalled(float now)
-    {
-        if (now < _nextCheckAt) return;
+    public void KeepInstalled(double now) => _page.KeepInstalled(now);
 
-        _nextCheckAt = now + CheckSeconds;
-        Run("window.__craftinghub||" + NoScriptReply);
-    }
-
+    /// <summary>
+    /// The words follow the script at once, so a workbench already open when the script comes back is drawn in the
+    /// game's language from its first draw, before the next call would bring them.
+    /// </summary>
     public void Install()
     {
-        if (Run(Words() + Script())) _log("page script sent to the web UI");
+        if (_page.Install()) _page.Run(PageWords.Script(GameLanguage.IsChinese()));
     }
 
-    public void Show(string viewJson) => Call($"setData({viewJson})");
+    /// <summary>The page loaded the script afresh, so its words go with the next call.</summary>
+    public void ForgetWords() => _page.ForgetWords();
 
-    public void ClickRecipe(string key) => Call($"act('recipe',{HubView.Str(key)})");
+    public void Show(string viewJson) => _page.Call($"setData({viewJson})");
 
-    public void Craft(int quantity) => Call($"act('craft',{quantity.ToString(CultureInfo.InvariantCulture)})");
+    public void ClickRecipe(string key) => _page.Call($"act('recipe',{JsText.Literal(key)})");
 
-    public void ConfirmResult() => Call("act('confirm')");
+    public void Craft(int quantity) => _page.Call($"act('craft',{quantity.ToString(CultureInfo.InvariantCulture)})");
 
-    // The words go with every call, so the panel follows a language change in the game's settings.
-    private void Call(string expression) => Run($"{Words()}window.__craftinghub?window.__craftinghub.{expression}:{NoScriptReply}");
-
-    private static string Words() => PageWords.Script(GameLanguage.IsChinese());
-
-    private bool Run(string javaScript)
-    {
-        var webView = GameSingleton.Existing<ReduxUISystem>()?.GetWebUILayer()?.canvasWebViewPrefab?.WebView;
-
-        if (webView == null) return false;
-
-        try
-        {
-            webView.ExecuteJavaScript(javaScript, null);
-
-            return true;
-        }
-        catch (Exception ex)
-        {
-            if (!_hasReportedRunFailure) _log("could not run script in the web UI (reported once): " + ex.Message);
-
-            _hasReportedRunFailure = true;
-
-            return false;
-        }
-    }
-
-    private string Script()
-    {
-        if (_script != null) return _script;
-
-        using var stream = typeof(WorkbenchPage).Assembly.GetManifestResourceStream(ScriptResource) ?? throw new InvalidOperationException(ScriptResource + " is not embedded");
-        using var reader = new StreamReader(stream);
-
-        return _script = reader.ReadToEnd();
-    }
+    public void ConfirmResult() => _page.Call("act('confirm')");
 }

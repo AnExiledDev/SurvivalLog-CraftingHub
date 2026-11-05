@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using CraftingHub.Core;
+using ExiledToolkit.Web;
 using Xunit;
 
 namespace CraftingHub.Tests;
@@ -144,7 +145,7 @@ public class TextsTests
         var script = PageWords.Script(isChinese: true);
 
         Assert.StartsWith("window.__craftinghubWords={", script);
-        Assert.All(Texts.Page, word => Assert.Contains(HubView.Str(word.Key) + ":" + HubView.Str(word.Phrase.Zh), script));
+        Assert.All(Texts.Page, word => Assert.Contains(JsText.Literal(word.Key) + ":" + JsText.Literal(word.Phrase.Zh), script));
     }
 
     // Runs an empty queue, so the runner words its "queue finished" line.

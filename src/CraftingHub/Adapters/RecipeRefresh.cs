@@ -1,8 +1,8 @@
 using System;
 using System.Collections.Generic;
 using CraftingHub.Core;
+using ExiledToolkit.Game;
 using GameCore.HotUpdate.ReduxUI;
-using HarmonyLib;
 using Il2CppNeeded = Il2CppSystem.Collections.Generic.Dictionary<int, int>;
 
 namespace CraftingHub.Adapters;
@@ -19,8 +19,6 @@ internal static class RecipeRefresh
     /// <summary>The fast craftable test is checked against the game's own this many times before it is trusted alone.</summary>
     private const int ChecksCompared = 400;
 
-    private const int MaxLoggedFailures = 3;
-
     private sealed record Rebuild(State_Web_ToolTable State, State_Data_Furniture Furniture, State_Data_Item Items);
 
     /// <summary>One look at the storages: the stacks they hold, and the storages the game's own rule is asked about.</summary>
@@ -34,35 +32,30 @@ internal static class RecipeRefresh
     private static bool _isPoolTrusted = true;
     private static bool _hasLoggedReread;
     private static int _compared;
-    private static int _failures;
+    private static PatchKit? _hooks;
 
-    public static void Apply(Harmony harmony, Action<string> log)
+    public static void Apply(PatchKit hooks, Action<string> log)
     {
         _log = log;
+        _hooks = hooks;
 
         // The steps that read the list go first: a rebuild is only ever held once all of them run it beforehand.
         try
         {
-            Patch(harmony, nameof(Reducer_Web_ToolTable.RA_Make), prefix: nameof(FlushFirst));
-            Patch(harmony, nameof(Reducer_Web_ToolTable.RA_RecipeClick), prefix: nameof(FlushFirst));
-            Patch(harmony, nameof(Reducer_Web_ToolTable.EvalCanCraftAgain), prefix: nameof(FlushFirst));
-            Patch(harmony, nameof(Reducer_Web_ToolTable.RA_Close), prefix: nameof(DropHeld));
-            Patch(harmony, nameof(Reducer_Web_ToolTable.RefreshRecipeList), prefix: nameof(RunOrHold), postfix: nameof(Rebuilt));
+            Patch(hooks, nameof(Reducer_Web_ToolTable.RA_Make), prefix: nameof(FlushFirst));
+            Patch(hooks, nameof(Reducer_Web_ToolTable.RA_RecipeClick), prefix: nameof(FlushFirst));
+            Patch(hooks, nameof(Reducer_Web_ToolTable.EvalCanCraftAgain), prefix: nameof(FlushFirst));
+            Patch(hooks, nameof(Reducer_Web_ToolTable.RA_Close), prefix: nameof(DropHeld));
+            Patch(hooks, nameof(Reducer_Web_ToolTable.RefreshRecipeList), prefix: nameof(RunOrHold), postfix: nameof(Rebuilt));
             log("workbench recipe list rebuilds are batched");
         }
         catch (Exception ex)
         {
-            log("could not hook the workbench recipe list rebuilds, the game rebuilds it as before: " + ex.Message);
+            log(HookFailure.Prefix + " the workbench recipe list rebuilds, the game rebuilds it as before: " + ex.Message);
         }
 
-        try
-        {
-            Patch(harmony, nameof(Reducer_Web_ToolTable.CheckMaterialSufficiencyAcrossLinked), prefix: nameof(CheckFromPool));
-        }
-        catch (Exception ex)
-        {
-            log("could not hook the craftable check, the game's own runs: " + ex.Message);
-        }
+        hooks.Patch(typeof(RecipeRefresh), typeof(Reducer_Web_ToolTable), nameof(Reducer_Web_ToolTable.CheckMaterialSufficiencyAcrossLinked), prefix: nameof(CheckFromPool),
+            consequence: "the game's own craftable check runs");
     }
 
     /// <summary>Runs a held rebuild now. Called before this mod reads the workbench and once a frame.</summary>
@@ -74,16 +67,12 @@ internal static class RecipeRefresh
         }
         catch (Exception ex)
         {
-            Fail("running a held recipe list rebuild failed", ex);
+            Fail("running a held recipe list rebuild", ex);
         }
     }
 
-    private static void Patch(Harmony harmony, string name, string? prefix = null, string? postfix = null)
-    {
-        harmony.Patch(AccessTools.Method(typeof(Reducer_Web_ToolTable), name),
-            prefix: prefix == null ? null : new HarmonyMethod(typeof(RecipeRefresh), prefix),
-            postfix: postfix == null ? null : new HarmonyMethod(typeof(RecipeRefresh), postfix));
-    }
+    private static void Patch(PatchKit hooks, string name, string? prefix = null, string? postfix = null) =>
+        hooks.PatchOrThrow(typeof(RecipeRefresh), typeof(Reducer_Web_ToolTable), name, prefix: prefix, postfix: postfix);
 
     private static bool RunOrHold(State_Web_ToolTable __0, State_Data_Furniture __1, State_Data_Item __2, out bool __state)
     {
@@ -102,7 +91,7 @@ internal static class RecipeRefresh
         }
         catch (Exception ex)
         {
-            Fail("holding a recipe list rebuild failed", ex);
+            Fail("holding a recipe list rebuild", ex);
         }
 
         return true;
@@ -147,7 +136,7 @@ internal static class RecipeRefresh
         catch (Exception ex)
         {
             _isPoolTrusted = false;
-            Fail("the fast craftable check failed, the game's own is used from now on", ex);
+            Fail("the fast craftable check, the game's own is used from now on", ex);
 
             return true;
         }
@@ -258,10 +247,5 @@ internal static class RecipeRefresh
         return NeededBuffer;
     }
 
-    private static void Fail(string what, Exception ex)
-    {
-        _failures++;
-
-        if (_failures <= MaxLoggedFailures) _log($"{what} (logged {_failures} of {MaxLoggedFailures}): {ex}");
-    }
+    private static void Fail(string doing, Exception ex) => _hooks?.Fail(doing, ex);
 }

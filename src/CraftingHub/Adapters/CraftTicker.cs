@@ -1,5 +1,6 @@
 using System;
 using CraftingHub.Core;
+using ExiledToolkit.Kit;
 using Il2CppInterop.Runtime.Attributes;
 using UnityEngine;
 
@@ -13,6 +14,9 @@ public sealed class CraftTicker : MonoBehaviour
     internal static HubSession? Session;
     internal static Action<string> Log = _ => { };
 
+    /// <summary>The Toolkit's clock at the mod's first read of it, the first frame; the session's timers count from there.</summary>
+    private static double _startedAt = double.NaN;
+
     private readonly TickFailures _failures = new();
     private float _nextTickAt;
 
@@ -20,11 +24,24 @@ public sealed class CraftTicker : MonoBehaviour
     {
     }
 
+    /// <summary>
+    /// Seconds since the mod first asked. The Toolkit's clock counts from system start, too far out for the session's
+    /// float timers to keep a tenth of a second, so they count from the first frame instead. Main thread only.
+    /// </summary>
+    internal static float Now()
+    {
+        var now = Clock.Now;
+
+        if (double.IsNaN(_startedAt)) _startedAt = now;
+
+        return (float)(now - _startedAt);
+    }
+
     private void Update()
     {
         RecipeRefresh.Flush();
 
-        var now = Time.unscaledTime;
+        var now = Now();
 
         if (now < _nextTickAt) return;
 

@@ -1,11 +1,10 @@
 using System;
 using System.Collections.Generic;
 using CraftingHub.Core;
+using ExiledToolkit.Game;
 using GameCore.HotUpdate;
 using GameCore.HotUpdate.Battle.Logic;
 using GameCore.HotUpdate.ReduxUI;
-using HarmonyLib;
-using UnityEngine;
 using Il2CppOwnerList = Il2CppSystem.Collections.Generic.List<long>;
 
 namespace CraftingHub.Adapters;
@@ -17,8 +16,6 @@ namespace CraftingHub.Adapters;
 /// </summary>
 internal static class StoragePool
 {
-    private const int MaxLoggedFailures = 3;
-
     private static readonly List<long> HomeCache = new();
 
     // Reused by every ask; the hook runs on the main thread only.
@@ -27,8 +24,7 @@ internal static class StoragePool
     private static readonly HashSet<long> Seen = new();
     private static readonly List<long> Added = new();
     private static int _cachedFrame = -1;
-    private static Action<string> _log = _ => { };
-    private static int _failures;
+    private static PatchKit? _hooks;
     private static bool _isOn;
     private static bool _isHooked;
 
@@ -36,31 +32,23 @@ internal static class StoragePool
     /// Called on the main thread at start and after each change. The hook goes in the first time the setting is on and
     /// stays; off, it adds nothing and the game's own list is used.
     /// </summary>
-    public static void Use(Harmony harmony, bool isOn, Action<string> log)
+    public static void Use(PatchKit hooks, bool isOn, Action<string> log)
     {
-        _log = log;
+        _hooks = hooks;
         _isOn = isOn;
 
-        if (isOn && !_isHooked) Hook(harmony, log);
+        if (isOn && !_isHooked) Hook(hooks);
 
         log(isOn ? "workbenches use every home storage" : "workbenches use only their linked storages");
     }
 
     /// <summary>A hook that failed is not tried again.</summary>
-    private static void Hook(Harmony harmony, Action<string> log)
+    private static void Hook(PatchKit hooks)
     {
         _isHooked = true;
 
-        try
-        {
-            harmony.Patch(AccessTools.Method(typeof(Reducer_Web_ToolTable), nameof(Reducer_Web_ToolTable.GetAllLinkedOwnerIds)),
-                postfix: new HarmonyMethod(typeof(StoragePool), nameof(AddHomeStorages)));
-            log("hooked the workbench's storage list");
-        }
-        catch (Exception ex)
-        {
-            log("could not hook the workbench's storage list, only nearby storages will count: " + ex.Message);
-        }
+        hooks.Patch(typeof(StoragePool), typeof(Reducer_Web_ToolTable), nameof(Reducer_Web_ToolTable.GetAllLinkedOwnerIds), postfix: nameof(AddHomeStorages),
+            done: "hooked the workbench's storage list", consequence: "only nearby storages will count");
     }
 
     private static void AddHomeStorages(State_Web_ToolTable state, Il2CppOwnerList __result)
@@ -80,19 +68,17 @@ internal static class StoragePool
         }
         catch (Exception ex)
         {
-            _failures++;
-
-            if (_failures <= MaxLoggedFailures) _log($"adding home storages failed, the game keeps its own list (logged {_failures} of {MaxLoggedFailures}): {ex}");
+            _hooks?.Fail("adding home storages, the game keeps its own list", ex);
         }
     }
 
     /// <summary>The game asks for the list many times in one refresh, so it is read once per frame.</summary>
     private static List<long> HomeStorages()
     {
-        if (_cachedFrame == Time.frameCount) return HomeCache;
+        if (_cachedFrame == UnityFrame.Count()) return HomeCache;
 
         HomeCache.Clear();
-        _cachedFrame = Time.frameCount;
+        _cachedFrame = UnityFrame.Count();
 
         var agents = GameSingleton.Existing<BattleLogicWorld>()?._AgentManager;
         var found = agents?.GetFurnituresWithBag(agents.GetHomeMapId(), true, true);
