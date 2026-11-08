@@ -51,6 +51,7 @@ Works in English and Chinese.
 [*][url=https://www.nexusmods.com/survivallog/mods/61]Exiled's Toolkit[/url] 0.19.0 or newer. Crafting Hub does not load without it. It shows the queue's news as toasts while the workbench is closed, applies settings changed on the Mod Manager's Mods screen without a restart, and its UI size setting draws the recipe list and the craft queue on the workbench bigger or smaller. Crafting Hub's own UiScale setting can set a size for this mod alone.[/*]
 [*]Optional: [url=https://www.nexusmods.com/survivallog/mods/81]Info Pack[/url] 0.8.5 or newer. With it, recipes, queued orders and materials show the full item tooltip. Without it, Crafting Hub shows their names in a tooltip of its own.[/*]
 [*]Optional: [url=https://www.nexusmods.com/survivallog/mods/74]Stacking[/url]. With it, crafts can take part of a stack, so a material kept in one big stack still counts as ready to use.[/*]
+[*]Optional: [url=https://www.nexusmods.com/survivallog/mods/73]Mod Manager[/url]. With it, you can change every setting in game on its Mods screen and see what each one does, without opening the config file.[/*]
 [*]Not together with BetterCrafting.[/*]
 [/list]
 
@@ -124,6 +125,7 @@ Open source under MIT: [url=https://github.com/AnExiledDev/SurvivalLog-CraftingH
 [*][url=https://www.nexusmods.com/survivallog/mods/61]Exiled's Toolkit[/url] 0.19.0 或更新版本。没有它本模组不会加载。工作台关闭时，它把队列的消息显示为弹出通知；它让在 Mod Manager 的「模组」界面改动的设置无需重启即可生效，它的界面大小设置还能放大或缩小工作台上的配方列表和制作队列。Crafting Hub 自己的 UiScale 设置可以单独调整本模组的大小。[/*]
 [*]可选：[url=https://www.nexusmods.com/survivallog/mods/81]Info Pack[/url] 0.8.5 或更新版本。装了它，配方、队列中的订单和材料会显示完整的物品提示框；没装的话，Crafting Hub 会用自己的提示框显示物品名称。[/*]
 [*]可选：[url=https://www.nexusmods.com/survivallog/mods/74]Stacking[/url]。装了它，制作时可以只取一叠中的一部分，所以放在一大叠里的材料也算作可用。[/*]
+[*]可选：[url=https://www.nexusmods.com/survivallog/mods/73]Mod Manager[/url]。装了它，可以在游戏里它的「模组」界面修改每项设置，并看到每项的说明，不用打开配置文件。[/*]
 [/list]
 
 [size=5]安装[/size]
