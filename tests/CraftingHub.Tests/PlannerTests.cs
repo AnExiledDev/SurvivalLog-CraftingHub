@@ -341,7 +341,7 @@ public class QueueSplitTests
     }
 }
 
-/// <summary>Colored recipes: filled by the game's own key and planned with their dye like any other material.</summary>
+/// <summary>Colored recipes: filled by the game's key and planned with their dye like any other material.</summary>
 public class ColoredRecipeTests
 {
     private const int RedDye = 90;

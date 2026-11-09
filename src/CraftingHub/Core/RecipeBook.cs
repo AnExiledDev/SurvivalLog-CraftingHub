@@ -44,7 +44,7 @@ public sealed class RecipeBook
 
     /// <summary>
     /// The key the game fills a recipe by: its materials, one entry per unit, sorted and joined with commas, as the
-    /// game's own dye pick builds it.
+    /// game's dye pick builds it.
     /// </summary>
     public static string KeyOf(IEnumerable<int> materials) => string.Join(",", materials.OrderBy(id => id));
 }

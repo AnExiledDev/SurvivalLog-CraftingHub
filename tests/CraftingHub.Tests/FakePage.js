@@ -721,7 +721,7 @@ function moveMouse(x, y) {
   fire(benchDoc().body, 'mousemove', { clientX: x, clientY: y });
 }
 
-// Whether the bag panel shows the bench rather than the game's own tab.
+// Whether the bag panel shows the bench rather than the game's tab.
 function isBenchShown() {
   return benchDoc().querySelector('.backpack-panel').classList.contains('cc-bench-view');
 }

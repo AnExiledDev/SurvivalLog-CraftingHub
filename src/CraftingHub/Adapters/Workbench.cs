@@ -140,7 +140,7 @@ internal sealed class Workbench
     }
 
     /// <summary>
-    /// The colors a dyeable recipe comes in, as the game's own dye bar lists them. The game keeps these recipes off its
+    /// The colors a dyeable recipe comes in, as the game's dye bar lists them. The game keeps these recipes off its
     /// list, so they are read from the production table once per base and fill the bench by their own key.
     /// </summary>
     private IReadOnlyList<DyedVariant> Variants(string baseKey, Recipe plain)
@@ -180,7 +180,7 @@ internal sealed class Workbench
 
             if (config == null || map == null || !map.TryGetValue(baseKey, out var production) || production == null) return found;
 
-            // Handed back as a read-only view, but the object is the game's own list.
+            // Handed back as a read-only view, but the object is the game's list.
             var dyed = config.GetDyedVariants(production.ID)?.TryCast<Il2CppSystem.Collections.Generic.List<Config_ProductionList>>();
 
             for (var i = 0; dyed != null && i < dyed.Count; i++)
@@ -237,7 +237,7 @@ internal sealed class Workbench
         return new BenchView(
             IsOpen: true,
             IsBusy: state.IsCrafting?.Value == true || state.BatchActive,
-            // The game's own test for a live craft (HandMadeState 1, Making), told apart from the batch flag.
+            // The game's test for a live craft (HandMadeState 1, Making), told apart from the batch flag.
             IsCrafting: state.IsCrafting?.Value == true || handState == 1,
             HasResult: state.ResultShow?.Value == true,
             MaxCrafts: state.MaxCraftCount?.Value ?? 0,
@@ -259,7 +259,7 @@ internal sealed class Workbench
 
     /// <summary>
     /// The game's speed for the craft under way (share of a craft per second), or 0 when nothing is crafting or a
-    /// result is showing. The panel uses it to start the game's own progress bar when the page missed the start.
+    /// result is showing. The panel uses it to start the game's progress bar when the page missed the start.
     /// </summary>
     public float CraftSpeed()
     {
@@ -388,7 +388,7 @@ internal sealed class Workbench
     private static State_Data_Item? ItemState() => GameSingleton.Existing<ReduxUISystem>()?.GetData<State_Data_Item>(_itemStateType ??= Il2CppType.Of<State_Data_Item>());
 
     /// <summary>
-    /// Counted the game's own way (Reducer_Web_ToolTable.CountOwnedInPool) over the same storages it would craft from.
+    /// Counted the game's way (Reducer_Web_ToolTable.CountOwnedInPool) over the same storages it would craft from.
     /// The game's count lists every storage's items again for each material; this lists each storage once and counts
     /// every material in that one pass, through the same item lists.
     /// </summary>
@@ -402,7 +402,7 @@ internal sealed class Workbench
         return HeldCount.Tally(materialIds, owners, owner => StacksIn(items, owner));
     }
 
-    /// <summary>The game's own list of an owner's items, which also files any item cached under the wrong owner back where it belongs.</summary>
+    /// <summary>The game's list of an owner's items, which also files any item cached under the wrong owner back where it belongs.</summary>
     private static IEnumerable<HeldStack> StacksIn(State_Data_Item items, long owner)
     {
         if (items.OwnerCache == null) yield break;

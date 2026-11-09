@@ -35,7 +35,7 @@
 
 ## 0.9.10
 
-- The recipe list and the craft queue on the workbench can be drawn bigger or smaller with the UI size setting of Exiled's Toolkit 0.10.0 or newer. A change shows at once, and they only grow as far as the whole workbench still fits the game's window, so the game's own panels keep their size.
+- The recipe list and the craft queue on the workbench can be drawn bigger or smaller with the UI size setting of Exiled's Toolkit 0.10.0 or newer. A change shows at once, and they only grow as far as the whole workbench still fits the game's window, so the game's panels keep their size.
 - Their tips take the same size and show beside the pointer.
 - Fixed: on a window too small for the whole workbench, where the game draws it smaller, the hub's tips showed away from the pointer.
 - Made for Survival Log 1.1.19611.
@@ -53,7 +53,7 @@
 
 ## 0.9.7
 
-- Colors: a card for something that can be dyed has a row of color dots under its materials, the same colors the game's own dye bar offers, each with how much of that dye you have. Pick one and Add, the bell and a click on the card's picture or name use that color; the striped dot is the plain version.
+- Colors: a card for something that can be dyed has a row of color dots under its materials, the same colors the game's dye bar offers, each with how much of that dye you have. Pick one and Add, the bell and a click on the card's picture or name use that color; the striped dot is the plain version.
 - Made for Survival Log 1.1.19131.
 
 ## 0.9.6

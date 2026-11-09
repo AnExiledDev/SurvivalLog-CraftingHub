@@ -9,7 +9,7 @@ public readonly record struct HeldStack(long OwnerId, int ItemId, int Count);
 /// <summary>
 /// Counts the home's items the way the game's crafting pool counts them (Reducer_Web_ToolTable.CountOwnedInPool): an
 /// item with a count of zero or less is one unit, since unstackable items carry no count. Each container counts once,
-/// and a cached item whose owner has moved on is left out, as the game's own item lists leave it out.
+/// and a cached item whose owner has moved on is left out, as the game's item lists leave it out.
 /// </summary>
 public static class HeldCount
 {

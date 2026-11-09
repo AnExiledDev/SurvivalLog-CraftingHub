@@ -21,7 +21,7 @@ A workbench normally only uses its linked storages and makes one recipe at a tim
 [*][b]Stop[/b]: nothing more is started and the queue is kept.[/*]
 [*][b]Closing pauses the queue[/b]: close the workbench mid-run and the queue waits. Open any workbench (you walk there yourself) and it carries on by itself. Crafts finished before the close are counted, so they are not made twice.[/*]
 [*][b]Keep stocked[/b]: press the bell on a recipe to keep 1 of it in your home, and raise the count in the Keep in stock tab (say 20 bandages). Each time you open a workbench, the crafts that bring your home back up to that count are queued, and started if the queue was empty. The tab shows how many your home holds, with an x to stop keeping an item.[/*]
-[*][b]Game's own clicks[/b]: every craft goes through the workbench's own buttons, so the game's checks and timings apply.[/*]
+[*][b]Game's clicks[/b]: every craft goes through the workbench's own buttons, so the game's checks and timings apply.[/*]
 [/list]
 
 The mod adds no data of its own to your save (kept counts go in their own file in the BepInEx config folder), but the crafts it runs are real: they use materials from any storage in your home. You can remove it at any time; workbenches go back to their linked storages.

@@ -1,7 +1,7 @@
 // Crafting Hub's half in the game's web UI. Runs in Root.html, the document every game page iframe sits in, and
 // reaches into the workbench page (ToolTable.html, a same-origin iframe) to swap its recipe list for a searchable
 // two-column one and to add a craft queue column beside it. The bench itself becomes a tab of the bag's panel, so the
-// screen has one column fewer. The game's own list stays in the page, hidden, and the game keeps rebuilding it as
+// screen has one column fewer. The game's list stays in the page, hidden, and the game keeps rebuilding it as
 // before; the hub's list is redrawn right after each rebuild. Every craft it starts goes through the workbench page's
 // own core.UnitySendEvent, exactly like a click. Talks to the plugin with "slmod|craftinghub|<verb>|<args>" through
 // Exiled's Toolkit's page API (window.ExiledToolkit) and is driven by window.__craftinghub.
@@ -996,7 +996,7 @@
 
   // ---------------------------------------------------------------- layout
 
-  // The hub's two columns go after the game's own list inside the bench panel, and the bench moves into the bag's
+  // The hub's two columns go after the game's list inside the bench panel, and the bench moves into the bag's
   // panel as a tab, so the bench grid and its Craft button keep working as before.
   function ensureLayout(win) {
     var doc = win.document;
@@ -1550,7 +1550,7 @@
     return node;
   }
 
-  // In the game's group order. Flat (no headers) while searching or showing one group, as the game's own search is.
+  // In the game's group order. Flat (no headers) while searching or showing one group, as the game's search is.
   function drawCards(win, list, metas, shown, groups, isFlat, drawn) {
     var collapsed = isFlat ? null : pageValue(win, 'collapsedCats');
     var byKey = {};
@@ -1741,7 +1741,7 @@
     drawList(win, false);
   }
 
-  // The card's picture and name lay its recipe on the bench, as a click on the game's own row does; the rest of the
+  // The card's picture and name lay its recipe on the bench, as a click on the game's row does; the rest of the
   // card is for setting it up, so a missed click on the amount does not swap the bench. Never while a queue run holds
   // the bench: a recipe laid between the queue's own pick and its craft would be crafted in its place.
   function pickRecipe(win, key, isLocked) {
@@ -2010,7 +2010,7 @@
     return counted(order.crafts, 'craftOne', 'craftMany') + (each > 1 ? say('makes', order.crafts * each) : '');
   }
 
-  // The running order's bar follows the game's own craft progress bar; the poll keeps it in step.
+  // The running order's bar follows the game's craft progress bar; the poll keeps it in step.
   function progressBar(win) {
     var doc = win.document;
     var bar = el(doc, 'div', 'cc-prog' + (view.paused ? ' paused' : ''));
@@ -2326,7 +2326,7 @@
     }
   }
 
-  // A hub that could not draw is taken off whole, so the game's own list shows again; the poll tries once more later,
+  // A hub that could not draw is taken off whole, so the game's list shows again; the poll tries once more later,
   // with the bench left in the game's panel from then on. The search box is let go of first, so the game is told its
   // keys are its own again.
   function removeHub(win) {

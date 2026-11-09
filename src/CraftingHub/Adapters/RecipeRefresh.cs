@@ -16,12 +16,12 @@ namespace CraftingHub.Adapters;
 /// </summary>
 internal static class RecipeRefresh
 {
-    /// <summary>The fast craftable test is checked against the game's own this many times before it is trusted alone.</summary>
+    /// <summary>The fast craftable test is checked against the game's this many times before it is trusted alone.</summary>
     private const int ChecksCompared = 400;
 
     private sealed record Rebuild(State_Web_ToolTable State, State_Data_Furniture Furniture, State_Data_Item Items);
 
-    /// <summary>One look at the storages: the stacks they hold, and the storages the game's own rule is asked about.</summary>
+    /// <summary>One look at the storages: the stacks they hold, and the storages the game's rule is asked about.</summary>
     private sealed record Storages(MaterialPool Pool, long[] Owners);
 
     private static readonly RefreshBatch<Rebuild> Batch = new();
@@ -55,7 +55,7 @@ internal static class RecipeRefresh
         }
 
         hooks.Patch(typeof(RecipeRefresh), typeof(Reducer_Web_ToolTable), nameof(Reducer_Web_ToolTable.CheckMaterialSufficiencyAcrossLinked), prefix: nameof(CheckFromPool),
-            consequence: "the game's own craftable check runs");
+            consequence: "the game's craftable check runs");
     }
 
     /// <summary>Runs a held rebuild now. Called before this mod reads the workbench and once a frame.</summary>
@@ -111,7 +111,7 @@ internal static class RecipeRefresh
 
     /// <summary>
     /// Answers the craftable test from the pool while a rebuild runs. Storages do not change mid-rebuild, so the pool is
-    /// read on the first recipe and used for the rest. The first answers are checked against the game's own rule, and one
+    /// read on the first recipe and used for the rest. The first answers are checked against the game's rule, and one
     /// that differs turns the fast test off for the session. Other mods' postfixes on the check still run on the answer.
     /// </summary>
     private static bool CheckFromPool(State_Web_ToolTable __0, State_Data_Item __1, Il2CppNeeded __2, ref bool __result)
@@ -136,7 +136,7 @@ internal static class RecipeRefresh
         catch (Exception ex)
         {
             _isPoolTrusted = false;
-            Fail("the fast craftable check, the game's own is used from now on", ex);
+            Fail("the fast craftable check, the game's is used from now on", ex);
 
             return true;
         }
@@ -152,13 +152,13 @@ internal static class RecipeRefresh
 
         _compared++;
 
-        // On a miss the game's own runs for this recipe; the fast check stays on only if a fresh read explains the miss.
+        // On a miss the game's runs for this recipe; the fast check stays on only if a fresh read explains the miss.
         if (game != covers)
         {
             if (IsFixedByRereading(state, items, needed)) return false;
 
             _isPoolTrusted = false;
-            _log($"the fast craftable check said {covers} where the game's rule said {game} (needed {string.Join(", ", Needed(needed))}), the game's own is used from now on");
+            _log($"the fast craftable check said {covers} where the game's rule said {game} (needed {string.Join(", ", Needed(needed))}), the game's is used from now on");
 
             return false;
         }
@@ -221,7 +221,7 @@ internal static class RecipeRefresh
         return new Storages(MaterialPool.From(stacks), owners.ToArray());
     }
 
-    /// <summary>Read through the game's own list call, which also tidies items whose owner moved on.</summary>
+    /// <summary>Read through the game's list call, which also tidies items whose owner moved on.</summary>
     private static List<(int ItemId, int Count)> Stacks(State_Data_Item items, long owner)
     {
         var stacks = new List<(int ItemId, int Count)>();

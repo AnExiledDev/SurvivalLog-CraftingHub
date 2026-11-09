@@ -6,7 +6,7 @@ namespace CraftingHub.Core;
 /// <summary>
 /// The game's "can this recipe be crafted" test, answered from one look at the storages. The game regroups every item
 /// in every storage for each recipe it lists; this groups them once per recipe-list rebuild and answers every recipe
-/// from that. The rule is the game's own: a material's stacks are tried largest first, a stack counts in full or not
+/// from that. The rule is the game's: a material's stacks are tried largest first, a stack counts in full or not
 /// at all (a stack larger than what is still needed is passed over), and a stack of zero or less counts as one.
 /// </summary>
 public sealed class MaterialPool

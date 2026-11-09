@@ -674,7 +674,7 @@ public sealed class QueueRunner
     }
 
     /// <summary>
-    /// The game's own count of finished crafts, taken from the moment the step was sent. Unlike the batch count it
+    /// The game's count of finished crafts, taken from the moment the step was sent. Unlike the batch count it
     /// also sees crafts the game makes one at a time, so a step is credited with what was really made.
     /// </summary>
     private void CountResults(BenchView bench)

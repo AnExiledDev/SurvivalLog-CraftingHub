@@ -30,7 +30,7 @@ internal static class StoragePool
 
     /// <summary>
     /// Called on the main thread at start and after each change. The hook goes in the first time the setting is on and
-    /// stays; off, it adds nothing and the game's own list is used.
+    /// stays; off, it adds nothing and the game's list is used.
     /// </summary>
     public static void Use(PatchKit hooks, bool isOn, Action<string> log)
     {
