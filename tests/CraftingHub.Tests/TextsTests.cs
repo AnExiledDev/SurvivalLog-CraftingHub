@@ -106,7 +106,7 @@ public class TextsTests
         var isChinese = false;
         var runner = new QueueRunner(isChinese: () => isChinese);
 
-        Assert.Equal("queue finished", RunToTheEnd(runner).Reason);
+        Assert.Equal("Queue finished", RunToTheEnd(runner).Reason);
 
         isChinese = true;
 
@@ -148,7 +148,7 @@ public class TextsTests
         Assert.All(Texts.Page, word => Assert.Contains(JsText.Literal(word.Key) + ":" + JsText.Literal(word.Phrase.Zh), script));
     }
 
-    // Runs an empty queue, so the runner words its "queue finished" line.
+    // Runs an empty queue, so the runner words its "Queue finished" line.
     private static RunnerCommand.Stopped RunToTheEnd(QueueRunner runner)
     {
         runner.Start();

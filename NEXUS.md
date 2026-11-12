@@ -1,5 +1,5 @@
 Name: Crafting Hub
-Summary: Craft a whole queue of different recipes in one go, with materials from every storage in your home, not only the linked ones. Missing planks and parts get made first, by themselves. A wider, searchable workbench screen shows what you can make now, what you're short of and the stamina it costs, and Keep stocked tops up what you always want.
+Summary: Workbenches use materials from every storage in your home and make the planks and parts a recipe needs first. Queue different recipes and craft them in one go. A wider workbench screen with search shows what you can make now, what you are short of and the stamina it costs. Keep stocked tops up the items you always want each time you open a workbench.
 
 Description (BBCode):
 [center][img]https://sldb.core-directive.com/media/save/1-save-safe.png[/img][/center]
@@ -12,19 +12,19 @@ A workbench normally only uses its linked storages and makes one recipe at a tim
 [*][b]A wider workbench screen[/b]: the recipe list becomes a wider one in two columns, with a craft queue column beside it. The bench grid and its Craft button become a Workbench tab in the bag's panel, so the screen has more room, and the tab comes up by itself when you pick a recipe or start a craft.[/*]
 [*][b]Search and filters[/b]: search by recipe name or by a material it uses. Filter to what you can make now, what needs parts first, what you are short of, or what you keep in stock, and pick one recipe group at a time.[/*]
 [*][b]Craftable through intermediates[/b]: recipes you could make after crafting their intermediates show in amber with what gets made first.[/*]
-[*][b]Craft with intermediates[/b]: one button under the bench's Craft button makes the intermediates and then the recipe, using the quantity box.[/*]
+[*][b]Craft with intermediates[/b]: one button under the bench's Craft button makes the intermediates and then the recipe, as many times as the amount set on its card.[/*]
 [*][b]Colors[/b]: a card for something that can be dyed shows the colors the game's dye bar offers, with how much of each dye you have. Pick one and Add queues it in that color, so you can make the colored items events ask for.[/*]
 [*][b]Queue[/b]: set an amount on any recipe and press Add, then "Craft queue" crafts different recipes one after another, intermediates included. Change an order's amount, move it by dragging, remove it with its x, or press Clear. Each order says whether it is ready, what it makes first, or what it is short of.[/*]
-[*][b]Materials for the whole queue[/b]: a short line names what the queue is short of; open it for what the queue uses in total, what you have, and what is short. A warning names the first order that will come up short before you start.[/*]
+[*][b]Materials for the whole queue[/b]: a short line names what the queue is short of. Open it for what the queue uses in total, what you have, and what is short. A warning names the first order that will come up short before you start.[/*]
 [*][b]Stamina[/b]: the queue column shows your stamina against what the queued orders take, and each recipe shows the stamina a craft takes. A "Stamina too low to craft" bar comes up while you cannot afford the next craft, and a run that runs out says so with the numbers.[/*]
 [*][b]Tooltips[/b]: point at a recipe, a queued order or a material for the item's name, or at the bell, the amount and its buttons for what they do. With Info Pack installed, items show the full item tooltip.[/*]
 [*][b]Stop[/b]: nothing more is started and the queue is kept.[/*]
 [*][b]Closing pauses the queue[/b]: close the workbench mid-run and the queue waits. Open any workbench (you walk there yourself) and it carries on by itself. Crafts finished before the close are counted, so they are not made twice.[/*]
 [*][b]Keep stocked[/b]: press the bell on a recipe to keep 1 of it in your home, and raise the count in the Keep in stock tab (say 20 bandages). Each time you open a workbench, the crafts that bring your home back up to that count are queued, and started if the queue was empty. The tab shows how many your home holds, with an x to stop keeping an item.[/*]
-[*][b]Game's clicks[/b]: every craft goes through the workbench's own buttons, so the game's checks and timings apply.[/*]
+[*][b]Real crafts[/b]: every craft goes through the workbench buttons you would press yourself, so the game's usual checks and timings apply.[/*]
 [/list]
 
-The mod adds no data of its own to your save (kept counts go in their own file in the BepInEx config folder), but the crafts it runs are real: they use materials from any storage in your home. You can remove it at any time; workbenches go back to their linked storages.
+The mod adds no data of its own to your save (kept counts go in their own file in the BepInEx config folder). The crafts it runs are real, so they use up materials from any storage in your home. You can remove it at any time. Workbenches go back to their linked storages.
 
 Works in English and Chinese.
 
@@ -32,10 +32,10 @@ Works in English and Chinese.
 [list]
 [*]Do not use it together with BetterCrafting. Remove BetterCrafting first.[/*]
 [*]The queue only crafts at the workbench whose window is open. The mod never moves your character: when the queue pauses, you walk to a workbench and open it yourself.[/*]
-[*]The game cancels a craft when the workbench closes; that craft is made again when the queue carries on. Quitting the game empties the queue.[/*]
+[*]The game cancels a craft when the workbench closes. That craft is made again when the queue carries on. Quitting the game empties the queue.[/*]
 [*]A craft still going when you press Stop is not counted, so starting again can make that batch twice.[/*]
 [*]Closing the workbench in the same moment a single craft finishes can make that craft once more.[/*]
-[*]Craft with intermediates is not taken while the queue is paused; press Stop first.[/*]
+[*]Craft with intermediates does nothing while the queue is paused. Press Stop first.[/*]
 [*]Every storage in your home is used, including ones you meant to keep for something else.[/*]
 [*]A kept item is only topped up when you open a workbench. Recipes that make several at once can end a little over the count.[/*]
 [*]Kept counts follow the save file. A save the game starts fresh from an old one (rolling back, restarting from a snapshot) begins with none.[/*]
@@ -48,7 +48,7 @@ Works in English and Chinese.
 [list]
 [*]Survival Log 1.1.20719. A game update can break it until the mod is updated.[/*]
 [*][url=https://www.nexusmods.com/survivallog/mods/12]BepInEx for Survival Log[/url]. Install it first.[/*]
-[*][url=https://www.nexusmods.com/survivallog/mods/61]Exiled's Toolkit[/url] 0.19.0 or newer. Crafting Hub does not load without it. It shows the queue's news as toasts while the workbench is closed, applies settings changed on the Mod Manager's Mods screen without a restart, and its UI size setting draws the recipe list and the craft queue on the workbench bigger or smaller. Crafting Hub's own UiScale setting can set a size for this mod alone.[/*]
+[*][url=https://www.nexusmods.com/survivallog/mods/61]Exiled's Toolkit[/url] 0.19.0 or newer. Crafting Hub does not load without it. It shows the queue's messages as pop-ups while the workbench is closed, applies settings changed on the Mod Manager's Mods screen without a restart, and its UI size setting draws the recipe list and the craft queue on the workbench bigger or smaller. Crafting Hub's own UiScale setting can set a size for this mod alone.[/*]
 [*]Optional: [url=https://www.nexusmods.com/survivallog/mods/81]Info Pack[/url] 0.8.5 or newer. With it, recipes, queued orders and materials show the full item tooltip. Without it, Crafting Hub shows their names in a tooltip of its own.[/*]
 [*]Optional: [url=https://www.nexusmods.com/survivallog/mods/74]Stacking[/url]. With it, crafts can take part of a stack, so a material kept in one big stack still counts as ready to use.[/*]
 [*]Optional: [url=https://www.nexusmods.com/survivallog/mods/73]Mod Manager[/url]. With it, you can change every setting in game on its Mods screen and see what each one does, without opening the config file.[/*]
@@ -69,11 +69,11 @@ Works in English and Chinese.
 Delete [font=Courier New]CraftingHub.dll[/font] from the [font=Courier New]BepInEx\plugins[/font] folder.
 
 [size=5]Configuration[/size]
-To turn off the whole-house storage, change how deep intermediates go, hide the marks, turn off keep stocked or its auto start, have closing the workbench stop the queue instead of pausing it, or keep a paused queue to the workbench it was running on, edit [font=Courier New]BepInEx\config\com.dev.survivallog.craftinghub.cfg[/font] while the game is closed, or do it in game on the Mod Manager's Mods screen, where changes take effect at once (see [url=https://github.com/AnExiledDev/SurvivalLog-CraftingHub/blob/main/CONFIG.md]CONFIG.md[/url]; the cfg file explains each setting in English and Chinese).
+You can turn off the whole-house storage, change how deep intermediates go, hide the marks, or turn off keep stocked or its auto start. You can also have closing the workbench stop the queue instead of pausing it, or keep a paused queue to the workbench it was running on. Change these in game on the Mod Manager's Mods screen, where changes take effect at once, or edit [font=Courier New]BepInEx\config\com.dev.survivallog.craftinghub.cfg[/font] while the game is closed. The cfg file explains each setting in English and Chinese, and [url=https://github.com/AnExiledDev/SurvivalLog-CraftingHub/blob/main/CONFIG.md]CONFIG.md[/url] lists them all.
 
 [size=5]Feedback[/size]
 Found a bug or have an idea? Come say hi on the [url=https://discord.gg/trTsyxUFqg]Core Directive Discord[/url], or post in this page's Posts tab. For bugs, please include [font=Courier New]BepInEx\LogOutput.log[/font] and [font=Courier New]BepInEx\crafting-hub.log[/font].
-To reach me directly, message [b]exiled.dev[/b] on Discord; you can find me in the [url=https://discord.gg/MZGg4gQAUe]official Survival Log Discord[/url]. I'm also on X as [url=https://x.com/AnExiledDev]@AnExiledDev[/url].
+To reach me directly, message [b]exiled.dev[/b] on Discord. You can find me in the [url=https://discord.gg/MZGg4gQAUe]official Survival Log Discord[/url]. I'm also on X as [url=https://x.com/AnExiledDev]@AnExiledDev[/url].
 
 [size=5]Source and license[/size]
 Open source under MIT: [url=https://github.com/AnExiledDev/SurvivalLog-CraftingHub]github.com/AnExiledDev/SurvivalLog-CraftingHub[/url]
@@ -86,19 +86,19 @@ Open source under MIT: [url=https://github.com/AnExiledDev/SurvivalLog-CraftingH
 [size=5]主要功能[/size]
 [list]
 [*][b]家里所有储物家具都算[/b]：工作台会清点并取用家里每个储物家具里的材料，邻居的篮子除外。[/*]
-[*][b]更宽的工作台界面[/b]：配方列表变成更宽的两列，旁边多出一列制作队列。工作台格子和它的「手工制作」按钮变成背包面板里的一个工作台标签页，界面更宽敞；选配方或开始制作时，这个标签页会自动切出来。[/*]
+[*][b]更宽的工作台界面[/b]：配方列表变成更宽的两列，旁边多出一列制作队列。工作台格子和它的「手工制作」按钮变成背包面板里的一个工作台标签页，界面更宽敞。选配方或开始制作时，这个标签页会自动切出来。[/*]
 [*][b]搜索和筛选[/b]：可以按配方名称或它用到的材料搜索。可以只看现在能做的、需先做材料的、材料不足的或保持库存的配方，也可以一次只看一个配方分组。[/*]
 [*][b]通过中间材料可做[/b]：先做中间材料就能做的配方会以琥珀色显示，并写明要先做什么。[/*]
-[*][b]连同中间材料一起制作[/b]：工作台「手工制作」按钮下方多一个按钮，按数量框里的数量先做中间材料，再做这个配方。[/*]
+[*][b]连同中间材料一起制作[/b]：工作台「手工制作」按钮下方多一个按钮，先做中间材料，再做这个配方，次数按配方卡上设定的数量。[/*]
 [*][b]颜色[/b]：可以染色的物品，卡片上会显示游戏染色栏提供的颜色，以及每种染料你有多少。选一个颜色再点「添加」，就会按这个颜色加入队列，事件要的彩色物品也能做了。[/*]
 [*][b]队列[/b]：在任意配方上设定数量并点「添加」，然后点「制作队列」，就会一个接一个地制作不同的配方，中间材料也包括在内。可以修改订单的数量，拖动调整顺序，点它的 x 移除，或点「清空」。每个订单都会写明是否就绪、要先做什么或缺少什么。[/*]
-[*][b]整个队列所需材料[/b]：折叠时只用一行列出缺少的材料；展开后可看队列一共要用多少材料、你有多少、缺多少。开始之前，会有提示指出第一个会缺材料的订单。[/*]
-[*][b]精力[/b]：队列一栏显示你的精力和队列中订单需要的精力，每个配方显示制作一次需要的精力。精力不够做下一次时会出现「精力不足」提示条；因精力不足而停下的运行会写明具体数字。[/*]
+[*][b]整个队列所需材料[/b]：折叠时只用一行列出缺少的材料。展开后可看队列一共要用多少材料、你有多少、缺多少。开始之前，会有提示指出第一个会缺材料的订单。[/*]
+[*][b]精力[/b]：队列一栏显示你的精力和队列中订单需要的精力，每个配方显示制作一次需要的精力。精力不够做下一次时会出现「精力不足」提示条。因精力不足而停下的运行会写明具体数字。[/*]
 [*][b]提示框[/b]：鼠标指向配方、队列中的订单或材料可看到物品名称，指向铃铛、数量和它的按钮可看到它们的作用。装了 Info Pack 时，物品会显示完整的物品提示框。[/*]
 [*][b]停止[/b]：不再开始新的制作，队列会保留。[/*]
 [*][b]关掉工作台会暂停队列[/b]：运行中关掉工作台，队列会等待。打开任意工作台（要你自己走过去）后它会自动继续。关闭前已完成的制作都会计数，不会重复制作。[/*]
-[*][b]保持库存[/b]：在配方上点铃铛，家里会保持 1 个这种物品，可以在「保持库存」标签页里调高数量（比如 20 个绷带）。每次打开工作台，都会把补回这个数量所需的制作加入队列；如果队列原本是空的，就会自动开始。标签页会显示家里现有的数量，点 x 就不再保持这种物品。[/*]
-[*][b]走游戏自己的点击[/b]：每次制作都通过工作台自己的按钮，所以游戏自己的检查和时间都照常生效。[/*]
+[*][b]保持库存[/b]：在配方上点铃铛，家里会保持 1 个这种物品，可以在「保持库存」标签页里调高数量（比如 20 个绷带）。每次打开工作台，都会把补回这个数量所需的制作加入队列。如果队列原本是空的，就会自动开始。标签页会显示家里现有的数量，点 x 就不再保持这种物品。[/*]
+[*][b]真实制作[/b]：每次制作都通过你自己也会点的工作台按钮，所以游戏平常的检查和时间都照常生效。[/*]
 [/list]
 
 模组不会在你的存档里加入自己的数据（保持库存的数量保存在 BepInEx 配置文件夹里的单独文件中），但它执行的制作是真实的：会用掉家里任意储物家具里的材料。你可以随时移除它，工作台会恢复为只使用接入的储物家具。
@@ -107,13 +107,13 @@ Open source under MIT: [url=https://github.com/AnExiledDev/SurvivalLog-CraftingH
 [list]
 [*]不要和 BetterCrafting 一起使用。请先移除 BetterCrafting。[/*]
 [*]队列只在窗口打开着的那个工作台制作。模组从不移动你的角色：队列暂停时，要你自己走到工作台前打开它。[/*]
-[*]工作台关闭时游戏会取消正在进行的制作；队列继续时会重新制作这一次。退出游戏会清空队列。[/*]
+[*]工作台关闭时游戏会取消正在进行的制作。队列继续时会重新制作这一次。退出游戏会清空队列。[/*]
 [*]点「停止」时还在进行的制作不会计数，所以再次开始可能会把这一批做两次。[/*]
 [*]在单次制作完成的同一瞬间关掉工作台，可能会多做一次。[/*]
-[*]队列暂停时不接受「连同中间材料一起制作」；请先点「停止」。[/*]
+[*]队列暂停时，「连同中间材料一起制作」不起作用。请先点「停止」。[/*]
 [*]家里所有储物家具都会被使用，包括你打算留作别用的那些。[/*]
 [*]保持库存的物品只在你打开工作台时补充。一次产出多个的配方，最后可能会比设定数量多一点。[/*]
-[*]保持库存的数量跟着存档文件走。游戏从旧存档重新开始的存档（回档、从快照重新开始）不会带有这些数量。[/*]
+[*]保持库存的数量跟着存档文件走。游戏从旧存档另开的新存档（回档、从快照重新开始）不会带有这些数量。[/*]
 [/list]
 
 [url=https://www.nexusmods.com/survivallog/mods/73]获取 Mod Manager[/url]，在游戏里设置所有模组。[url=https://sldb.core-directive.com/zh/]打开 Survival Log 维基[/url]，物品、配方、地图一查就有。
@@ -122,8 +122,8 @@ Open source under MIT: [url=https://github.com/AnExiledDev/SurvivalLog-CraftingH
 [list]
 [*]Survival Log 1.1.20719。游戏更新后模组可能暂时失效，直到模组更新为止。[/*]
 [*][url=https://www.nexusmods.com/survivallog/mods/12]BepInEx for Survival Log[/url]，请先安装。[/*]
-[*][url=https://www.nexusmods.com/survivallog/mods/61]Exiled's Toolkit[/url] 0.19.0 或更新版本。没有它本模组不会加载。工作台关闭时，它把队列的消息显示为弹出通知；它让在 Mod Manager 的「模组」界面改动的设置无需重启即可生效，它的界面大小设置还能放大或缩小工作台上的配方列表和制作队列。Crafting Hub 自己的 UiScale 设置可以单独调整本模组的大小。[/*]
-[*]可选：[url=https://www.nexusmods.com/survivallog/mods/81]Info Pack[/url] 0.8.5 或更新版本。装了它，配方、队列中的订单和材料会显示完整的物品提示框；没装的话，Crafting Hub 会用自己的提示框显示物品名称。[/*]
+[*][url=https://www.nexusmods.com/survivallog/mods/61]Exiled's Toolkit[/url] 0.19.0 或更新版本。没有它本模组不会加载。工作台关闭时，它把队列的消息显示为弹出通知。它还让在 Mod Manager 的「模组」界面改动的设置无需重启即可生效，它的界面大小设置还能放大或缩小工作台上的配方列表和制作队列。Crafting Hub 自己的 UiScale 设置可以单独调整本模组的大小。[/*]
+[*]可选：[url=https://www.nexusmods.com/survivallog/mods/81]Info Pack[/url] 0.8.5 或更新版本。装了它，配方、队列中的订单和材料会显示完整的物品提示框。没装的话，Crafting Hub 会用自己的提示框显示物品名称。[/*]
 [*]可选：[url=https://www.nexusmods.com/survivallog/mods/74]Stacking[/url]。装了它，制作时可以只取一叠中的一部分，所以放在一大叠里的材料也算作可用。[/*]
 [*]可选：[url=https://www.nexusmods.com/survivallog/mods/73]Mod Manager[/url]。装了它，可以在游戏里它的「模组」界面修改每项设置，并看到每项的说明，不用打开配置文件。[/*]
 [/list]
@@ -135,6 +135,7 @@ Open source under MIT: [url=https://github.com/AnExiledDev/SurvivalLog-CraftingH
 [*]在「文件」页下载压缩包。[/*]
 [*]把压缩包解压到游戏目录（[font=Courier New]SurvivalLog.exe[/font] 所在的文件夹）。压缩包里带有 BepInEx 文件夹，DLL 会自动放到正确位置。如果提示合并文件夹，选择合并。解压后应为：
 [code]C:\Program Files (x86)\Steam\steamapps\common\Survival Log\BepInEx\plugins\CraftingHub.dll[/code][/*]
+[*]如果你在用 BetterCrafting，请从同一个文件夹里删除它的 DLL。[/*]
 [/list]
 
 [size=5]卸载[/size]

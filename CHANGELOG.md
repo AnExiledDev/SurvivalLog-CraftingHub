@@ -1,8 +1,13 @@
 # Changelog
 
+## 0.10.5
+
+- Clearer wording in the settings, on the workbench screen and in the queue's messages.
+- Made for Survival Log 1.1.20719.
+
 ## 0.10.4
 
-- Now uses Exiled's Toolkit for its shared parts, so it needs Exiled's Toolkit 0.19.0 or newer.
+- Now needs Exiled's Toolkit 0.19.0 or newer, because it uses the Toolkit's shared code. Update the Toolkit first.
 - Made for Survival Log 1.1.20719.
 
 ## 0.10.3
@@ -18,47 +23,49 @@
 
 ## 0.10.1
 
-- With the workbench closed, the queue now tells you when it finishes, stops or pauses, as an Exiled's Toolkit toast. Those toasts also go to the Notifications history.
+- While the workbench is closed, the queue now tells you with a pop-up from Exiled's Toolkit when it finishes, stops or pauses. The pop-ups also go to the Notifications history.
 - Exiled's Toolkit 0.11.0 or newer is now required.
 - Made for Survival Log 1.1.19611.
 
 ## 0.10.0
 
-- New: `UiScale` under Interface sets the size of Crafting Hub's own windows on their own, from 75% to 200%, whatever Exiled's Toolkit's UI size is. At 0, the default, they follow the Toolkit's. Needs Exiled's Toolkit 0.11.0 or newer.
+- New: `UiScale` under Interface sets the size of Crafting Hub's windows, from 75% to 200%, separately from Exiled's Toolkit's UI size. At 0, the default, they follow the Toolkit's size. Needs Exiled's Toolkit 0.11.0 or newer.
 - Made for Survival Log 1.1.19611.
 
 ## 0.9.11
 
 - Fixed: a stutter the first time in a session that you open a workbench.
-- Fixed: shorter stutters when a workbench checks which recipes it can make through intermediates, most of all with many items in your storages.
+- Fixed: short stutters while a workbench works out which recipes you can make through intermediates, mostly when your storages hold a lot of items.
 - Made for Survival Log 1.1.19611.
 
 ## 0.9.10
 
-- The recipe list and the craft queue on the workbench can be drawn bigger or smaller with the UI size setting of Exiled's Toolkit 0.10.0 or newer. A change shows at once, and they only grow as far as the whole workbench still fits the game's window, so the game's panels keep their size.
-- Their tips take the same size and show beside the pointer.
-- Fixed: on a window too small for the whole workbench, where the game draws it smaller, the hub's tips showed away from the pointer.
+- The recipe list and the craft queue on the workbench can be drawn bigger or smaller with the UI size setting of Exiled's Toolkit 0.10.0 or newer. Changes show at once. They only grow as long as the whole workbench still fits in the game's window, so the game's panels keep their size.
+- Their tooltips follow the same size and show next to the pointer.
+- Fixed: when the game window was too small for the whole workbench and the game drew it smaller, Crafting Hub's tooltips showed away from the pointer.
 - Made for Survival Log 1.1.19611.
 
 ## 0.9.9
 
-- Smoother play: Crafting Hub no longer causes small stutters while you play, most of all with the workbench closed.
+- Fixed: small stutters while you play, mostly with the workbench closed.
 - The workbench recipe list redraws only the cards whose counts or marks changed, so it stays quick with many recipes.
 - Made for Survival Log 1.1.19611.
 
 ## 0.9.8
 
-- Works with the 1.1.19611 workbench: recipes in the queue, on cards and in messages show their names again instead of numbers, and each material's count held is read correctly, so materials in your home storages count again instead of showing as missing.
+- Works with the workbench in game version 1.1.19611. Recipes in the queue, on cards and in messages show their names again instead of numbers.
+- Fixed: materials in your home storages showed as missing on game version 1.1.19611.
 - Made for Survival Log 1.1.19611.
 
 ## 0.9.7
 
-- Colors: a card for something that can be dyed has a row of color dots under its materials, the same colors the game's dye bar offers, each with how much of that dye you have. Pick one and Add, the bell and a click on the card's picture or name use that color; the striped dot is the plain version.
+- Colors: a card for something that can be dyed has a row of color dots under its materials, one for each color the game's dye bar offers, with how much of that dye you have.
+- Pick a color, and Add, the bell and clicking the card's picture or name all use it. The striped dot is the plain version.
 - Made for Survival Log 1.1.19131.
 
 ## 0.9.6
 
-- Workbenches no longer take materials from the neighbor's basket, and what is staged there no longer counts toward Keep stocked.
+- Workbenches no longer take materials from the neighbor's basket, and what you put there for her no longer counts toward Keep stocked.
 - Made for Survival Log 1.1.19131.
 
 ## 0.9.5
@@ -75,11 +82,11 @@
 ## 0.9.3
 
 - The workbench screen has a new look in the gold style of the other hubs.
-- Recipe cards sit two to a row, with materials on their own line as need/have and the stamina a craft takes beside Add.
+- Recipe cards sit two to a row. Each material is on its own line with how much you need and how much you have, and the stamina a craft takes sits beside Add.
 - The bell on a card keeps that item in stock and shows the kept count. Kept items have their own tab beside the queue.
 - The queue column shows how much stamina the queued orders take against what you have. Each order shows its own stamina cost. Intermediates made on the way are not counted in this figure.
-- The materials list folds to a line of what is short; click it to see the whole list.
-- The up and down arrows on queue orders are gone; drag an order by its handle to move it.
+- The materials list folds to a line of what is short. Click it to see the whole list.
+- The up and down arrows on queue orders are gone. Drag an order by its handle to move it.
 - Shorter filter names: Can make, Parts first, Kept.
 - Made for Survival Log 1.1.19131.
 
@@ -93,7 +100,7 @@
 
 ## 0.9.1
 
-- The recipe list and queue are no longer squeezed while the bag is open. The bag panel beside them is as wide as the tab shown, not your widest storage.
+- The recipe list and queue are no longer squeezed while the bag is open. The bag panel beside them is now only as wide as the tab it shows, instead of as wide as your widest storage.
 
 ## 0.9.0
 

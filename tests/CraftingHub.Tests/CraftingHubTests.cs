@@ -563,7 +563,7 @@ public class QueuePlannerTests
     {
         var next = QueuePlanner.Next(new QueueEntry("crate", "Crate", 1), Bench.Book(), Bench.Mats((Bench.Log, 2)), NoKeeps, 4, Bench.Name);
 
-        Assert.Equal("can't make Crate ×1: short of Fibre ×3", Assert.IsType<NextStep.Blocked>(next).Reason);
+        Assert.Equal("Can't make Crate ×1: short of Fibre ×3", Assert.IsType<NextStep.Blocked>(next).Reason);
     }
 
     [Fact]
@@ -762,7 +762,7 @@ public class QueueRunnerTests
         for (var now = retry; now <= QueueRunner.FillTimeoutSeconds; now += retry) Assert.Equal(new RunnerCommand.ClickRecipe("plank"), runner.Tick(Idle(), now, PlankNext));
 
         var stopped = Assert.IsType<RunnerCommand.Stopped>(runner.Tick(Idle(), QueueRunner.FillTimeoutSeconds + 0.1, PlankNext));
-        Assert.Equal("the game did not lay out the materials for Plank", stopped.Reason);
+        Assert.Equal("The game did not lay out the materials for Plank", stopped.Reason);
         Assert.False(runner.IsRunning);
     }
 
@@ -776,7 +776,7 @@ public class QueueRunnerTests
         runner.Tick(Idle(LogsLaidOut, 0), 1, PlankNext);
 
         var stopped = Assert.IsType<RunnerCommand.Stopped>(runner.Tick(Idle(LogsLaidOut, 0), QueueRunner.FillTimeoutSeconds + 0.1, PlankNext));
-        Assert.Equal("the materials for Plank are laid out but the game allows no craft of it", stopped.Reason);
+        Assert.Equal("The materials for Plank are laid out, but the game won't craft it", stopped.Reason);
         Assert.False(runner.IsRunning);
     }
 
@@ -931,7 +931,7 @@ public class QueueRunnerTests
 
         var resumed = Assert.IsType<RunnerCommand.Resumed>(runner.Tick(Idle(bench: OtherBench), 10 + QueueRunner.ResumeSettleSeconds, PlankNext));
         Assert.DoesNotContain("again", resumed.Reason);
-        Assert.Contains("a workbench is open", resumed.Reason);
+        Assert.Contains("A workbench is open", resumed.Reason);
     }
 
     [Fact]
@@ -1037,7 +1037,7 @@ public class QueueRunnerTests
         Assert.IsType<RunnerCommand.None>(runner.Tick(live, 11.25 + QueueRunner.StaleBatchSeconds + 1, PlankNext));
 
         var notice = Assert.IsType<RunnerCommand.Notice>(runner.Tick(live, 11.25 + QueueRunner.BusyNoticeSeconds, PlankNext));
-        Assert.Contains("waiting", notice.Text);
+        Assert.Contains("Waiting", notice.Text);
         Assert.IsType<RunnerCommand.None>(runner.Tick(live, 50, PlankNext));
         Assert.True(runner.IsRunning);
     }

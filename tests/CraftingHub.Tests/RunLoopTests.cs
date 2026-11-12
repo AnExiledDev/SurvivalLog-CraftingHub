@@ -58,7 +58,7 @@ public class RunLoopTests
         Assert.Equal(new RunnerCommand.ClickRecipe("plank"), runner.Tick(doubled, QueueRunner.RecipeClickRetrySeconds, PlankNext));
 
         var stopped = Assert.IsType<RunnerCommand.Stopped>(runner.Tick(doubled, QueueRunner.FillTimeoutSeconds + 0.1, PlankNext));
-        Assert.Equal("the workbench holds more than one craft's worth of materials for Plank; the game crafts only from exactly one craft's worth, so take the extra off the workbench", stopped.Reason);
+        Assert.Equal("The workbench has more than one craft's worth of materials for Plank. The game only crafts from exactly one craft's worth, so take the extra off the workbench.", stopped.Reason);
     }
 
     [Fact]
@@ -130,7 +130,7 @@ public class RunLoopTests
         runner.Tick(held, 0, PlankNext);
 
         var paused = Assert.IsType<RunnerCommand.Paused>(runner.Tick(held, pausedAt, PlankNext));
-        Assert.Contains("close it and open it again", paused.Reason);
+        Assert.Contains("Close it and open it again", paused.Reason);
         Assert.IsType<RunnerCommand.None>(runner.Tick(held, pausedAt + 1, PlankNext));
         Assert.IsType<RunnerCommand.None>(runner.Tick(held, pausedAt + 2 + QueueRunner.ResumeSettleSeconds, PlankNext));
         Assert.IsType<RunnerCommand.None>(runner.Tick(Idle(), releasedAt, PlankNext));
@@ -163,7 +163,7 @@ public class RunLoopTests
         runner.Tick(held, 0, PlankNext);
 
         var stopped = Assert.IsType<RunnerCommand.Stopped>(runner.Tick(held, QueueRunner.HeldHandSeconds + 0.1, PlankNext));
-        Assert.Contains("close it and open it again", stopped.Reason);
+        Assert.Contains("Close it and open it again", stopped.Reason);
     }
 
     [Fact]
@@ -391,7 +391,7 @@ public class RunLoopTests
         runner.Start();
 
         var notice = Assert.IsType<RunnerCommand.Notice>(SendAndFinish(runner, 0, counted, counted));
-        Assert.Equal("the game made nothing from the Plank craft just sent; trying again", notice.Text);
+        Assert.Equal("The game made nothing from the last Plank craft. Trying again.", notice.Text);
         Assert.Equal(new RunnerCommand.ClickRecipe("plank"), runner.Tick(Idle() with { Results = counted }, 1.2, PlankNext));
     }
 
@@ -405,7 +405,7 @@ public class RunLoopTests
         SendAndFinish(runner, 0, counted, counted);
 
         var stopped = Assert.IsType<RunnerCommand.Stopped>(SendAndFinish(runner, 2, counted, counted));
-        Assert.Equal("the game made nothing from Plank twice in a row; press Craft queue to try again", stopped.Reason);
+        Assert.Equal("The game made nothing from Plank twice in a row. Press Craft queue to try again.", stopped.Reason);
     }
 
     [Fact]

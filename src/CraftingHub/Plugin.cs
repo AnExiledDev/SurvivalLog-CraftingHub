@@ -20,7 +20,7 @@ namespace CraftingHub;
 public sealed class Plugin : BasePlugin
 {
     private const string Guid = "com.dev.survivallog.craftinghub";
-    private const string Version = "0.10.4";
+    private const string Version = "0.10.5";
     private const string StackingGuid = "com.dev.survivallog.stacking";
 
     /// <summary>The oldest Exiled's Toolkit the mod loads with: its shared helpers, toasts, live settings and UI size all come from it.</summary>
@@ -41,8 +41,8 @@ public sealed class Plugin : BasePlugin
         ModUiSize.Bind(Config, "CraftingHub");
 
         var useAllHomeStorages = Config.Bind("Storage", "UseAllHomeStorages", true,
-            "Workbenches use materials from every storage in your home, not only the storages linked to them. Off: only the linked storages, as in the base game.\n" +
-            "工作台可以使用家里所有储物家具中的材料，不只是接入它的那几个。关闭后只用接入的储物家具，和原版游戏一样。");
+            "Workbenches use materials from every storage in your home, not only the storages linked to them. Off: only the linked storages, like without the mod.\n" +
+            "工作台可以使用家里所有储物家具中的材料，不只是接入它的那几个。关闭后只用接入的储物家具，和没装模组时一样。");
         var maxDepth = Config.Bind("Chain", "MaxDepth", 4,
             "How many layers of intermediates can be crafted for one recipe. Making planks for a crate is one layer, and 0 turns intermediates off.\n" +
             "做一个配方时，最多可以先做几层中间材料（先做出来、再拿去做成品的材料）。0 表示不做中间材料。");
@@ -50,8 +50,8 @@ public sealed class Plugin : BasePlugin
             "Mark recipes you can make once their intermediates are crafted: they show \"Makes first\" in amber and get a \"Craft with intermediates\" button. Off hides both, and queued orders still make intermediates.\n" +
             "给先做中间材料就能做的配方加上标记：以琥珀色显示「先制作」，并提供「连同中间材料一起制作」按钮。关闭后两者都不显示，队列里的订单仍会先做中间材料。");
         var keepStocked = Config.Bind("Targets", "KeepStocked", true,
-            "Adds a Keep button to every recipe and a \"Keep in stock\" list under the queue. Each time you open a workbench, crafts are queued to bring kept items back up to their counts.\n" +
-            "在每个配方上加「保持」按钮，并在队列下方加「保持库存」列表。每次打开工作台，都会把需要的制作加入队列，让这些物品补回你设定的数量。");
+            "Adds a bell to every recipe card and a \"Keep in stock\" tab beside the queue. Each time you open a workbench, crafts are queued to bring kept items back up to their counts.\n" +
+            "在每张配方卡上加一个铃铛，并在队列旁边加「保持库存」标签页。每次打开工作台，都会把需要的制作加入队列，让这些物品补回你设定的数量。");
         var autoStart = Config.Bind("Targets", "AutoStart", true,
             new ConfigDescription("After kept items are topped up, start the queue by itself if nothing else was in it. Off: the crafts are only queued, and you press \"Craft queue\" yourself.\n" +
             "补充库存后，如果队列里原本没有别的订单，就自动开始制作。关闭后只加入队列，需要你自己点「制作队列」。", null, "ModManager.ShowWhen=KeepStocked"));

@@ -99,8 +99,8 @@ public class KeptPartPlanningTests
         Assert.Empty(unlisted.Orders);
         Assert.Empty(locked.Orders);
         Assert.False(unlisted.IsEmpty);
-        Assert.Equal("Keep stocked waits: the queue holds Saw, which this workbench cannot make", TopUpPlanner.Describe(unlisted));
-        Assert.Equal("Keep stocked waits: the queue holds Rope, which is not unlocked yet", TopUpPlanner.Describe(locked));
+        Assert.Equal("Keep stocked is waiting: the queue holds Saw, which this workbench cannot make", TopUpPlanner.Describe(unlisted));
+        Assert.Equal("Keep stocked is waiting: the queue holds Rope, which is not unlocked yet", TopUpPlanner.Describe(locked));
         Assert.Equal("Keep stocked waits: the queue holds Saw, which this workbench cannot make (Rope 0/5)", TopUpPlanner.LogLine(unlisted, targets, held));
     }
 

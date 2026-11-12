@@ -740,7 +740,7 @@ public class PageScriptTests
     public void A_paused_queue_shows_the_runs_own_word_on_where_it_carries_on()
     {
         var page = BenchWithRecipes();
-        const string elsewhere = "the queue carries on at the workbench it was running on; press Stop, then Craft queue, to run it here";
+        const string elsewhere = "The queue carries on at the workbench it was running on. To run it here, press Stop, then Craft queue.";
 
         page.Show(View(TwoOrders, isRunning: true, isPaused: true, outlook: TwoOrdersOutlook, status: elsewhere));
 
@@ -753,7 +753,7 @@ public class PageScriptTests
     public void A_button_refused_while_paused_says_why()
     {
         var page = BenchWithRecipes();
-        const string refused = "the queue is paused and carries on here in a moment; press Stop first to craft this now";
+        const string refused = "The queue is paused and carries on here in a moment. To craft this now, press Stop first.";
 
         page.Show(View(TwoOrders, isRunning: true, isPaused: true, outlook: TwoOrdersOutlook, status: refused));
 
@@ -1667,7 +1667,7 @@ public class PageScriptTests
 
         page.Show(View(keep: new KeepView(true, Array.Empty<KeepTarget>(), new Dictionary<string, int>())));
 
-        Assert.Equal("Keep 1 of this in your home; opening any workbench queues the crafts to top it back up", page.Text("cardPart('plank', '.cc-pin').getAttribute('data-slip-tip')"));
+        Assert.Equal("Keep 1 of this in your home. Opening any workbench queues the crafts to top it back up.", page.Text("cardPart('plank', '.cc-pin').getAttribute('data-slip-tip')"));
         Assert.Equal("One less", page.Text("cardPart('plank', '.cc-less').getAttribute('data-slip-tip')"));
         Assert.Equal("One more", page.Text("cardPart('plank', '.cc-more').getAttribute('data-slip-tip')"));
         Assert.Equal("How many crafts Add puts in the queue", page.Text("cardPart('plank', '.cc-val').getAttribute('data-slip-tip')"));

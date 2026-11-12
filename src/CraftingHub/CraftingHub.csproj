@@ -40,7 +40,7 @@
   <!-- What the Mod Manager's Mods screen shows about this mod. -->
   <ItemGroup>
     <AssemblyMetadata Include="ModManager.Name" Value="Crafting Hub&#10;制作中心" />
-    <AssemblyMetadata Include="ModManager.Description" Value="A wider, searchable workbench screen with a craft queue. Workbenches use every storage in your home, make intermediate materials for you, and craft a queue of different recipes.&#10;更宽、可搜索的工作台界面，带制作队列。工作台可以使用家里所有储物家具里的材料，替你制作中间材料，并能依次制作一整列不同的配方。" />
+    <AssemblyMetadata Include="ModManager.Description" Value="Workbenches use materials from every storage in your home and make the planks and parts a recipe needs for you. A wider workbench screen adds search and a queue that crafts different recipes one after another.&#10;工作台可以使用家里所有储物家具里的材料，并替你先做好配方需要的木板和零件。更宽的工作台界面带搜索，还有能依次制作不同配方的队列。" />
     <AssemblyMetadata Include="ModManager.Author" Value="AnExiledDev" />
     <AssemblyMetadata Include="ModManager.Category" Value="QualityOfLife" />
     <AssemblyMetadata Include="ModManager.GameVersion" Value="1.1.20719" />
