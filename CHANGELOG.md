@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.10.6
+
+- Turning on KeepStocked with a workbench open now shows your targets right away.
+- Turning UseAllHomeStorages on or off now updates an open workbench right away.
+- The workbench screen does a little less work while it is open.
+- Made for Survival Log 1.1.21671.
+
 ## 0.10.5
 
 - Clearer wording in the settings, on the workbench screen and in the queue's messages.

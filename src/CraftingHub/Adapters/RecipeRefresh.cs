@@ -71,6 +71,9 @@ internal static class RecipeRefresh
         }
     }
 
+    /// <summary>Rebuilds the open window's list at the next flush, with what the game last asked for.</summary>
+    public static void Again() => Batch.Repeat();
+
     private static void Patch(PatchKit hooks, string name, string? prefix = null, string? postfix = null) =>
         hooks.PatchOrThrow(typeof(RecipeRefresh), typeof(Reducer_Web_ToolTable), name, prefix: prefix, postfix: postfix);
 

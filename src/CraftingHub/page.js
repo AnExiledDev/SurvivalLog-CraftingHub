@@ -173,8 +173,19 @@
     } catch (e) {}
   }
 
+  // The browser keeps this list up to date, so the poll reads it instead of searching the page.
+  var frames = document.getElementsByTagName('iframe');
+
   function benchFrames() {
-    return Array.prototype.filter.call(document.querySelectorAll('iframe'), function (frame) { return BENCH_PAGE.test(frame.src || ''); });
+    var found = [];
+
+    for (var i = 0; i < frames.length; i++) {
+      var frame = frames.item(i);
+
+      if (BENCH_PAGE.test(frame.src || '')) found.push(frame);
+    }
+
+    return found;
   }
 
   // The frame's workbench page; null while the frame still holds the empty page a new frame starts with, which already

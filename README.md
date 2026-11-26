@@ -90,7 +90,7 @@ Kept counts belong to the save you are playing. They are stored in `BepInEx\conf
 
 ## Requirements
 
-- Survival Log 1.1.20719. It's built for this version, and a game update can break it until the mod is updated.
+- Survival Log 1.1.21671. It's built for this version, and a game update can break it until the mod is updated.
 - The [BepInEx Pack for Survival Log](https://www.nexusmods.com/survivallog/mods/12), the BepInEx 6 (IL2CPP) build for the game.
 - Optional: [Mod Manager](https://www.nexusmods.com/survivallog/mods/73). With it, you can change every setting in game on its Mods screen and see what each one does, without opening the config file.
 - Not together with BetterCrafting. Both change which storages a workbench uses, so remove BetterCrafting before installing this. While BetterCrafting is installed, BepInEx does not load Crafting Hub, and the Mod Manager lists BetterCrafting under DOES NOT WORK WITH.

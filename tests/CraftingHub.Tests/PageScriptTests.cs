@@ -1360,6 +1360,19 @@ public class PageScriptTests
     }
 
     [Fact]
+    public void The_poll_finds_a_workbench_opened_later_without_searching_the_page()
+    {
+        var page = BenchWithRecipes();
+
+        page.Run("var searches = 0; var search = document.querySelectorAll; document.querySelectorAll = function (s) { searches++; return search.call(document, s); }");
+        page.Run("var later = openBench()");
+        page.Poll();
+
+        Assert.Equal(0, page.Number("searches"));
+        Assert.True(page.Truth("later.__ccInstalled === true"));
+    }
+
+    [Fact]
     public void A_queued_click_with_no_bench_to_go_to_is_reported_once_and_again_only_after_one_has_worked()
     {
         var page = new PageScript();

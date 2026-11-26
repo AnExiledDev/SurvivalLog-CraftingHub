@@ -294,6 +294,19 @@ var FakeDocument = class {
     return [this.head].concat(descendantsOf(this.head), [this.body], descendantsOf(this.body));
   }
 
+  // A list the browser keeps up to date: made once, read again on every access, and reading it is not a search.
+  getElementsByTagName(tagName) {
+    var doc = this;
+    var wanted = String(tagName).toUpperCase();
+
+    function find() { return doc.all().filter(function (element) { return element.tagName === wanted; }); }
+
+    return {
+      get length() { return find().length; },
+      item: function (index) { return find()[index] || null; }
+    };
+  }
+
   getElementById(id) {
     return this.all().filter(function (element) { return element.id === id; })[0] || null;
   }

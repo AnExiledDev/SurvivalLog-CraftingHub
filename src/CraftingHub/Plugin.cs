@@ -20,7 +20,7 @@ namespace CraftingHub;
 public sealed class Plugin : BasePlugin
 {
     private const string Guid = "com.dev.survivallog.craftinghub";
-    private const string Version = "0.10.5";
+    private const string Version = "0.10.6";
     private const string StackingGuid = "com.dev.survivallog.stacking";
 
     /// <summary>The oldest Exiled's Toolkit the mod loads with: its shared helpers, toasts, live settings and UI size all come from it.</summary>
@@ -67,14 +67,24 @@ public sealed class Plugin : BasePlugin
         var keep = new KeepPorts(new HomeStock(log.Write), new KeepStore(Path.Combine(Paths.ConfigPath, Guid + ".targets.txt"), log.Write), SaveSlot.CurrentKey);
 
         log.Write($"===== Crafting Hub {Version} started");
-        LiveSettings.Watch(useAllHomeStorages, isOn => StoragePool.Use(hooks, isOn, log.Write));
+
+        var workbench = new Workbench(log.Write);
+
+        LiveSettings.Watch(useAllHomeStorages, isOn =>
+        {
+            StoragePool.Use(hooks, isOn, log.Write);
+
+            // An open workbench counts again with the new storages.
+            if (workbench.IsOpen) RecipeRefresh.Again();
+        });
+
         Workbench.Apply(hooks, log.Write);
         RecipeRefresh.Apply(hooks, log.Write);
         CraftTicker.Log = log.Write;
         HubSettings ReadSettings() => new(Math.Max(0, maxDepth.Value), showMarks.Value, keepStocked.Value, autoStart.Value, resumeOnReopen.Value, otherBenches.Value);
 
         var inbox = PageInbox.Listen(PageCommand.Prefix);
-        var session = new HubSession(new Workbench(log.Write), new WorkbenchPage(log.Write), inbox, keep, ReadSettings(), IsStackingLoaded, log.Write, log.WriteFileOnly);
+        var session = new HubSession(workbench, new WorkbenchPage(log.Write), inbox, keep, ReadSettings(), IsStackingLoaded, log.Write, log.WriteFileOnly);
 
         LiveSettings.Watch(() =>
         {

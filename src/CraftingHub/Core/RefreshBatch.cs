@@ -10,6 +10,7 @@ namespace CraftingHub.Core;
 public sealed class RefreshBatch<T> where T : class
 {
     private T? _held;
+    private T? _last;
     private bool _isRunning;
 
     public bool IsHolding => _held != null;
@@ -23,6 +24,7 @@ public sealed class RefreshBatch<T> where T : class
         if (_isRunning) return true;
 
         _held = request;
+        _last = request;
 
         return false;
     }
@@ -47,5 +49,15 @@ public sealed class RefreshBatch<T> where T : class
         return true;
     }
 
-    public void Drop() => _held = null;
+    /// <summary>Holds the last rebuild asked for again, so the list is rebuilt at the next flush. For a setting that changes what the list counts.</summary>
+    public void Repeat()
+    {
+        if (!_isRunning && _last != null) _held = _last;
+    }
+
+    public void Drop()
+    {
+        _held = null;
+        _last = null;
+    }
 }

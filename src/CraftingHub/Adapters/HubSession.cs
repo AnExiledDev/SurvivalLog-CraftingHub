@@ -89,10 +89,15 @@ internal sealed class HubSession
     /// <summary>Called on the main thread at start and after each change; the marks and the outlook are worked out again at the next tick.</summary>
     public void UseSettings(HubSettings settings)
     {
+        var wasKeeping = _settings.KeepStocked;
+
         _settings = settings;
         _runner.Use(settings.ResumeOnReopen, settings.ResumeAtOtherBenches);
         _seenRefreshes = -1;
         _outlookFor = null;
+
+        // Targets are read when a bench opens, so turning keep stocked on with one open reads them now.
+        if (settings.KeepStocked && !wasKeeping && _bench.IsOpen) LoadTargets();
     }
 
     public void Tick(float now)
